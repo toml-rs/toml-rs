@@ -1,4 +1,5 @@
 RUSTC := rustc
+RUSTDOC := rustdoc
 BUILD := build
 LIB := $(BUILD)/$(shell $(RUSTC) --crate-file-name src/toml.rs)
 TEST := $(BUILD)/tomltest
@@ -12,11 +13,14 @@ $(LIB): src/toml.rs
 	@mkdir -p $(@D)
 	$(RUSTC) -O $< --out-dir $(@D) --dep-info
 
-check: $(TEST)
+check: $(TEST) doctest
 	$(TEST)
 
 $(TEST): src/toml.rs
 	$(RUSTC) $< --test -o $@ --dep-info
+
+doctest: $(LIB)
+	$(RUSTDOC) --test -L $(BUILD) src/toml.rs
 
 clean:
 	rm -rf $(BUILD)

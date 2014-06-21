@@ -5,21 +5,58 @@ use std::str;
 
 use {Array, Table, Value, String, Float, Integer, Boolean, Datetime};
 
+/// Parser for converting a string to a TOML `Value` instance.
+///
+/// This parser contains the string slice that is being parsed, and exports the
+/// list of errors which have occurred during parsing.
 pub struct Parser<'a> {
     input: &'a str,
     cur: str::CharOffsets<'a>,
     tables_defined: HashSet<String>,
+
+    /// A list of all errors which have occurred during parsing.
+    ///
+    /// Not all parse errors are fatal, so this list is added to as much as
+    /// possible without aborting parsing. If `None` is returned by `parse`, it
+    /// is guaranteed that this list is not empty.
     pub errors: Vec<Error>,
 }
 
+/// A structure representing a parse error.
+///
+/// The data in this structure can be used to trace back to the original cause
+/// of the error in order to provide diagnostics about parse errors.
 #[deriving(Show)]
 pub struct Error {
+    /// The low byte at which this error is pointing at.
     pub lo: uint,
+    /// One byte beyond the last character at which this error is pointing at.
     pub hi: uint,
+    /// A human-readable description explaining what the error is.
     pub desc: String,
 }
 
 impl<'a> Parser<'a> {
+    /// Creates a new parser for a string.
+    ///
+    /// The parser can be executed by invoking the `parse` method.
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// let toml = r#"
+    ///     [test]
+    ///     foo = "bar"
+    /// "#;
+    ///
+    /// let mut parser = toml::Parser::new(toml);
+    /// match parser.parse() {
+    ///     Some(value) => println!("found toml: {}", value),
+    ///     None => {
+    ///         println!("parse errors: {}", parser.errors);
+    ///     }
+    /// }
+    /// ```
     pub fn new(s: &'a str) -> Parser<'a> {
         Parser {
             input: s,
@@ -76,6 +113,14 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// Executes the parser, parsing the string contained within.
+    ///
+    /// This function will return the `Table` instance if parsing is successful,
+    /// or it will return `None` if any parse error or invalid TOML error
+    /// occurs.
+    ///
+    /// If an error occurs, the `errors` field of this parser can be consulted
+    /// to determine the cause of the parse failure.
     pub fn parse(&mut self) -> Option<Table> {
         let mut ret = HashMap::new();
         loop {
