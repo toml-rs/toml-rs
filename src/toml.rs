@@ -18,23 +18,46 @@
 //! println!("{}", value);
 //! ```
 //!
+//! # Conversions
+//!
+//! This library also supports using the standard `Encodable` and `Decodable`
+//! traits with TOML values. This library provides the following conversion
+//! capabilities:
+//!
+//! * `String` => `toml::Value` - via `Parser`
+//! * `toml::Value` => `String` - via `Show`
+//! * `toml::Value` => rust object - via `Decoder`
+//! * rust object => `toml::Value` - via `Encoder`
+//!
+//! Convenience functions for performing multiple conversions at a time are also
+//! provided.
+//!
 //! [1]: https://github.com/mojombo/toml
 //! [2]: https://github.com/BurntSushi/toml-test
 
 #![crate_type = "lib"]
 #![feature(macro_rules)]
 #![deny(warnings, missing_doc)]
+#![allow(visible_private_types)]
+
+extern crate serialize;
 
 use std::collections::HashMap;
+use std::from_str::FromStr;
 
 pub use parser::{Parser, Error};
+pub use serialization::{Encoder, encode, encode_str};
+// pub use serialization::{Encoder, encode, encode_str};
+pub use serialization::{Error, NeedsKey, NoValue};
+pub use serialization::{InvalidMapKeyLocation, InvalidMapKeyType};
 
 mod parser;
-#[cfg(test)]
-mod test;
+mod show;
+mod serialization;
+#[cfg(test)] mod test;
 
 /// Representation of a TOML value.
-#[deriving(Show, PartialEq, Clone)]
+#[deriving(PartialEq, Clone)]
 #[allow(missing_doc)]
 pub enum Value {
     String(String),
@@ -118,5 +141,11 @@ impl Value {
     /// Extracts the table value if it is a table.
     pub fn as_table<'a>(&'a self) -> Option<&'a Table> {
         match *self { Table(ref s) => Some(s), _ => None }
+    }
+}
+
+impl FromStr for Value {
+    fn from_str(s: &str) -> Option<Value> {
+        Parser::new(s).parse().map(Table)
     }
 }

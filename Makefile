@@ -11,7 +11,7 @@ all: $(LIB)
 
 $(LIB): src/toml.rs
 	@mkdir -p $(@D)
-	$(RUSTC) -O $< --out-dir $(@D) --dep-info
+	$(RUSTC) $< --out-dir $(@D) --dep-info
 
 check: $(TEST) doctest
 	$(TEST)
