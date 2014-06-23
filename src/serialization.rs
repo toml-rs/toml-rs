@@ -822,7 +822,7 @@ mod tests {
     }
 
     #[test]
-    fn errors() {
+    fn type_errors() {
         #[deriving(Encodable, Decodable, PartialEq, Show)]
         struct Foo { bar: int }
 
@@ -836,6 +836,24 @@ mod tests {
                 assert_eq!(e.desc.as_slice(),
                            "for field `bar` expected type `integer`, but \
                             found `float`");
+            }
+        }
+    }
+
+    #[test]
+    fn missing_errors() {
+        #[deriving(Encodable, Decodable, PartialEq, Show)]
+        struct Foo { bar: int }
+
+        let mut d = Decoder::new(Table(map! {
+        }));
+        let a: Result<Foo, DecodeError> = Decodable::decode(&mut d);
+        match a {
+            Ok(..) => fail!("should not have decoded"),
+            Err(e) => {
+                assert_eq!(e.desc.as_slice(),
+                           "for field `bar` expected type `integer`, but \
+                            found no value");
             }
         }
     }
