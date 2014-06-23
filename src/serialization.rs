@@ -48,6 +48,7 @@ pub struct Encoder {
 /// arbitrary TOML value.
 pub struct Decoder {
     toml: Option<Value>,
+    cur_field: String,
 }
 
 /// Enumeration of errors which can occur while encoding a rust value into a
@@ -65,11 +66,13 @@ pub enum Error {
     /// Indicates that a type other than a string was attempted to be used as a
     /// map key type.
     InvalidMapKeyType,
-    /// Indicates that a type was decoded against a TOML value of a different
-    /// type.
-    InvalidType,
-    /// Indicates that a field was attempted to be read that does not exist.
-    MissingField,
+}
+
+/// Description for errors which can occur while decoding a type.
+#[deriving(Show)]
+pub struct DecodeError {
+    /// Human-readable description of this error.
+    pub desc: String,
 }
 
 #[deriving(PartialEq, Show)]
@@ -322,7 +325,7 @@ impl serialize::Encoder<Error> for Encoder {
 /// into the type specified. If decoding fails, `None` will be returned. If a
 /// finer-grained error is desired, then it is recommended to use `Decodable`
 /// directly.
-pub fn decode<T: serialize::Decodable<Decoder, Error>>(toml: Value)
+pub fn decode<T: serialize::Decodable<Decoder, DecodeError>>(toml: Value)
     -> Option<T>
 {
     serialize::Decodable::decode(&mut Decoder::new(toml)).ok()
@@ -334,7 +337,7 @@ pub fn decode<T: serialize::Decodable<Decoder, Error>>(toml: Value)
 /// the TOML value into the desired type. If any error occurs `None` is return.
 /// If more fine-grained errors are desired, these steps should be driven
 /// manually.
-pub fn decode_str<T: serialize::Decodable<Decoder, Error>>(s: &str)
+pub fn decode_str<T: serialize::Decodable<Decoder, DecodeError>>(s: &str)
     -> Option<T>
 {
     Parser::new(s).parse().and_then(|t| decode(Table(t)))
@@ -346,169 +349,207 @@ impl Decoder {
     /// This decoder can be passed to the `Decodable` methods or driven
     /// manually.
     pub fn new(toml: Value) -> Decoder {
-        Decoder { toml: Some(toml) }
+        Decoder { toml: Some(toml), cur_field: "".to_string() }
+    }
+
+    fn sub_decoder(&self, toml: Option<Value>, field: &str) -> Decoder {
+        Decoder {
+            toml: toml,
+            cur_field: if self.cur_field.len() == 0 {
+                field.to_string()
+            } else if field.len() == 0 {
+                self.cur_field.to_string()
+            } else {
+                format!("{}.{}", self.cur_field, field)
+            }
+        }
+    }
+
+    fn field_error(&self, desc: &str) -> DecodeError {
+        DecodeError {
+            desc: format!("{}", desc),
+        }
+    }
+
+    fn type_error(&self, expected: &str, found: &Option<Value>) -> DecodeError {
+        DecodeError {
+            desc: format!("{}expected type `{}`, but found {}",
+                          if self.cur_field.len() > 0 {
+                              format!("for field `{}` ", self.cur_field)
+                          } else {
+                              "".to_string()
+                          },
+                          expected,
+                          match *found {
+                              Some(ref val) => format!("`{}`", val.type_str()),
+                              None => "no value".to_string(),
+                          })
+        }
     }
 }
 
-impl serialize::Decoder<Error> for Decoder {
-    fn read_nil(&mut self) -> Result<(), Error> {
+impl serialize::Decoder<DecodeError> for Decoder {
+    fn read_nil(&mut self) -> Result<(), DecodeError> {
         match self.toml {
             Some(String(ref s)) if s.len() == 0 => Ok(()),
-            _ => Err(InvalidType),
+            Some(String(..)) => Err(self.field_error("expected 0-length string")),
+            ref found => Err(self.type_error("string", found)),
         }
     }
-    fn read_uint(&mut self) -> Result<uint, Error> {
+    fn read_uint(&mut self) -> Result<uint, DecodeError> {
         self.read_i64().map(|i| i as uint)
     }
-    fn read_u64(&mut self) -> Result<u64, Error> {
+    fn read_u64(&mut self) -> Result<u64, DecodeError> {
         self.read_i64().map(|i| i as u64)
     }
-    fn read_u32(&mut self) -> Result<u32, Error> {
+    fn read_u32(&mut self) -> Result<u32, DecodeError> {
         self.read_i64().map(|i| i as u32)
     }
-    fn read_u16(&mut self) -> Result<u16, Error> {
+    fn read_u16(&mut self) -> Result<u16, DecodeError> {
         self.read_i64().map(|i| i as u16)
     }
-    fn read_u8(&mut self) -> Result<u8, Error> {
+    fn read_u8(&mut self) -> Result<u8, DecodeError> {
         self.read_i64().map(|i| i as u8)
     }
-    fn read_int(&mut self) -> Result<int, Error> {
+    fn read_int(&mut self) -> Result<int, DecodeError> {
         self.read_i64().map(|i| i as int)
     }
-    fn read_i64(&mut self) -> Result<i64, Error> {
+    fn read_i64(&mut self) -> Result<i64, DecodeError> {
         match self.toml {
             Some(Integer(i)) => Ok(i),
-            _ => Err(InvalidType),
+            ref found => Err(self.type_error("integer", found)),
         }
     }
-    fn read_i32(&mut self) -> Result<i32, Error> {
+    fn read_i32(&mut self) -> Result<i32, DecodeError> {
         self.read_i64().map(|i| i as i32)
     }
-    fn read_i16(&mut self) -> Result<i16, Error> {
+    fn read_i16(&mut self) -> Result<i16, DecodeError> {
         self.read_i64().map(|i| i as i16)
     }
-    fn read_i8(&mut self) -> Result<i8, Error> {
+    fn read_i8(&mut self) -> Result<i8, DecodeError> {
         self.read_i64().map(|i| i as i8)
     }
-    fn read_bool(&mut self) -> Result<bool, Error> {
+    fn read_bool(&mut self) -> Result<bool, DecodeError> {
         match self.toml {
             Some(Boolean(b)) => Ok(b),
-            _ => Err(InvalidType),
+            ref found => Err(self.type_error("bool", found)),
         }
     }
-    fn read_f64(&mut self) -> Result<f64, Error> {
+    fn read_f64(&mut self) -> Result<f64, DecodeError> {
         match self.toml {
             Some(Float(f)) => Ok(f),
-            _ => Err(InvalidType),
+            ref found => Err(self.type_error("float", found)),
         }
     }
-    fn read_f32(&mut self) -> Result<f32, Error> {
+    fn read_f32(&mut self) -> Result<f32, DecodeError> {
         self.read_f64().map(|f| f as f32)
     }
-    fn read_char(&mut self) -> Result<char, Error> {
+    fn read_char(&mut self) -> Result<char, DecodeError> {
         match self.toml {
             Some(String(ref s)) if s.as_slice().char_len() == 1 =>
                 Ok(s.as_slice().char_at(0)),
-            _ => Err(InvalidType),
+            ref found => Err(self.type_error("string", found)),
         }
     }
-    fn read_str(&mut self) -> Result<String, Error> {
+    fn read_str(&mut self) -> Result<String, DecodeError> {
         match self.toml.take() {
             Some(String(s)) => Ok(s),
-            toml => { self.toml = toml; Err(InvalidType) }
+            ref found => Err(self.type_error("string", found)),
         }
     }
 
     // Compound types:
     fn read_enum<T>(&mut self, _name: &str,
-                    _f: |&mut Decoder| -> Result<T, Error>) -> Result<T, Error> {
+                    _f: |&mut Decoder| -> Result<T, DecodeError>)
+        -> Result<T, DecodeError>
+    {
         fail!()
     }
 
     fn read_enum_variant<T>(&mut self,
                             _names: &[&str],
-                            _f: |&mut Decoder, uint| -> Result<T, Error>)
-                            -> Result<T, Error> {
+                            _f: |&mut Decoder, uint| -> Result<T, DecodeError>)
+                            -> Result<T, DecodeError> {
         fail!()
     }
     fn read_enum_variant_arg<T>(&mut self,
                                 _a_idx: uint,
-                                _f: |&mut Decoder| -> Result<T, Error>)
-                                -> Result<T, Error> {
+                                _f: |&mut Decoder| -> Result<T, DecodeError>)
+                                -> Result<T, DecodeError> {
         fail!()
     }
 
     fn read_enum_struct_variant<T>(&mut self,
                                    _names: &[&str],
-                                   _f: |&mut Decoder, uint| -> Result<T, Error>)
-                                   -> Result<T, Error> {
+                                   _f: |&mut Decoder, uint|
+                                        -> Result<T, DecodeError>)
+        -> Result<T, DecodeError>
+    {
         fail!()
     }
     fn read_enum_struct_variant_field<T>(&mut self,
                                          _f_name: &str,
                                          _f_idx: uint,
-                                         _f: |&mut Decoder| -> Result<T, Error>)
-                                         -> Result<T, Error> {
+                                         _f: |&mut Decoder|
+                                            -> Result<T, DecodeError>)
+        -> Result<T, DecodeError>
+    {
         fail!()
     }
 
     fn read_struct<T>(&mut self, _s_name: &str, _len: uint,
-                      f: |&mut Decoder| -> Result<T, Error>)
-        -> Result<T, Error>
+                      f: |&mut Decoder| -> Result<T, DecodeError>)
+        -> Result<T, DecodeError>
     {
         match self.toml {
             Some(Table(..)) => f(self),
-            _ => Err(InvalidType),
+            ref found => Err(self.type_error("table", found)),
         }
     }
     fn read_struct_field<T>(&mut self,
                             f_name: &str,
                             _f_idx: uint,
-                            f: |&mut Decoder| -> Result<T, Error>)
-                            -> Result<T, Error> {
-        match self.toml {
-            Some(Table(ref mut table)) => {
-                match table.pop(&f_name.to_string()) {
-                    Some(field) => f(&mut Decoder::new(field)),
-                    None => f(&mut Decoder { toml: None }),
-                }
-            }
-            _ => Err(InvalidType)
-        }
+                            f: |&mut Decoder| -> Result<T, DecodeError>)
+                            -> Result<T, DecodeError> {
+        let toml = match self.toml {
+            Some(Table(ref mut table)) => table.pop(&f_name.to_string()),
+            ref found => return Err(self.type_error("table", found)),
+        };
+        f(&mut self.sub_decoder(toml, f_name))
     }
 
     fn read_tuple<T>(&mut self,
-                     f: |&mut Decoder, uint| -> Result<T, Error>)
-        -> Result<T, Error>
+                     f: |&mut Decoder, uint| -> Result<T, DecodeError>)
+        -> Result<T, DecodeError>
     {
         self.read_seq(f)
     }
     fn read_tuple_arg<T>(&mut self, a_idx: uint,
-                         f: |&mut Decoder| -> Result<T, Error>)
-        -> Result<T, Error>
+                         f: |&mut Decoder| -> Result<T, DecodeError>)
+        -> Result<T, DecodeError>
     {
         self.read_seq_elt(a_idx, f)
     }
 
     fn read_tuple_struct<T>(&mut self,
                             _s_name: &str,
-                            _f: |&mut Decoder, uint| -> Result<T, Error>)
-        -> Result<T, Error>
+                            _f: |&mut Decoder, uint| -> Result<T, DecodeError>)
+        -> Result<T, DecodeError>
     {
         fail!()
     }
     fn read_tuple_struct_arg<T>(&mut self,
                                 _a_idx: uint,
-                                _f: |&mut Decoder| -> Result<T, Error>)
-        -> Result<T, Error>
+                                _f: |&mut Decoder| -> Result<T, DecodeError>)
+        -> Result<T, DecodeError>
     {
         fail!()
     }
 
     // Specialized types:
     fn read_option<T>(&mut self,
-                      f: |&mut Decoder, bool| -> Result<T, Error>)
-        -> Result<T, Error>
+                      f: |&mut Decoder, bool| -> Result<T, DecodeError>)
+        -> Result<T, DecodeError>
     {
         match self.toml {
             Some(..) => f(self, true),
@@ -516,66 +557,71 @@ impl serialize::Decoder<Error> for Decoder {
         }
     }
 
-    fn read_seq<T>(&mut self, f: |&mut Decoder, uint| -> Result<T, Error>)
-        -> Result<T, Error>
+    fn read_seq<T>(&mut self, f: |&mut Decoder, uint| -> Result<T, DecodeError>)
+        -> Result<T, DecodeError>
     {
         let len = match self.toml {
             Some(Array(ref arr)) => arr.len(),
-            _ => return Err(InvalidType),
+            ref found => return Err(self.type_error("array", found)),
         };
         f(self, len)
     }
-    fn read_seq_elt<T>(&mut self, idx: uint, f: |&mut Decoder| -> Result<T, Error>)
-        -> Result<T, Error>
+    fn read_seq_elt<T>(&mut self, idx: uint,
+                       f: |&mut Decoder| -> Result<T, DecodeError>)
+        -> Result<T, DecodeError>
     {
-        match self.toml {
-            Some(Array(ref mut arr)) => {
-                f(&mut Decoder::new(mem::replace(arr.get_mut(idx), Integer(0))))
-            }
-            _ => Err(InvalidType),
-        }
+        let toml = match self.toml {
+            Some(Array(ref mut arr)) => mem::replace(arr.get_mut(idx), Integer(0)),
+            ref found => return Err(self.type_error("array", found)),
+        };
+        f(&mut self.sub_decoder(Some(toml), ""))
     }
 
-    fn read_map<T>(&mut self, f: |&mut Decoder, uint| -> Result<T, Error>)
-        -> Result<T, Error>
+    fn read_map<T>(&mut self, f: |&mut Decoder, uint| -> Result<T, DecodeError>)
+        -> Result<T, DecodeError>
     {
         let len = match self.toml {
             Some(Table(ref table)) => table.len(),
-            _ => return Err(InvalidType),
+            ref found => return Err(self.type_error("table", found)),
         };
         f(self, len)
     }
     fn read_map_elt_key<T>(&mut self, idx: uint,
-                           f: |&mut Decoder| -> Result<T, Error>)
-        -> Result<T, Error>
+                           f: |&mut Decoder| -> Result<T, DecodeError>)
+        -> Result<T, DecodeError>
     {
         match self.toml {
             Some(Table(ref table)) => {
                 match table.keys().skip(idx).next() {
                     Some(key) => {
-                        f(&mut Decoder::new(String(key.to_str())))
+                        f(&mut self.sub_decoder(Some(String(key.to_string())),
+                                                key.as_slice()))
                     }
-                    None => Err(InvalidType),
+                    None => Err(DecodeError {
+                        desc: format!("map key `{}` does not exist", idx),
+                    }),
                 }
             }
-            _ => Err(InvalidType),
+            ref found => Err(self.type_error("table", found)),
         }
     }
     fn read_map_elt_val<T>(&mut self, idx: uint,
-                           f: |&mut Decoder| -> Result<T, Error>)
-        -> Result<T, Error>
+                           f: |&mut Decoder| -> Result<T, DecodeError>)
+        -> Result<T, DecodeError>
     {
         match self.toml {
             Some(Table(ref table)) => {
                 match table.values().skip(idx).next() {
                     Some(key) => {
                         // XXX: this shouldn't clone
-                        f(&mut Decoder::new(key.clone()))
+                        f(&mut self.sub_decoder(Some(key.clone()), ""))
                     }
-                    None => Err(InvalidType),
+                    None => Err(DecodeError {
+                        desc: format!("map element `{}` does not exist", idx),
+                    })
                 }
             }
-            _ => Err(InvalidType),
+            ref found => Err(self.type_error("table", found)),
         }
     }
 }
@@ -585,7 +631,7 @@ mod tests {
     use std::collections::{HashMap, HashSet};
     use serialize::{Encodable, Decodable};
 
-    use super::{Encoder, Decoder};
+    use super::{Encoder, Decoder, DecodeError};
     use {Table, Integer, String, Array, Float};
 
     macro_rules! encode( ($t:expr) => ({
@@ -753,5 +799,44 @@ mod tests {
             }
         );
         assert_eq!(v, decode!(Table(encode!(v))));
+    }
+
+    #[test]
+    fn table_array() {
+        #[deriving(Encodable, Decodable, PartialEq, Show)]
+        struct Foo { a: Vec<Bar>, }
+        #[deriving(Encodable, Decodable, PartialEq, Show)]
+        struct Bar { a: int }
+
+        let v = Foo { a: vec![Bar { a: 1 }, Bar { a: 2 }] };
+        assert_eq!(
+            encode!(v),
+            map! {
+                a: Array(vec![
+                    Table(map!{ a: Integer(1) }),
+                    Table(map!{ a: Integer(2) }),
+                ])
+            }
+        );
+        assert_eq!(v, decode!(Table(encode!(v))));
+    }
+
+    #[test]
+    fn errors() {
+        #[deriving(Encodable, Decodable, PartialEq, Show)]
+        struct Foo { bar: int }
+
+        let mut d = Decoder::new(Table(map! {
+            bar: Float(1.0)
+        }));
+        let a: Result<Foo, DecodeError> = Decodable::decode(&mut d);
+        match a {
+            Ok(..) => fail!("should not have decoded"),
+            Err(e) => {
+                assert_eq!(e.desc.as_slice(),
+                           "for field `bar` expected type `integer`, but \
+                            found `float`");
+            }
+        }
     }
 }
