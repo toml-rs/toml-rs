@@ -916,7 +916,7 @@ mod tests {
             Ok(..) => fail!("should not have decoded"),
             Err(e) => {
                 assert_eq!(e.to_str().as_slice(),
-                           "expected a value of type `integer` for the key `d`");
+                           "expected a value of type `integer` for the key `bar`");
             }
         }
     }
