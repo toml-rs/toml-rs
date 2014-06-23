@@ -173,20 +173,20 @@ impl serialize::Encoder<Error> for Encoder {
         self.emit_value(String(v.to_str()))
     }
     fn emit_enum(&mut self, _name: &str,
-                 _f: |&mut Encoder| -> Result<(), Error>) -> Result<(), Error> {
-        fail!()
+                 f: |&mut Encoder| -> Result<(), Error>) -> Result<(), Error> {
+        f(self)
     }
     fn emit_enum_variant(&mut self, _v_name: &str, _v_id: uint, _len: uint,
-                         _f: |&mut Encoder| -> Result<(), Error>)
+                         f: |&mut Encoder| -> Result<(), Error>)
         -> Result<(), Error>
     {
-        fail!()
+        f(self)
     }
     fn emit_enum_variant_arg(&mut self, _a_idx: uint,
-                             _f: |&mut Encoder| -> Result<(), Error>)
+                             f: |&mut Encoder| -> Result<(), Error>)
         -> Result<(), Error>
     {
-        fail!()
+        f(self)
     }
     fn emit_enum_struct_variant(&mut self, _v_name: &str, _v_id: uint,
                                 _len: uint,
@@ -460,23 +460,39 @@ impl serialize::Decoder<DecodeError> for Decoder {
 
     // Compound types:
     fn read_enum<T>(&mut self, _name: &str,
-                    _f: |&mut Decoder| -> Result<T, DecodeError>)
+                    f: |&mut Decoder| -> Result<T, DecodeError>)
         -> Result<T, DecodeError>
     {
-        fail!()
+        f(self)
     }
 
     fn read_enum_variant<T>(&mut self,
-                            _names: &[&str],
-                            _f: |&mut Decoder, uint| -> Result<T, DecodeError>)
+                            names: &[&str],
+                            f: |&mut Decoder, uint| -> Result<T, DecodeError>)
                             -> Result<T, DecodeError> {
-        fail!()
+        let mut first_error = None;
+        for i in range(0, names.len()) {
+            let mut d = self.sub_decoder(self.toml.clone(), "");
+            match f(&mut d, i) {
+                Ok(t) => { self.toml = d.toml; return Ok(t) }
+                Err(e) => {
+                    if first_error.is_none() {
+                        first_error = Some(e);
+                    }
+                }
+            }
+        }
+        Err(first_error.unwrap_or_else(|| {
+            DecodeError {
+                desc: format!("no enum variants to decode to"),
+            }
+        }))
     }
     fn read_enum_variant_arg<T>(&mut self,
                                 _a_idx: uint,
-                                _f: |&mut Decoder| -> Result<T, DecodeError>)
+                                f: |&mut Decoder| -> Result<T, DecodeError>)
                                 -> Result<T, DecodeError> {
-        fail!()
+        f(self)
     }
 
     fn read_enum_struct_variant<T>(&mut self,
@@ -856,5 +872,42 @@ mod tests {
                             found no value");
             }
         }
+    }
+
+    #[test]
+    fn parse_enum() {
+        #[deriving(Encodable, Decodable, PartialEq, Show)]
+        struct Foo { a: E }
+        #[deriving(Encodable, Decodable, PartialEq, Show)]
+        enum E {
+            Bar(int),
+            Baz(f64),
+            Last(Foo2),
+        }
+        #[deriving(Encodable, Decodable, PartialEq, Show)]
+        struct Foo2 {
+            test: String,
+        }
+
+        let v = Foo { a: Bar(10) };
+        assert_eq!(
+            encode!(v),
+            map! { a: Integer(10) }
+        );
+        assert_eq!(v, decode!(Table(encode!(v))));
+
+        let v = Foo { a: Baz(10.2) };
+        assert_eq!(
+            encode!(v),
+            map! { a: Float(10.2) }
+        );
+        assert_eq!(v, decode!(Table(encode!(v))));
+
+        let v = Foo { a: Last(Foo2 { test: "test".to_string() }) };
+        assert_eq!(
+            encode!(v),
+            map! { a: Table(map! { test: String("test".to_string()) }) }
+        );
+        assert_eq!(v, decode!(Table(encode!(v))));
     }
 }
