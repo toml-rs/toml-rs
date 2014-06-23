@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::mem;
+use std::fmt;
 
 use serialize;
 use {Value, Table, Array, String, Integer, Float, Boolean, Parser};
@@ -48,7 +49,7 @@ pub struct Encoder {
 /// arbitrary TOML value.
 pub struct Decoder {
     toml: Option<Value>,
-    cur_field: String,
+    cur_field: Option<String>,
 }
 
 /// Enumeration of errors which can occur while encoding a rust value into a
@@ -69,10 +70,27 @@ pub enum Error {
 }
 
 /// Description for errors which can occur while decoding a type.
-#[deriving(Show)]
 pub struct DecodeError {
-    /// Human-readable description of this error.
-    pub desc: String,
+    /// Field that this error applies to.
+    pub field: Option<String>,
+    /// The type of error which occurred while decoding,
+    pub kind: DecodeErrorKind,
+}
+
+/// Enumeration of possible errors which can occur while decoding a structure.
+pub enum DecodeErrorKind {
+    /// A field was expected, but none was found.
+    ExpectedField(/* type */ &'static str),
+    /// A field was found, but it had the wrong type.
+    ExpectedType(/* expected */ &'static str, /* found */ &'static str),
+    /// The nth map key was expected, but none was found.
+    ExpectedMapKey(uint),
+    /// The nth map element was expected, but none was found.
+    ExpectedMapElement(uint),
+    /// An enum decoding was requested, but no variants were supplied
+    NoEnumVariants,
+    /// The unit type was being decoded, but a non-zero length string was found
+    NilTooLong
 }
 
 #[deriving(PartialEq, Show)]
@@ -349,41 +367,35 @@ impl Decoder {
     /// This decoder can be passed to the `Decodable` methods or driven
     /// manually.
     pub fn new(toml: Value) -> Decoder {
-        Decoder { toml: Some(toml), cur_field: "".to_string() }
+        Decoder { toml: Some(toml), cur_field: None }
     }
 
     fn sub_decoder(&self, toml: Option<Value>, field: &str) -> Decoder {
         Decoder {
             toml: toml,
-            cur_field: if self.cur_field.len() == 0 {
-                field.to_string()
-            } else if field.len() == 0 {
-                self.cur_field.to_string()
+            cur_field: if field.len() == 0 {
+                self.cur_field.clone()
             } else {
-                format!("{}.{}", self.cur_field, field)
+                match self.cur_field {
+                    None => Some(field.to_string()),
+                    Some(ref s) => Some(format!("{}.{}", s, field))
+                }
             }
         }
     }
 
-    fn field_error(&self, desc: &str) -> DecodeError {
+    fn err(&self, kind: DecodeErrorKind) -> DecodeError {
         DecodeError {
-            desc: format!("{}", desc),
+            field: self.cur_field.clone(),
+            kind: kind,
         }
     }
 
-    fn type_error(&self, expected: &str, found: &Option<Value>) -> DecodeError {
-        DecodeError {
-            desc: format!("{}expected type `{}`, but found {}",
-                          if self.cur_field.len() > 0 {
-                              format!("for field `{}` ", self.cur_field)
-                          } else {
-                              "".to_string()
-                          },
-                          expected,
-                          match *found {
-                              Some(ref val) => format!("`{}`", val.type_str()),
-                              None => "no value".to_string(),
-                          })
+    fn mismatch(&self, expected: &'static str,
+                found: &Option<Value>) -> DecodeError{
+        match *found {
+            Some(ref val) => self.err(ExpectedType(expected, val.type_str())),
+            None => self.err(ExpectedField(expected)),
         }
     }
 }
@@ -392,8 +404,8 @@ impl serialize::Decoder<DecodeError> for Decoder {
     fn read_nil(&mut self) -> Result<(), DecodeError> {
         match self.toml {
             Some(String(ref s)) if s.len() == 0 => Ok(()),
-            Some(String(..)) => Err(self.field_error("expected 0-length string")),
-            ref found => Err(self.type_error("string", found)),
+            Some(String(..)) => Err(self.err(NilTooLong)),
+            ref found => Err(self.mismatch("string", found)),
         }
     }
     fn read_uint(&mut self) -> Result<uint, DecodeError> {
@@ -417,7 +429,7 @@ impl serialize::Decoder<DecodeError> for Decoder {
     fn read_i64(&mut self) -> Result<i64, DecodeError> {
         match self.toml {
             Some(Integer(i)) => Ok(i),
-            ref found => Err(self.type_error("integer", found)),
+            ref found => Err(self.mismatch("integer", found)),
         }
     }
     fn read_i32(&mut self) -> Result<i32, DecodeError> {
@@ -432,13 +444,13 @@ impl serialize::Decoder<DecodeError> for Decoder {
     fn read_bool(&mut self) -> Result<bool, DecodeError> {
         match self.toml {
             Some(Boolean(b)) => Ok(b),
-            ref found => Err(self.type_error("bool", found)),
+            ref found => Err(self.mismatch("bool", found)),
         }
     }
     fn read_f64(&mut self) -> Result<f64, DecodeError> {
         match self.toml {
             Some(Float(f)) => Ok(f),
-            ref found => Err(self.type_error("float", found)),
+            ref found => Err(self.mismatch("float", found)),
         }
     }
     fn read_f32(&mut self) -> Result<f32, DecodeError> {
@@ -448,13 +460,13 @@ impl serialize::Decoder<DecodeError> for Decoder {
         match self.toml {
             Some(String(ref s)) if s.as_slice().char_len() == 1 =>
                 Ok(s.as_slice().char_at(0)),
-            ref found => Err(self.type_error("string", found)),
+            ref found => Err(self.mismatch("string", found)),
         }
     }
     fn read_str(&mut self) -> Result<String, DecodeError> {
         match self.toml.take() {
             Some(String(s)) => Ok(s),
-            ref found => Err(self.type_error("string", found)),
+            ref found => Err(self.mismatch("string", found)),
         }
     }
 
@@ -482,11 +494,7 @@ impl serialize::Decoder<DecodeError> for Decoder {
                 }
             }
         }
-        Err(first_error.unwrap_or_else(|| {
-            DecodeError {
-                desc: format!("no enum variants to decode to"),
-            }
-        }))
+        Err(first_error.unwrap_or_else(|| self.err(NoEnumVariants)))
     }
     fn read_enum_variant_arg<T>(&mut self,
                                 _a_idx: uint,
@@ -519,7 +527,7 @@ impl serialize::Decoder<DecodeError> for Decoder {
     {
         match self.toml {
             Some(Table(..)) => f(self),
-            ref found => Err(self.type_error("table", found)),
+            ref found => Err(self.mismatch("table", found)),
         }
     }
     fn read_struct_field<T>(&mut self,
@@ -529,7 +537,7 @@ impl serialize::Decoder<DecodeError> for Decoder {
                             -> Result<T, DecodeError> {
         let toml = match self.toml {
             Some(Table(ref mut table)) => table.pop(&f_name.to_string()),
-            ref found => return Err(self.type_error("table", found)),
+            ref found => return Err(self.mismatch("table", found)),
         };
         f(&mut self.sub_decoder(toml, f_name))
     }
@@ -578,7 +586,7 @@ impl serialize::Decoder<DecodeError> for Decoder {
     {
         let len = match self.toml {
             Some(Array(ref arr)) => arr.len(),
-            ref found => return Err(self.type_error("array", found)),
+            ref found => return Err(self.mismatch("array", found)),
         };
         f(self, len)
     }
@@ -588,7 +596,7 @@ impl serialize::Decoder<DecodeError> for Decoder {
     {
         let toml = match self.toml {
             Some(Array(ref mut arr)) => mem::replace(arr.get_mut(idx), Integer(0)),
-            ref found => return Err(self.type_error("array", found)),
+            ref found => return Err(self.mismatch("array", found)),
         };
         f(&mut self.sub_decoder(Some(toml), ""))
     }
@@ -598,7 +606,7 @@ impl serialize::Decoder<DecodeError> for Decoder {
     {
         let len = match self.toml {
             Some(Table(ref table)) => table.len(),
-            ref found => return Err(self.type_error("table", found)),
+            ref found => return Err(self.mismatch("table", found)),
         };
         f(self, len)
     }
@@ -613,12 +621,10 @@ impl serialize::Decoder<DecodeError> for Decoder {
                         f(&mut self.sub_decoder(Some(String(key.to_string())),
                                                 key.as_slice()))
                     }
-                    None => Err(DecodeError {
-                        desc: format!("map key `{}` does not exist", idx),
-                    }),
+                    None => Err(self.err(ExpectedMapKey(idx))),
                 }
             }
-            ref found => Err(self.type_error("table", found)),
+            ref found => Err(self.mismatch("table", found)),
         }
     }
     fn read_map_elt_val<T>(&mut self, idx: uint,
@@ -632,12 +638,54 @@ impl serialize::Decoder<DecodeError> for Decoder {
                         // XXX: this shouldn't clone
                         f(&mut self.sub_decoder(Some(key.clone()), ""))
                     }
-                    None => Err(DecodeError {
-                        desc: format!("map element `{}` does not exist", idx),
-                    })
+                    None => Err(self.err(ExpectedMapElement(idx))),
                 }
             }
-            ref found => Err(self.type_error("table", found)),
+            ref found => Err(self.mismatch("table", found)),
+        }
+    }
+}
+
+impl fmt::Show for DecodeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        try!(match self.kind {
+            ExpectedField(expected_type) => {
+                if expected_type == "table" {
+                    write!(f, "expected a section")
+                } else {
+                    write!(f, "expected a value of type `{}`", expected_type)
+                }
+            }
+            ExpectedType(expected, found) => {
+                fn humanize(s: &str) -> String {
+                    if s == "section" {
+                        format!("a section")
+                    } else {
+                        format!("a value of type `{}`", s)
+                    }
+                }
+                write!(f, "expected {}, but found {}",
+                       humanize(expected),
+                       humanize(found))
+            }
+            ExpectedMapKey(idx) => {
+                write!(f, "expected at least {} keys", idx + 1)
+            }
+            ExpectedMapElement(idx) => {
+                write!(f, "expected at least {} elements", idx + 1)
+            }
+            NoEnumVariants => {
+                write!(f, "expected an enum variant to decode to")
+            }
+            NilTooLong => {
+                write!(f, "expected 0-length string")
+            }
+        })
+        match self.field {
+            Some(ref s) => {
+                write!(f, " for the key `{}`", s)
+            }
+            None => Ok(())
         }
     }
 }
@@ -849,9 +897,9 @@ mod tests {
         match a {
             Ok(..) => fail!("should not have decoded"),
             Err(e) => {
-                assert_eq!(e.desc.as_slice(),
-                           "for field `bar` expected type `integer`, but \
-                            found `float`");
+                assert_eq!(e.to_str().as_slice(),
+                           "expected a value of type `integer`, but \
+                            found a value of type `float` for the key `bar`");
             }
         }
     }
@@ -867,9 +915,8 @@ mod tests {
         match a {
             Ok(..) => fail!("should not have decoded"),
             Err(e) => {
-                assert_eq!(e.desc.as_slice(),
-                           "for field `bar` expected type `integer`, but \
-                            found no value");
+                assert_eq!(e.to_str().as_slice(),
+                           "expected a value of type `integer` for the key `d`");
             }
         }
     }
