@@ -66,6 +66,20 @@ impl<'a> Parser<'a> {
         }
     }
 
+    /// Converts a byte offset from an error message to a (line, column) pair
+    ///
+    /// All indexes are 0-based.
+    pub fn to_linecol(&self, offset: uint) -> (uint, uint) {
+        let mut cur = 0;
+        for (i, line) in self.input.lines().enumerate() {
+            if cur + line.len() > offset {
+                return (i, offset - cur)
+            }
+            cur += line.len() + 1;
+        }
+        return (self.input.lines().count(), 0)
+    }
+
     fn next_pos(&self) -> uint {
         self.cur.clone().next().map(|p| p.val0()).unwrap_or(self.input.len())
     }
@@ -659,4 +673,20 @@ impl<'a> Parser<'a> {
             }
         }
     }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Parser;
+
+    #[test]
+    fn linecol() {
+        let p = Parser::new("ab\ncde\nf");
+        assert_eq!(p.to_linecol(0), (0, 0));
+        assert_eq!(p.to_linecol(1), (0, 1));
+        assert_eq!(p.to_linecol(3), (1, 0));
+        assert_eq!(p.to_linecol(4), (1, 1));
+        assert_eq!(p.to_linecol(7), (2, 0));
+    }
+
 }
