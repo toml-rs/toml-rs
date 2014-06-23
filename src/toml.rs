@@ -47,7 +47,7 @@ use std::from_str::FromStr;
 
 pub use parser::{Parser, Error};
 pub use serialization::{Encoder, encode, encode_str};
-// pub use serialization::{Encoder, encode, encode_str};
+pub use serialization::{Decoder, decode, decode_str};
 pub use serialization::{Error, NeedsKey, NoValue};
 pub use serialization::{InvalidMapKeyLocation, InvalidMapKeyType};
 
