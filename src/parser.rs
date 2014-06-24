@@ -141,7 +141,8 @@ impl<'a> Parser<'a> {
             self.ws();
             match self.cur.clone().next() {
                 Some((_, '#')) => { self.comment(); }
-                Some((_, '\n')) => { self.cur.next(); }
+                Some((_, '\n')) |
+                Some((_, '\r')) => { self.cur.next(); }
                 Some((start, '[')) => {
                     self.cur.next();
                     let array = self.eat('[');
@@ -193,7 +194,8 @@ impl<'a> Parser<'a> {
             self.ws();
             match self.cur.clone().next() {
                 Some((_, '#')) => self.comment(),
-                Some((_, '\n')) => { self.cur.next(); }
+                Some((_, '\n')) |
+                Some((_, '\r')) => { self.cur.next(); }
                 Some((_, '[')) => break,
                 Some((start, _)) => {
                     let mut key = String::new();
@@ -225,6 +227,7 @@ impl<'a> Parser<'a> {
                     self.insert(into, key, value, start);
                     self.ws();
                     self.comment();
+                    self.eat('\r');
                     self.eat('\n');
                 }
                 None => break,
@@ -481,7 +484,8 @@ impl<'a> Parser<'a> {
                 me.ws();
                 match me.cur.clone().next() {
                     Some((_, '#')) => { me.comment(); }
-                    Some((_, '\n')) => { me.cur.next(); }
+                    Some((_, '\n')) |
+                    Some((_, '\r')) => { me.cur.next(); }
                     _ => break,
                 }
             }
