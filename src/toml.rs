@@ -34,6 +34,35 @@
 //!
 //! [1]: https://github.com/mojombo/toml
 //! [2]: https://github.com/BurntSushi/toml-test
+//!
+//! # Lookups
+//!
+//! Sometimes it might be useful to decode/retrieve only internal
+//! nodes. You can use `lookup` to get corresponding value. Note, that
+//! it tries its best to traverse both tables and arrays.  In the
+//! latter case it expects a zero-based index as a path component
+//!
+//! ```
+//! use std::from_str::FromStr;
+//!
+//! let toml = r#"
+//!      [test]
+//!      foo = "bar"
+//!
+//!      [[values]]
+//!      foo = "baz"
+//!
+//!      [[values]]
+//!      foo = "qux"
+//! "#;
+//! let value: toml::Value = FromStr::from_str(toml).unwrap();
+//! let test_foo = value.lookup("test.foo").unwrap();
+//! println!("test_foo is {}", test_foo);
+//! assert_eq!(test_foo.as_str().unwrap(), "bar");
+//! let foo1 = value.lookup("values.1.foo").unwrap();
+//! println!("foo1 is {}", foo1);
+//! assert_eq!(foo1.as_str().unwrap(), "qux");
+//! ```
 
 #![crate_type = "lib"]
 #![feature(macro_rules)]
@@ -141,6 +170,45 @@ impl Value {
     /// Extracts the table value if it is a table.
     pub fn as_table<'a>(&'a self) -> Option<&'a Table> {
         match *self { Table(ref s) => Some(s), _ => None }
+    }
+
+    /// Lookups for value at specified path.
+    ///
+    /// Uses '.' as a path separator.
+    ///
+    /// Note: arrays have zero-based indexes.
+    pub fn lookup<'a>(&'a self, path: &'a str) -> Option<&'a Value> {
+        Value::lookup_path(self, path.split('.'))
+    }
+
+    // Performs actual traverse starting with value
+    //
+    // For arrays tries to convert key to uint and retrieve
+    // corresponding element
+    fn lookup_path<'a, I:Iterator<&'a str>>(value: &'a Value,
+                                            components: I) -> Option<&'a Value>{
+        let mut cur_value: &'a Value = value;
+        let mut iter = components;
+        for key in iter {
+            match cur_value {
+                &Table(ref hm) => {
+                    match hm.find_equiv::<'a>(&key) {
+                        Some(v) => cur_value = v,
+                        _ => return None
+                    }
+                },
+                &Array(ref v) => {
+                    let idx: Option<uint> = FromStr::from_str(key);
+                    match idx {
+                        Some(idx) => cur_value = v.get::<'a>(idx),
+                        _ => return None
+                    }
+                },
+                _ => return None
+            }
+        };
+
+        Some(cur_value)
     }
 }
 
