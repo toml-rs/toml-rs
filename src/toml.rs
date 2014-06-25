@@ -35,34 +35,6 @@
 //! [1]: https://github.com/mojombo/toml
 //! [2]: https://github.com/BurntSushi/toml-test
 //!
-//! # Lookups
-//!
-//! Sometimes it might be useful to decode/retrieve only internal
-//! nodes. You can use `lookup` to get corresponding value. Note, that
-//! it tries its best to traverse both tables and arrays.  In the
-//! latter case it expects a zero-based index as a path component
-//!
-//! ```
-//! use std::from_str::FromStr;
-//!
-//! let toml = r#"
-//!      [test]
-//!      foo = "bar"
-//!
-//!      [[values]]
-//!      foo = "baz"
-//!
-//!      [[values]]
-//!      foo = "qux"
-//! "#;
-//! let value: toml::Value = FromStr::from_str(toml).unwrap();
-//! let test_foo = value.lookup("test.foo").unwrap();
-//! println!("test_foo is {}", test_foo);
-//! assert_eq!(test_foo.as_str().unwrap(), "bar");
-//! let foo1 = value.lookup("values.1.foo").unwrap();
-//! println!("foo1 is {}", foo1);
-//! assert_eq!(foo1.as_str().unwrap(), "qux");
-//! ```
 
 #![crate_type = "lib"]
 #![feature(macro_rules)]
@@ -83,7 +55,6 @@ pub use serialization::{InvalidMapKeyLocation, InvalidMapKeyType};
 mod parser;
 mod show;
 mod serialization;
-#[cfg(test)] mod test;
 
 /// Representation of a TOML value.
 #[deriving(PartialEq, Clone)]
@@ -177,6 +148,29 @@ impl Value {
     /// Uses '.' as a path separator.
     ///
     /// Note: arrays have zero-based indexes.
+    ///
+    /// ```
+    /// let toml = r#"
+    ///      [test]
+    ///      foo = "bar"
+    ///
+    ///      [[values]]
+    ///      foo = "baz"
+    ///
+    ///      [[values]]
+    ///      foo = "qux"
+    /// "#;
+    /// let value: toml::Value = from_str(toml).unwrap();
+    ///
+    /// let foo = value.lookup("test.foo").unwrap();
+    /// assert_eq!(foo.as_str().unwrap(), "bar");
+    ///
+    /// let foo = value.lookup("values.1.foo").unwrap();
+    /// assert_eq!(foo.as_str().unwrap(), "qux");
+    ///
+    /// let no_bar = value.lookup("test.bar");
+    /// assert_eq!(no_bar.is_none(), true);
+    /// ```
     pub fn lookup<'a>(&'a self, path: &'a str) -> Option<&'a Value> {
         Value::lookup_path(self, path.split('.'))
     }
@@ -186,13 +180,13 @@ impl Value {
     // For arrays tries to convert key to uint and retrieve
     // corresponding element
     fn lookup_path<'a, I:Iterator<&'a str>>(value: &'a Value,
-                                            components: I) -> Option<&'a Value>{
+                                            components: I) -> Option<&'a Value> {
         let mut cur_value: &'a Value = value;
         let mut iter = components;
         for key in iter {
             match cur_value {
                 &Table(ref hm) => {
-                    match hm.find_equiv::<'a>(&key) {
+                    match hm.find_equiv(&key) {
                         Some(v) => cur_value = v,
                         _ => return None
                     }
@@ -200,7 +194,7 @@ impl Value {
                 &Array(ref v) => {
                     let idx: Option<uint> = FromStr::from_str(key);
                     match idx {
-                        Some(idx) => cur_value = v.get::<'a>(idx),
+                        Some(idx) if idx < v.len() => cur_value = v.get(idx),
                         _ => return None
                     }
                 },
@@ -215,5 +209,55 @@ impl Value {
 impl FromStr for Value {
     fn from_str(s: &str) -> Option<Value> {
         Parser::new(s).parse().map(Table)
+    }
+}
+
+
+#[cfg(test)]
+mod test {
+    use super::Value;
+
+    #[test]
+    fn lookup_valid() {
+        let toml = r#"
+              [test]
+              foo = "bar"
+
+              [[values]]
+              foo = "baz"
+
+              [[values]]
+              foo = "qux"
+        "#;
+
+        let value: Value = from_str(toml).unwrap();
+
+        let test_foo = value.lookup("test.foo").unwrap();
+        assert_eq!(test_foo.as_str().unwrap(), "bar");
+
+        let foo1 = value.lookup("values.1.foo").unwrap();
+        assert_eq!(foo1.as_str().unwrap(), "qux");
+
+        let no_bar = value.lookup("test.bar");
+        assert!(no_bar.is_none());
+    }
+
+    #[test]
+    fn lookup_invalid_index() {
+        let toml = r#"
+            [[values]]
+            foo = "baz"
+        "#;
+
+        let value: Value = from_str(toml).unwrap();
+
+        let foo = value.lookup("test.foo");
+        assert!(foo.is_none());
+
+        let foo = value.lookup("values.100.foo");
+        assert!(foo.is_none());
+
+        let foo = value.lookup("values.str.foo");
+        assert!(foo.is_none());
     }
 }
