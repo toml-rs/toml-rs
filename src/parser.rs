@@ -684,6 +684,23 @@ mod tests {
     use super::Parser;
 
     #[test]
+    fn crlf() {
+        let mut p = Parser::new("\
+[project]\r\n\
+\r\n\
+name = \"splay\"\r\n\
+version = \"0.1.0\"\r\n\
+authors = [\"alex@crichton.co\"]\r\n\
+\r\n\
+[[lib]]\r\n\
+\r\n\
+path = \"lib.rs\"\r\n\
+name = \"splay\"\r\n\
+");
+        assert!(p.parse().is_some());
+    }
+
+    #[test]
     fn linecol() {
         let p = Parser::new("ab\ncde\nf");
         assert_eq!(p.to_linecol(0), (0, 0));
