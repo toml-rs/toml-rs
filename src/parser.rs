@@ -406,12 +406,12 @@ impl<'a> Parser<'a> {
     fn boolean(&mut self, start: uint) -> Option<Value> {
         let rest = self.input.slice_from(start);
         if rest.starts_with("true") {
-            for _ in range(0, 4) {
+            for _ in range(0u, 4u) {
                 self.cur.next();
             }
             Some(Boolean(true))
         } else if rest.starts_with("false") {
-            for _ in range(0, 5) {
+            for _ in range(0u, 5u) {
                 self.cur.next();
             }
             Some(Boolean(false))
@@ -429,7 +429,7 @@ impl<'a> Parser<'a> {
 
     fn datetime(&mut self, start: uint, end_so_far: uint) -> Option<Value> {
         let mut date = self.input.slice(start, end_so_far).to_string();
-        for _ in range(0, 15) {
+        for _ in range(0u, 15u) {
             match self.cur.next() {
                 Some((_, ch)) => date.push_char(ch),
                 None => {
