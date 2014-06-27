@@ -1,6 +1,6 @@
-RUSTC := rustc
-RUSTDOC := rustdoc
-BUILD := build
+RUSTC ?= rustc
+RUSTDOC ?= rustdoc
+BUILD ?= build
 LIB := $(BUILD)/$(shell $(RUSTC) --crate-file-name src/toml.rs)
 TEST := $(BUILD)/tomltest
 
