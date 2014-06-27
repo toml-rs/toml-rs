@@ -55,7 +55,7 @@ pub use serialization::{InvalidMapKeyLocation, InvalidMapKeyType};
 mod parser;
 mod show;
 mod serialization;
-
+#[cfg(test)]mod test;
 /// Representation of a TOML value.
 #[deriving(PartialEq, Clone)]
 #[allow(missing_doc)]
@@ -172,18 +172,8 @@ impl Value {
     /// assert_eq!(no_bar.is_none(), true);
     /// ```
     pub fn lookup<'a>(&'a self, path: &'a str) -> Option<&'a Value> {
-        Value::lookup_path(self, path.split('.'))
-    }
-
-    // Performs actual traverse starting with value
-    //
-    // For arrays tries to convert key to uint and retrieve
-    // corresponding element
-    fn lookup_path<'a, I:Iterator<&'a str>>(value: &'a Value,
-                                            components: I) -> Option<&'a Value> {
-        let mut cur_value: &'a Value = value;
-        let mut iter = components;
-        for key in iter {
+        let mut cur_value = self;
+        for key in path.split('.') {
             match cur_value {
                 &Table(ref hm) => {
                     match hm.find_equiv(&key) {
@@ -212,9 +202,8 @@ impl FromStr for Value {
     }
 }
 
-
 #[cfg(test)]
-mod test {
+mod tests {
     use super::Value;
 
     #[test]
