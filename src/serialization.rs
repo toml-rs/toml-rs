@@ -536,7 +536,15 @@ impl serialize::Decoder<DecodeError> for Decoder {
         -> Result<T, DecodeError>
     {
         match self.toml {
-            Some(Table(..)) => f(self),
+            Some(Table(..)) => {
+                let ret = try!(f(self));
+                match self.toml {
+                    Some(Table(ref t)) if t.len() == 0 => {}
+                    _ => return Ok(ret)
+                }
+                self.toml.take();
+                Ok(ret)
+            }
             ref found => Err(self.mismatch("table", found)),
         }
     }
@@ -1016,5 +1024,23 @@ mod tests {
                 b: Integer(5)
             })
         })));
+    }
+
+    #[test]
+    fn unused_fields3() {
+        #[deriving(Encodable, Decodable, PartialEq, Show)]
+        struct Foo { a: Bar }
+        #[deriving(Encodable, Decodable, PartialEq, Show)]
+        struct Bar { a: int }
+
+        let v = Foo { a: Bar { a: 2 } };
+        let mut d = Decoder::new(Table(map! {
+            a: Table(map! {
+                a: Integer(2)
+            })
+        }));
+        assert_eq!(v, Decodable::decode(&mut d).unwrap());
+
+        assert_eq!(d.toml, None);
     }
 }
