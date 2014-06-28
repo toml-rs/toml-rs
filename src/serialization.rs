@@ -619,9 +619,7 @@ impl serialize::Decoder<DecodeError> for Decoder {
         let ret = try!(f(self, len));
         match self.toml {
             Some(Array(ref mut arr)) => {
-                println!("before: {}", arr);
                 arr.retain(|slot| slot.as_integer() != Some(0));
-                println!("after: {}", arr);
                 if arr.len() != 0 { return Ok(ret) }
             }
             _ => return Ok(ret)
