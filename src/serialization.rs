@@ -617,10 +617,6 @@ impl serialize::Decoder<DecodeError> for Decoder {
             ref found => return Err(self.mismatch("array", found)),
         };
         let ret = try!(f(self, len));
-        match self.toml {
-            Some(Array(ref arr)) if arr.len() == 0 => {}
-            _ => return Ok(ret)
-        }
         self.toml.take();
         Ok(ret)
     }
@@ -1073,7 +1069,21 @@ mod tests {
         #[deriving(Encodable, Decodable, PartialEq, Show)]
         struct Foo { a: Vec<String> }
 
-        let v = Foo { a: vec![] };
+        let v = Foo { a: vec!["a".to_string()] };
+        let mut d = Decoder::new(Table(map! {
+            a: Array(vec![String("a".to_string())])
+        }));
+        assert_eq!(v, Decodable::decode(&mut d).unwrap());
+
+        assert_eq!(d.toml, None);
+    }
+
+    #[test]
+    fn unused_fields6() {
+        #[deriving(Encodable, Decodable, PartialEq, Show)]
+        struct Foo { a: Option<Vec<String>> }
+
+        let v = Foo { a: Some(vec![]) };
         let mut d = Decoder::new(Table(map! {
             a: Array(vec![])
         }));
