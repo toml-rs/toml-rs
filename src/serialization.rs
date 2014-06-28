@@ -616,7 +616,13 @@ impl serialize::Decoder<DecodeError> for Decoder {
             Some(Array(ref arr)) => arr.len(),
             ref found => return Err(self.mismatch("array", found)),
         };
-        f(self, len)
+        let ret = try!(f(self, len));
+        match self.toml {
+            Some(Array(ref arr)) if arr.len() == 0 => {}
+            _ => return Ok(ret)
+        }
+        self.toml.take();
+        Ok(ret)
     }
     fn read_seq_elt<T>(&mut self, idx: uint,
                        f: |&mut Decoder| -> Result<T, DecodeError>)
@@ -636,7 +642,9 @@ impl serialize::Decoder<DecodeError> for Decoder {
             Some(Table(ref table)) => table.len(),
             ref found => return Err(self.mismatch("table", found)),
         };
-        f(self, len)
+        let ret = try!(f(self, len));
+        self.toml.take();
+        Ok(ret)
     }
     fn read_map_elt_key<T>(&mut self, idx: uint,
                            f: |&mut Decoder| -> Result<T, DecodeError>)
@@ -1038,6 +1046,36 @@ mod tests {
             a: Table(map! {
                 a: Integer(2)
             })
+        }));
+        assert_eq!(v, Decodable::decode(&mut d).unwrap());
+
+        assert_eq!(d.toml, None);
+    }
+
+    #[test]
+    fn unused_fields4() {
+        #[deriving(Encodable, Decodable, PartialEq, Show)]
+        struct Foo { a: HashMap<String, String> }
+
+        let v = Foo { a: map! { a: "foo".to_string() } };
+        let mut d = Decoder::new(Table(map! {
+            a: Table(map! {
+                a: String("foo".to_string())
+            })
+        }));
+        assert_eq!(v, Decodable::decode(&mut d).unwrap());
+
+        assert_eq!(d.toml, None);
+    }
+
+    #[test]
+    fn unused_fields5() {
+        #[deriving(Encodable, Decodable, PartialEq, Show)]
+        struct Foo { a: Vec<String> }
+
+        let v = Foo { a: vec![] };
+        let mut d = Decoder::new(Table(map! {
+            a: Array(vec![])
         }));
         assert_eq!(v, Decodable::decode(&mut d).unwrap());
 
