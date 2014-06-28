@@ -617,6 +617,15 @@ impl serialize::Decoder<DecodeError> for Decoder {
             ref found => return Err(self.mismatch("array", found)),
         };
         let ret = try!(f(self, len));
+        match self.toml {
+            Some(Array(ref mut arr)) => {
+                println!("before: {}", arr);
+                arr.retain(|slot| slot.as_integer() != Some(0));
+                println!("after: {}", arr);
+                if arr.len() != 0 { return Ok(ret) }
+            }
+            _ => return Ok(ret)
+        }
         self.toml.take();
         Ok(ret)
     }
@@ -628,7 +637,16 @@ impl serialize::Decoder<DecodeError> for Decoder {
             Some(Array(ref mut arr)) => mem::replace(arr.get_mut(idx), Integer(0)),
             ref found => return Err(self.mismatch("array", found)),
         };
-        f(&mut self.sub_decoder(Some(toml), ""))
+        let mut d = self.sub_decoder(Some(toml), "");
+        let ret = try!(f(&mut d));
+        match d.toml {
+            Some(toml) => match self.toml {
+                Some(Array(ref mut arr)) => *arr.get_mut(idx) = toml,
+                _ => {}
+            },
+            _ => {}
+        }
+        Ok(ret)
     }
 
     fn read_map<T>(&mut self, f: |&mut Decoder, uint| -> Result<T, DecodeError>)
@@ -1090,5 +1108,28 @@ mod tests {
         assert_eq!(v, Decodable::decode(&mut d).unwrap());
 
         assert_eq!(d.toml, None);
+    }
+
+    #[test]
+    fn unused_fields7() {
+        #[deriving(Encodable, Decodable, PartialEq, Show)]
+        struct Foo { a: Vec<Bar> }
+        #[deriving(Encodable, Decodable, PartialEq, Show)]
+        struct Bar { a: int }
+
+        let v = Foo { a: vec![Bar { a: 1 }] };
+        let mut d = Decoder::new(Table(map! {
+            a: Array(vec![Table(map! {
+                a: Integer(1),
+                b: Integer(2)
+            })])
+        }));
+        assert_eq!(v, Decodable::decode(&mut d).unwrap());
+
+        assert_eq!(d.toml, Some(Table(map! {
+            a: Array(vec![Table(map! {
+                b: Integer(2)
+            })])
+        })));
     }
 }
