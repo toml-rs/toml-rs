@@ -8,7 +8,7 @@ use {Parser, Value, Table, String, Integer, Float, Boolean, Datetime, Array};
 
 fn to_json(toml: Value) -> json::Json {
     fn doit(s: &str, json: json::Json) -> json::Json {
-        let mut map = box TreeMap::new();
+        let mut map = TreeMap::new();
         map.insert("type".to_string(), json::String(s.to_string()));
         map.insert("value".to_string(), json);
         json::Object(map)
@@ -36,7 +36,7 @@ fn to_json(toml: Value) -> json::Json {
             let json = json::List(arr.move_iter().map(to_json).collect());
             if is_table {json} else {doit("array", json)}
         }
-        Table(table) => json::Object(box table.move_iter().map(|(k, v)| {
+        Table(table) => json::Object(table.move_iter().map(|(k, v)| {
             (k, to_json(v))
         }).collect()),
     }
