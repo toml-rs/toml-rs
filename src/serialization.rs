@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 use std::mem;
 use std::fmt;
-use std::str;
 
 use serialize;
 use {Value, Table, Array, String, Integer, Float, Boolean, Parser};
@@ -558,7 +557,7 @@ impl serialize::Decoder<DecodeError> for Decoder {
         let toml = match self.toml {
             Some(Table(ref mut table)) => {
                 table.pop(&field)
-                    .or_else(|| table.pop(&hyphenate(f_name)))
+                    .or_else(|| table.pop(&f_name.replace("_", "-")))
             },
             ref found => return Err(self.mismatch("table", found)),
         };
@@ -698,10 +697,6 @@ impl serialize::Decoder<DecodeError> for Decoder {
     }
 }
 
-fn hyphenate(string: &str) -> String {
-  str::replace(string, "_", "-")
-}
-
 impl fmt::Show for DecodeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         try!(match self.kind {
@@ -778,6 +773,20 @@ mod tests {
 
         let v = Foo { a: 2 };
         assert_eq!(encode!(v), map! { a: Integer(2) });
+        assert_eq!(v, decode!(Table(encode!(v))));
+    }
+
+    #[test]
+    fn smoke_hyphen() {
+        #[deriving(Encodable, Decodable, PartialEq, Show)]
+        struct Foo { a_b: int }
+
+        let v = Foo { a_b: 2 };
+        assert_eq!(encode!(v), map! { a_b: Integer(2) });
+        assert_eq!(v, decode!(Table(encode!(v))));
+
+        let mut m = HashMap::new();
+        m.insert("a-b".to_string(), Integer(2));
         assert_eq!(v, decode!(Table(encode!(v))));
     }
 
