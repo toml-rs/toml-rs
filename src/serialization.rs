@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::mem;
 use std::fmt;
+use std::str;
 
 use serialize;
 use {Value, Table, Array, String, Integer, Float, Boolean, Parser};
@@ -555,7 +556,10 @@ impl serialize::Decoder<DecodeError> for Decoder {
                             -> Result<T, DecodeError> {
         let field = f_name.to_string();
         let toml = match self.toml {
-            Some(Table(ref mut table)) => table.pop(&field),
+            Some(Table(ref mut table)) => {
+                table.pop(&field)
+                    .or_else(|| table.pop(&hyphenate(f_name)))
+            },
             ref found => return Err(self.mismatch("table", found)),
         };
         let mut d = self.sub_decoder(toml, f_name);
@@ -692,6 +696,10 @@ impl serialize::Decoder<DecodeError> for Decoder {
             ref found => Err(self.mismatch("table", found)),
         }
     }
+}
+
+fn hyphenate(string: &str) -> String {
+  str::replace(string, "_", "-")
 }
 
 impl fmt::Show for DecodeError {
