@@ -15,7 +15,7 @@ fn to_json(toml: Value) -> json::Json {
     }
     match toml {
         String(s) => doit("string", json::String(s)),
-        Integer(i) => doit("integer", json::String(i.to_str())),
+        Integer(i) => doit("integer", json::String(i.to_string())),
         Float(f) => doit("float", json::String({
             let (bytes, _) =
                 strconv::float_to_str_bytes_common(f, 10, true,
@@ -26,7 +26,7 @@ fn to_json(toml: Value) -> json::Json {
             let s = String::from_utf8(bytes).unwrap();
             if s.as_slice().contains(".") {s} else {format!("{}.0", s)}
         })),
-        Boolean(b) => doit("bool", json::String(b.to_str())),
+        Boolean(b) => doit("bool", json::String(b.to_string())),
         Datetime(s) => doit("datetime", json::String(s)),
         Array(arr) => {
             let is_table = match arr.as_slice().head() {
