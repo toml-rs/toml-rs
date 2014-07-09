@@ -187,10 +187,10 @@ impl serialize::Encoder<Error> for Encoder {
         self.emit_value(Float(v))
     }
     fn emit_char(&mut self, v: char) -> Result<(), Error> {
-        self.emit_str(v.to_str().as_slice())
+        self.emit_str(v.to_string().as_slice())
     }
     fn emit_str(&mut self, v: &str) -> Result<(), Error> {
-        self.emit_value(String(v.to_str()))
+        self.emit_value(String(v.to_string()))
     }
     fn emit_enum(&mut self, _name: &str,
                  f: |&mut Encoder| -> Result<(), Error>) -> Result<(), Error> {
@@ -245,7 +245,7 @@ impl serialize::Encoder<Error> for Encoder {
                          f: |&mut Encoder| -> Result<(), Error>)
         -> Result<(), Error>
     {
-        let old = mem::replace(&mut self.state, NextKey(f_name.to_str()));
+        let old = mem::replace(&mut self.state, NextKey(f_name.to_string()));
         try!(f(self));
         if self.state != Start {
             println!("{}", self.state);
@@ -762,7 +762,7 @@ mod tests {
 
     macro_rules! map( ($($k:ident: $v:expr),*) => ({
         let mut _m = HashMap::new();
-        $(_m.insert(stringify!($k).to_str(), $v);)*
+        $(_m.insert(stringify!($k).to_string(), $v);)*
         _m
     }) )
 
@@ -907,7 +907,7 @@ mod tests {
                     foo: Integer(10),
                     bar: Integer(4)
                 }),
-                set: Array(vec![String("a".to_str())])
+                set: Array(vec![String("a".to_string())])
             }
         );
         assert_eq!(v, decode!(Table(encode!(v))));
@@ -962,7 +962,7 @@ mod tests {
         match a {
             Ok(..) => fail!("should not have decoded"),
             Err(e) => {
-                assert_eq!(e.to_str().as_slice(),
+                assert_eq!(e.to_string().as_slice(),
                            "expected a value of type `integer`, but \
                             found a value of type `float` for the key `bar`");
             }
@@ -980,7 +980,7 @@ mod tests {
         match a {
             Ok(..) => fail!("should not have decoded"),
             Err(e) => {
-                assert_eq!(e.to_str().as_slice(),
+                assert_eq!(e.to_string().as_slice(),
                            "expected a value of type `integer` for the key `bar`");
             }
         }

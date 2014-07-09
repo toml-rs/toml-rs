@@ -105,42 +105,42 @@ mod tests {
 
     macro_rules! map( ($($k:expr: $v:expr),*) => ({
         let mut _m = HashMap::new();
-        $(_m.insert($k.to_str(), $v);)*
+        $(_m.insert($k.to_string(), $v);)*
         _m
     }) )
 
     #[test]
     fn simple_show() {
-        assert_eq!(String("foo".to_str()).to_str().as_slice(),
+        assert_eq!(String("foo".to_string()).to_string().as_slice(),
                    "\"foo\"")
-        assert_eq!(Integer(10).to_str().as_slice(),
+        assert_eq!(Integer(10).to_string().as_slice(),
                    "10")
-        assert_eq!(Float(10.0).to_str().as_slice(),
+        assert_eq!(Float(10.0).to_string().as_slice(),
                    "10.0")
-        assert_eq!(Float(2.4).to_str().as_slice(),
+        assert_eq!(Float(2.4).to_string().as_slice(),
                    "2.4")
-        assert_eq!(Boolean(true).to_str().as_slice(),
+        assert_eq!(Boolean(true).to_string().as_slice(),
                    "true")
-        assert_eq!(Datetime("test".to_str()).to_str().as_slice(),
+        assert_eq!(Datetime("test".to_string()).to_string().as_slice(),
                    "test")
-        assert_eq!(Array(vec![]).to_str().as_slice(),
+        assert_eq!(Array(vec![]).to_string().as_slice(),
                    "[]")
-        assert_eq!(Array(vec![Integer(1), Integer(2)]).to_str().as_slice(),
+        assert_eq!(Array(vec![Integer(1), Integer(2)]).to_string().as_slice(),
                    "[1, 2]")
     }
 
     #[test]
     fn table() {
-        assert_eq!(Table(map! { }).to_str().as_slice(),
+        assert_eq!(Table(map! { }).to_string().as_slice(),
                    "")
-        assert_eq!(Table(map! { "test": Integer(2) }).to_str().as_slice(),
+        assert_eq!(Table(map! { "test": Integer(2) }).to_string().as_slice(),
                    "test = 2\n")
         assert_eq!(Table(map! {
                         "test": Integer(2),
                         "test2": Table(map! {
-                            "test": String("wut".to_str())
+                            "test": String("wut".to_string())
                         })
-                   }).to_str().as_slice(),
+                   }).to_string().as_slice(),
                    "test = 2\n\
                     \n\
                     [test2]\n\
@@ -148,9 +148,9 @@ mod tests {
         assert_eq!(Table(map! {
                         "test": Integer(2),
                         "test2": Table(map! {
-                            "test": String("wut".to_str())
+                            "test": String("wut".to_string())
                         })
-                   }).to_str().as_slice(),
+                   }).to_string().as_slice(),
                    "test = 2\n\
                     \n\
                     [test2]\n\
@@ -158,9 +158,9 @@ mod tests {
         assert_eq!(Table(map! {
                         "test": Integer(2),
                         "test2": Array(vec![Table(map! {
-                            "test": String("wut".to_str())
+                            "test": String("wut".to_string())
                         })])
-                   }).to_str().as_slice(),
+                   }).to_string().as_slice(),
                    "test = 2\n\
                     \n\
                     [[test2]]\n\
