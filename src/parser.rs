@@ -240,6 +240,7 @@ impl<'a> Parser<'a> {
         self.ws();
         match self.cur.clone().next() {
             Some((pos, '"')) => self.string(pos),
+            Some((pos, '\'')) => self.literal_string(pos),
             Some((pos, 't')) |
             Some((pos, 'f')) => self.boolean(pos),
             Some((pos, '[')) => self.array(pos),
@@ -261,17 +262,32 @@ impl<'a> Parser<'a> {
 
     fn string(&mut self, start: uint) -> Option<Value> {
         if !self.expect('"') { return None }
+        let mut multiline = false;
         let mut ret = String::new();
+
+        // detect multiline literals
+        if self.eat('"') {
+            multiline = true;
+            if !self.expect('"') { return None }
+            self.eat('\n');
+        }
 
         loop {
             match self.cur.next() {
-                Some((_, '"')) => break,
+                Some((_, '"')) => {
+                    if multiline {
+                        if !self.eat('"') { ret.push_str("\""); continue }
+                        if !self.eat('"') { ret.push_str("\"\""); continue }
+                    }
+                    break
+                }
                 Some((pos, '\\')) => {
-                    match escape(self, pos) {
+                    match escape(self, pos, multiline) {
                         Some(c) => ret.push_char(c),
                         None => {}
                     }
                 }
+                Some((_, '\n')) if multiline => ret.push_char('\n'),
                 Some((pos, ch)) if ch < '\u001f' => {
                     let mut escaped = String::new();
                     ch.escape_default(|c| escaped.push_char(c));
@@ -296,7 +312,7 @@ impl<'a> Parser<'a> {
 
         return Some(String(ret));
 
-        fn escape(me: &mut Parser, pos: uint) -> Option<char> {
+        fn escape(me: &mut Parser, pos: uint, multiline: bool) -> Option<char> {
             match me.cur.next() {
                 Some((_, 'b')) => Some('\u0008'),
                 Some((_, 't')) => Some('\u0009'),
@@ -345,6 +361,17 @@ impl<'a> Parser<'a> {
                     }
                     None
                 }
+                Some((_, '\n')) if multiline => {
+                    loop {
+                        match me.cur.clone().next() {
+                            Some((_, '\t')) |
+                            Some((_, ' ')) |
+                            Some((_, '\n')) => { me.cur.next(); }
+                            _ => break
+                        }
+                    }
+                    None
+                }
                 Some((pos, ch)) => {
                     let mut escaped = String::new();
                     ch.escape_default(|c| escaped.push_char(c));
@@ -367,6 +394,42 @@ impl<'a> Parser<'a> {
                 }
             }
         }
+    }
+
+    fn literal_string(&mut self, start: uint) -> Option<Value> {
+        if !self.expect('\'') { return None }
+        let mut multiline = false;
+        let mut ret = String::new();
+
+        // detect multiline literals
+        if self.eat('\'') {
+            multiline = true;
+            if !self.expect('\'') { return None }
+            self.eat('\n');
+        }
+
+        loop {
+            match self.cur.next() {
+                Some((_, '\'')) => {
+                    if multiline {
+                        if !self.eat('\'') { ret.push_str("'"); continue }
+                        if !self.eat('\'') { ret.push_str("''"); continue }
+                    }
+                    break
+                }
+                Some((_, ch)) => ret.push_char(ch),
+                None => {
+                    self.errors.push(Error {
+                        lo: start,
+                        hi: self.input.len(),
+                        desc: format!("unterminated string literal"),
+                    });
+                    return None
+                }
+            }
+        }
+
+        return Some(String(ret));
     }
 
     fn number_or_datetime(&mut self, start: uint) -> Option<Value> {
@@ -714,10 +777,67 @@ name = \"splay\"\r\n\
     #[test]
     fn fun_with_strings() {
         let mut p = Parser::new(r#"
-[foo]
 bar = "\U00000000"
+key1 = "One\nTwo"
+key2 = """One\nTwo"""
+key3 = """
+One
+Two"""
+
+key4 = "The quick brown fox jumps over the lazy dog."
+key5 = """
+The quick brown \
+
+
+  fox jumps over \
+    the lazy dog."""
+key6 = """\
+       The quick brown \
+       fox jumps over \
+       the lazy dog.\
+       """
+# What you see is what you get.
+winpath  = 'C:\Users\nodejs\templates'
+winpath2 = '\\ServerX\admin$\system32\'
+quoted   = 'Tom "Dubs" Preston-Werner'
+regex    = '<\i\c*\s*>'
+
+regex2 = '''I [dw]on't need \d{2} apples'''
+lines  = '''
+The first newline is
+trimmed in raw strings.
+   All other whitespace
+   is preserved.
+'''
 "#);
         let table = Table(p.parse().unwrap());
-        assert_eq!(table.lookup("foo.bar").and_then(|k| k.as_str()), Some("\0"));
+        assert_eq!(table.lookup("bar").and_then(|k| k.as_str()), Some("\0"));
+        assert_eq!(table.lookup("key1").and_then(|k| k.as_str()),
+                   Some("One\nTwo"));
+        assert_eq!(table.lookup("key2").and_then(|k| k.as_str()),
+                   Some("One\nTwo"));
+        assert_eq!(table.lookup("key3").and_then(|k| k.as_str()),
+                   Some("One\nTwo"));
+
+        let msg = "The quick brown fox jumps over the lazy dog.";
+        assert_eq!(table.lookup("key4").and_then(|k| k.as_str()), Some(msg));
+        assert_eq!(table.lookup("key5").and_then(|k| k.as_str()), Some(msg));
+        assert_eq!(table.lookup("key6").and_then(|k| k.as_str()), Some(msg));
+
+        assert_eq!(table.lookup("winpath").and_then(|k| k.as_str()),
+                   Some(r"C:\Users\nodejs\templates"));
+        assert_eq!(table.lookup("winpath2").and_then(|k| k.as_str()),
+                   Some(r"\\ServerX\admin$\system32\"));
+        assert_eq!(table.lookup("quoted").and_then(|k| k.as_str()),
+                   Some(r#"Tom "Dubs" Preston-Werner"#));
+        assert_eq!(table.lookup("regex").and_then(|k| k.as_str()),
+                   Some(r"<\i\c*\s*>"));
+        assert_eq!(table.lookup("regex2").and_then(|k| k.as_str()),
+                   Some(r"I [dw]on't need \d{2} apples"));
+        assert_eq!(table.lookup("lines").and_then(|k| k.as_str()),
+                   Some("The first newline is\n\
+                         trimmed in raw strings.\n   \
+                            All other whitespace\n   \
+                            is preserved.\n"));
     }
 }
