@@ -43,7 +43,7 @@
 
 extern crate serialize;
 
-use std::collections::HashMap;
+use std::collections::TreeMap;
 use std::from_str::FromStr;
 
 pub use parser::{Parser, Error};
@@ -70,7 +70,7 @@ pub enum Value {
 }
 
 pub type Array = Vec<Value>;
-pub type Table = HashMap<String, Value>;
+pub type Table = TreeMap<String, Value>;
 
 impl Value {
     /// Tests whether this and another value have the same type.
@@ -176,7 +176,7 @@ impl Value {
         for key in path.split('.') {
             match cur_value {
                 &Table(ref hm) => {
-                    match hm.find_equiv(&key) {
+                    match hm.find_with(|k| key.cmp(&k.as_slice())) {
                         Some(v) => cur_value = v,
                         _ => return None
                     }

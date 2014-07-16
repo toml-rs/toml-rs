@@ -101,10 +101,10 @@ impl<'a, 'b> Printer<'a, 'b> {
 #[allow(warnings)]
 mod tests {
     use {Value, String, Integer, Float, Boolean, Datetime, Array, Table};
-    use std::collections::HashMap;
+    use std::collections::TreeMap;
 
     macro_rules! map( ($($k:expr: $v:expr),*) => ({
-        let mut _m = HashMap::new();
+        let mut _m = TreeMap::new();
         $(_m.insert($k.to_string(), $v);)*
         _m
     }) )

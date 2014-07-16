@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::TreeMap;
 use std::mem;
 use std::fmt;
 
@@ -124,7 +124,7 @@ pub fn encode_str<T: serialize::Encodable<Encoder, Error>>(t: &T) -> String {
 impl Encoder {
     /// Constructs a new encoder which will emit to the given output stream.
     pub fn new() -> Encoder {
-        Encoder { state: Start, toml: HashMap::new() }
+        Encoder { state: Start, toml: TreeMap::new() }
     }
 
     fn emit_value(&mut self, v: Value) -> Result<(), Error> {
@@ -667,8 +667,8 @@ impl serialize::Decoder<DecodeError> for Decoder {
     {
         match self.toml {
             Some(Table(ref table)) => {
-                match table.keys().skip(idx).next() {
-                    Some(key) => {
+                match table.iter().skip(idx).next() {
+                    Some((key, _)) => {
                         f(&mut self.sub_decoder(Some(String(key.to_string())),
                                                 key.as_slice()))
                     }
@@ -684,10 +684,10 @@ impl serialize::Decoder<DecodeError> for Decoder {
     {
         match self.toml {
             Some(Table(ref table)) => {
-                match table.values().skip(idx).next() {
-                    Some(key) => {
+                match table.iter().skip(idx).next() {
+                    Some((_, value)) => {
                         // XXX: this shouldn't clone
-                        f(&mut self.sub_decoder(Some(key.clone()), ""))
+                        f(&mut self.sub_decoder(Some(value.clone()), ""))
                     }
                     None => Err(self.err(ExpectedMapElement(idx))),
                 }
@@ -743,7 +743,7 @@ impl fmt::Show for DecodeError {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{HashMap, HashSet};
+    use std::collections::{TreeMap, HashSet};
     use serialize::{Encodable, Decodable};
 
     use super::{Encoder, Decoder, DecodeError};
@@ -761,7 +761,7 @@ mod tests {
     }) )
 
     macro_rules! map( ($($k:ident: $v:expr),*) => ({
-        let mut _m = HashMap::new();
+        let mut _m = TreeMap::new();
         $(_m.insert(stringify!($k).to_string(), $v);)*
         _m
     }) )
@@ -785,7 +785,7 @@ mod tests {
         assert_eq!(encode!(v), map! { a_b: Integer(2) });
         assert_eq!(v, decode!(Table(encode!(v))));
 
-        let mut m = HashMap::new();
+        let mut m = TreeMap::new();
         m.insert("a-b".to_string(), Integer(2));
         assert_eq!(v, decode!(Table(encode!(v))));
     }
@@ -884,13 +884,13 @@ mod tests {
     fn hashmap() {
         #[deriving(Encodable, Decodable, PartialEq, Show)]
         struct Foo {
-            map: HashMap<String, int>,
+            map: TreeMap<String, int>,
             set: HashSet<char>,
         }
 
         let v = Foo {
             map: {
-                let mut m = HashMap::new();
+                let mut m = TreeMap::new();
                 m.insert("foo".to_string(), 10);
                 m.insert("bar".to_string(), 4);
                 m
@@ -1084,7 +1084,7 @@ mod tests {
     #[test]
     fn unused_fields4() {
         #[deriving(Encodable, Decodable, PartialEq, Show)]
-        struct Foo { a: HashMap<String, String> }
+        struct Foo { a: TreeMap<String, String> }
 
         let v = Foo { a: map! { a: "foo".to_string() } };
         let mut d = Decoder::new(Table(map! {

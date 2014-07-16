@@ -1,5 +1,5 @@
 use std::char;
-use std::collections::{HashMap, HashSet};
+use std::collections::{TreeMap, HashSet};
 use std::num::FromStrRadix;
 use std::str;
 
@@ -136,7 +136,7 @@ impl<'a> Parser<'a> {
     /// If an error occurs, the `errors` field of this parser can be consulted
     /// to determine the cause of the parse failure.
     pub fn parse(&mut self) -> Option<Table> {
-        let mut ret = HashMap::new();
+        let mut ret = TreeMap::new();
         loop {
             self.ws();
             match self.cur.clone().next() {
@@ -172,7 +172,7 @@ impl<'a> Parser<'a> {
                         return None
                     }
 
-                    let mut table = HashMap::new();
+                    let mut table = TreeMap::new();
                     if !self.values(&mut table) { return None }
                     if array {
                         self.insert_array(&mut ret, section, Table(table), start)
@@ -559,7 +559,7 @@ impl<'a> Parser<'a> {
             let tmp = cur;
 
             if tmp.contains_key(&part) {
-                match *tmp.get_mut(&part) {
+                match *tmp.find_mut(&part).unwrap() {
                     Table(ref mut table) => {
                         cur = table;
                         continue
@@ -592,8 +592,8 @@ impl<'a> Parser<'a> {
             }
 
             // Initialize an empty table as part of this sub-key
-            tmp.insert(part.clone(), Table(HashMap::new()));
-            match *tmp.get_mut(&part) {
+            tmp.insert(part.clone(), Table(TreeMap::new()));
+            match *tmp.find_mut(&part).unwrap() {
                 Table(ref mut inner) => cur = inner,
                 _ => unreachable!(),
             }
@@ -618,7 +618,7 @@ impl<'a> Parser<'a> {
         };
         let key = key.to_string();
         if !into.contains_key(&key) {
-            into.insert(key.clone(), Table(HashMap::new()));
+            into.insert(key.clone(), Table(TreeMap::new()));
         }
         match into.find_mut(&key) {
             Some(&Table(ref mut table)) => {
@@ -653,7 +653,7 @@ impl<'a> Parser<'a> {
         if !into.contains_key(&key) {
             into.insert(key.clone(), Array(Vec::new()));
         }
-        match *into.get_mut(&key) {
+        match *into.find_mut(&key).unwrap() {
             Array(ref mut vec) => {
                 match vec.as_slice().head() {
                     Some(ref v) if !v.same_type(&value) => {
