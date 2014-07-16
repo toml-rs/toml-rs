@@ -355,7 +355,7 @@ impl<'a> Parser<'a> {
                                 lo: pos,
                                 hi: pos + 1,
                                 desc: format!("expected {} hex digits \
-                                               after a `u` escape", len),
+                                               after a `{}` escape", len, c),
                             })
                         }
                     }
