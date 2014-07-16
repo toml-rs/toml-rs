@@ -306,9 +306,11 @@ impl<'a> Parser<'a> {
                 Some((_, '"')) => Some('\u0022'),
                 Some((_, '/')) => Some('\u002f'),
                 Some((_, '\\')) => Some('\u005c'),
-                Some((pos, 'u')) => {
-                    let num = if me.input.is_char_boundary(pos + 5) {
-                        me.input.slice(pos + 1, pos + 5)
+                Some((pos, c @ 'u')) |
+                Some((pos, c @ 'U')) => {
+                    let len = if c == 'u' {4} else {8};
+                    let num = if me.input.is_char_boundary(pos + 1 + len) {
+                        me.input.slice(pos + 1, pos + 1 + len)
                     } else {
                         "invalid"
                     };
@@ -316,10 +318,9 @@ impl<'a> Parser<'a> {
                         Some(n) => {
                             match char::from_u32(n) {
                                 Some(c) => {
-                                    me.cur.next();
-                                    me.cur.next();
-                                    me.cur.next();
-                                    me.cur.next();
+                                    for _ in range(0, len) {
+                                        me.cur.next();
+                                    }
                                     return Some(c)
                                 }
                                 None => {
@@ -337,8 +338,8 @@ impl<'a> Parser<'a> {
                             me.errors.push(Error {
                                 lo: pos,
                                 hi: pos + 1,
-                                desc: format!("expected four hex digits \
-                                               after a `u` escape"),
+                                desc: format!("expected {} hex digits \
+                                               after a `u` escape", len),
                             })
                         }
                     }
@@ -681,7 +682,7 @@ impl<'a> Parser<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::Parser;
+    use {Table, Parser};
 
     #[test]
     fn crlf() {
@@ -710,4 +711,13 @@ name = \"splay\"\r\n\
         assert_eq!(p.to_linecol(7), (2, 0));
     }
 
+    #[test]
+    fn fun_with_strings() {
+        let mut p = Parser::new(r#"
+[foo]
+bar = "\U00000000"
+"#);
+        let table = Table(p.parse().unwrap());
+        assert_eq!(table.lookup("foo.bar").and_then(|k| k.as_str()), Some("\0"));
+    }
 }
