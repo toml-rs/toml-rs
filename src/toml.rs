@@ -184,7 +184,7 @@ impl Value {
                 &Array(ref v) => {
                     let idx: Option<uint> = FromStr::from_str(key);
                     match idx {
-                        Some(idx) if idx < v.len() => cur_value = v.get(idx),
+                        Some(idx) if idx < v.len() => cur_value = &v[idx],
                         _ => return None
                     }
                 },
