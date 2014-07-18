@@ -122,6 +122,9 @@ test!(long_float,
 test!(long_integer,
        include_str!("valid/long-integer.toml"),
        include_str!("valid/long-integer.json"))
+test!(string_empty,
+       include_str!("valid/string-empty.toml"),
+       include_str!("valid/string-empty.json"))
 test!(string_escapes,
        include_str!("valid/string-escapes.toml"),
        include_str!("valid/string-escapes.json"))
