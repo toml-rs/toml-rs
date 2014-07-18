@@ -265,11 +265,16 @@ impl<'a> Parser<'a> {
         let mut multiline = false;
         let mut ret = String::new();
 
-        // detect multiline literals
+        // detect multiline literals, but be careful about empty ""
+        // strings
         if self.eat('"') {
-            multiline = true;
-            if !self.expect('"') { return None }
-            self.eat('\n');
+            if self.eat('"') {
+                multiline = true;
+                self.eat('\n');
+            } else {
+                // empty
+                return Some(String(ret))
+            }
         }
 
         loop {
