@@ -20,7 +20,6 @@ impl fmt::Show for Value {
                         '\u000c' => try!(write!(f, "\\f")),
                         '\u000d' => try!(write!(f, "\\r")),
                         '\u0022' => try!(write!(f, "\\\"")),
-                        '\u002f' => try!(write!(f, "\\/")),
                         '\u005c' => try!(write!(f, "\\\\")),
                         ch => try!(write!(f, "{}", ch)),
                     }
