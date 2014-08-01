@@ -72,6 +72,7 @@ pub enum Error {
 }
 
 /// Description for errors which can occur while decoding a type.
+#[deriving(PartialEq)]
 pub struct DecodeError {
     /// Field that this error applies to.
     pub field: Option<String>,
@@ -80,7 +81,10 @@ pub struct DecodeError {
 }
 
 /// Enumeration of possible errors which can occur while decoding a structure.
+#[deriving(PartialEq)]
 pub enum DecodeErrorKind {
+    /// An error flagged by the application, e.g. value out of range
+    ApplicationError(String),
     /// A field was expected, but none was found.
     ExpectedField(/* type */ &'static str),
     /// A field was found, but it had the wrong type.
@@ -695,11 +699,21 @@ impl serialize::Decoder<DecodeError> for Decoder {
             ref found => Err(self.mismatch("table", found)),
         }
     }
+
+    fn error(&mut self, err: &str) -> DecodeError {
+        DecodeError {
+            field: self.cur_field.clone(),
+            kind: ApplicationError(err.to_string())
+        }
+    }
 }
 
 impl fmt::Show for DecodeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         try!(match self.kind {
+            ApplicationError(ref err) => {
+                write!(f, "{}", err)
+            }
             ExpectedField(expected_type) => {
                 if expected_type == "table" {
                     write!(f, "expected a section")
@@ -806,6 +820,32 @@ mod tests {
                        })
                    });
         assert_eq!(v, decode!(Table(encode!(v))));
+    }
+
+    #[test]
+    fn application_decode_error() {
+        #[deriving(PartialEq, Show)]
+        struct Range10(uint);
+        impl<D: ::serialize::Decoder<E>, E> Decodable<D, E> for Range10 {
+             fn decode(d: &mut D) -> Result<Range10, E> {
+                 let x: uint = try!(Decodable::decode(d));
+                 if x > 10 {
+                     Err(d.error("Value out of range!"))
+                 } else {
+                     Ok(Range10(x))
+                 }
+             }
+        }
+        let mut d_good = Decoder::new(Integer(5));
+        let mut d_bad1 = Decoder::new(String("not an int".to_string()));
+        let mut d_bad2 = Decoder::new(Integer(11));
+
+        assert_eq!(Ok(Range10(5)), Decodable::decode(&mut d_good));
+
+        let err1: Result<Range10, _> = Decodable::decode(&mut d_bad1);
+        assert!(err1.is_err());
+        let err2: Result<Range10, _> = Decodable::decode(&mut d_bad2);
+        assert!(err2.is_err());
     }
 
     #[test]
