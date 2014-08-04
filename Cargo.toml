@@ -1,9 +1,5 @@
-[project]
+[package]
 
 name = "toml"
 version = "0.1.0"
-authors = ["alex@crichton.co"]
-
-[[lib]]
-
-name = "toml"
+authors = ["Alex Crichton <alex@alexcrichton.com>"]
