@@ -200,17 +200,17 @@ impl serialize::Encoder<Error> for Encoder {
                  f: |&mut Encoder| -> Result<(), Error>) -> Result<(), Error> {
         f(self)
     }
-    fn emit_enum_variant(&mut self, _v_name: &str, _v_id: uint, _len: uint,
+    fn emit_enum_variant(&mut self, _v_name: &str, _v_id: uint, len: uint,
                          f: |&mut Encoder| -> Result<(), Error>)
         -> Result<(), Error>
     {
-        f(self)
+        self.emit_seq(len, f)
     }
-    fn emit_enum_variant_arg(&mut self, _a_idx: uint,
+    fn emit_enum_variant_arg(&mut self, a_idx: uint,
                              f: |&mut Encoder| -> Result<(), Error>)
         -> Result<(), Error>
     {
-        f(self)
+        self.emit_seq_elt(a_idx, f)
     }
     fn emit_enum_struct_variant(&mut self, _v_name: &str, _v_id: uint,
                                 _len: uint,
@@ -511,10 +511,10 @@ impl serialize::Decoder<DecodeError> for Decoder {
         Err(first_error.unwrap_or_else(|| self.err(NoEnumVariants)))
     }
     fn read_enum_variant_arg<T>(&mut self,
-                                _a_idx: uint,
+                                a_idx: uint,
                                 f: |&mut Decoder| -> Result<T, DecodeError>)
                                 -> Result<T, DecodeError> {
-        f(self)
+        self.read_seq_elt(a_idx, f)
     }
 
     fn read_enum_struct_variant<T>(&mut self,
@@ -1030,12 +1030,14 @@ mod tests {
     fn parse_enum() {
         #[deriving(Encodable, Decodable, PartialEq, Show)]
         struct Foo { a: E }
+
         #[deriving(Encodable, Decodable, PartialEq, Show)]
         enum E {
             Bar(int),
-            Baz(f64),
+            Baz(f64, i64),
             Last(Foo2),
         }
+
         #[deriving(Encodable, Decodable, PartialEq, Show)]
         struct Foo2 {
             test: String,
@@ -1044,21 +1046,21 @@ mod tests {
         let v = Foo { a: Bar(10) };
         assert_eq!(
             encode!(v),
-            map! { a: Integer(10) }
+            map! { a: Array(vec![Integer(10)]) }
         );
         assert_eq!(v, decode!(Table(encode!(v))));
 
-        let v = Foo { a: Baz(10.2) };
+        let v = Foo { a: Baz(10.2, 13) };
         assert_eq!(
             encode!(v),
-            map! { a: Float(10.2) }
+            map! { a: Array(vec![Float(10.2), Integer(13)]) }
         );
         assert_eq!(v, decode!(Table(encode!(v))));
 
         let v = Foo { a: Last(Foo2 { test: "test".to_string() }) };
         assert_eq!(
             encode!(v),
-            map! { a: Table(map! { test: String("test".to_string()) }) }
+            map! { a: Array(vec![Table(map! { test: String("test".to_string()) })]) }
         );
         assert_eq!(v, decode!(Table(encode!(v))));
     }
