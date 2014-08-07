@@ -3,7 +3,6 @@ install:
 script:
 - cargo build --verbose
 - cargo test --verbose
-- rustdoc --test src/lib.rs -L target --crate-name toml
 - cargo doc
 after_success: ! '[ $TRAVIS_BRANCH = master ] && [ $TRAVIS_PULL_REQUEST = false ]
   && echo ''<meta http-equiv=refresh content=0;url=toml/index.html>'' > target/doc/index.html
