@@ -19,7 +19,7 @@ pub struct Parser<'a> {
     /// Not all parse errors are fatal, so this list is added to as much as
     /// possible without aborting parsing. If `None` is returned by `parse`, it
     /// is guaranteed that this list is not empty.
-    pub errors: Vec<Error>,
+    pub errors: Vec<ParserError>,
 }
 
 /// A structure representing a parse error.
@@ -27,7 +27,7 @@ pub struct Parser<'a> {
 /// The data in this structure can be used to trace back to the original cause
 /// of the error in order to provide diagnostics about parse errors.
 #[deriving(Show)]
-pub struct Error {
+pub struct ParserError {
     /// The low byte at which this error is pointing at.
     pub lo: uint,
     /// One byte beyond the last character at which this error is pointing at.
@@ -96,7 +96,7 @@ impl<'a> Parser<'a> {
         let mut it = self.cur.clone();
         let lo = it.next().map(|p| p.val0()).unwrap_or(self.input.len());
         let hi = it.next().map(|p| p.val0()).unwrap_or(self.input.len());
-        self.errors.push(Error {
+        self.errors.push(ParserError {
             lo: lo,
             hi: hi,
             desc: match self.cur.clone().next() {
@@ -150,7 +150,7 @@ impl<'a> Parser<'a> {
                     for (pos, ch) in self.cur {
                         if ch == ']' { break }
                         if ch == '[' {
-                            self.errors.push(Error {
+                            self.errors.push(ParserError {
                                 lo: pos,
                                 hi: pos + 1,
                                 desc: format!("section names cannot contain \
@@ -162,7 +162,7 @@ impl<'a> Parser<'a> {
                     }
 
                     if section.len() == 0 {
-                        self.errors.push(Error {
+                        self.errors.push(ParserError {
                             lo: start,
                             hi: start + if array {3} else {1},
                             desc: format!("section name must not be empty"),
@@ -205,7 +205,7 @@ impl<'a> Parser<'a> {
                             ' ' | '\t' => break,
                             '=' => { found_eq = true; break }
                             '\n' => {
-                                self.errors.push(Error {
+                                self.errors.push(ParserError {
                                     lo: start,
                                     hi: pos + 1,
                                     desc: format!("keys cannot be defined \
@@ -250,7 +250,7 @@ impl<'a> Parser<'a> {
                 let mut it = self.cur.clone();
                 let lo = it.next().map(|p| p.val0()).unwrap_or(self.input.len());
                 let hi = it.next().map(|p| p.val0()).unwrap_or(self.input.len());
-                self.errors.push(Error {
+                self.errors.push(ParserError {
                     lo: lo,
                     hi: hi,
                     desc: format!("expected a value"),
@@ -296,7 +296,7 @@ impl<'a> Parser<'a> {
                 Some((pos, ch)) if ch < '\u001f' => {
                     let mut escaped = String::new();
                     ch.escape_default(|c| escaped.push_char(c));
-                    self.errors.push(Error {
+                    self.errors.push(ParserError {
                         lo: pos,
                         hi: pos + 1,
                         desc: format!("control character `{}` must be escaped",
@@ -305,7 +305,7 @@ impl<'a> Parser<'a> {
                 }
                 Some((_, ch)) => ret.push_char(ch),
                 None => {
-                    self.errors.push(Error {
+                    self.errors.push(ParserError {
                         lo: start,
                         hi: self.input.len(),
                         desc: format!("unterminated string literal"),
@@ -345,7 +345,7 @@ impl<'a> Parser<'a> {
                                     return Some(c)
                                 }
                                 None => {
-                                    me.errors.push(Error {
+                                    me.errors.push(ParserError {
                                         lo: pos + 1,
                                         hi: pos + 5,
                                         desc: format!("codepoint `{:x}` is \
@@ -356,7 +356,7 @@ impl<'a> Parser<'a> {
                             }
                         }
                         None => {
-                            me.errors.push(Error {
+                            me.errors.push(ParserError {
                                 lo: pos,
                                 hi: pos + 1,
                                 desc: format!("expected {} hex digits \
@@ -381,7 +381,7 @@ impl<'a> Parser<'a> {
                     let mut escaped = String::new();
                     ch.escape_default(|c| escaped.push_char(c));
                     let next_pos = me.next_pos();
-                    me.errors.push(Error {
+                    me.errors.push(ParserError {
                         lo: pos,
                         hi: next_pos,
                         desc: format!("unknown string escape: `{}`",
@@ -390,7 +390,7 @@ impl<'a> Parser<'a> {
                     None
                 }
                 None => {
-                    me.errors.push(Error {
+                    me.errors.push(ParserError {
                         lo: pos,
                         hi: pos + 1,
                         desc: format!("unterminated escape sequence"),
@@ -424,7 +424,7 @@ impl<'a> Parser<'a> {
                 }
                 Some((_, ch)) => ret.push_char(ch),
                 None => {
-                    self.errors.push(Error {
+                    self.errors.push(ParserError {
                         lo: start,
                         hi: self.input.len(),
                         desc: format!("unterminated string literal"),
@@ -463,7 +463,7 @@ impl<'a> Parser<'a> {
             from_str::<i64>(self.input.slice(start, end)).map(Integer)
         };
         if ret.is_none() {
-            self.errors.push(Error {
+            self.errors.push(ParserError {
                 lo: start,
                 hi: end,
                 desc: format!("invalid numeric literal"),
@@ -486,7 +486,7 @@ impl<'a> Parser<'a> {
             Some(Boolean(false))
         } else {
             let next = self.next_pos();
-            self.errors.push(Error {
+            self.errors.push(ParserError {
                 lo: start,
                 hi: next,
                 desc: format!("unexpected character: `{}`",
@@ -502,7 +502,7 @@ impl<'a> Parser<'a> {
             match self.cur.next() {
                 Some((_, ch)) => date.push_char(ch),
                 None => {
-                    self.errors.push(Error {
+                    self.errors.push(ParserError {
                         lo: start,
                         hi: end_so_far,
                         desc: format!("malformed date literal"),
@@ -536,7 +536,7 @@ impl<'a> Parser<'a> {
         if valid {
             Some(Datetime(date.clone()))
         } else {
-            self.errors.push(Error {
+            self.errors.push(ParserError {
                 lo: start,
                 hi: start + date.len(),
                 desc: format!("malformed date literal"),
@@ -575,7 +575,7 @@ impl<'a> Parser<'a> {
             let end = self.next_pos();
             let expected = type_str.unwrap_or(value.type_str());
             if value.type_str() != expected {
-                self.errors.push(Error {
+                self.errors.push(ParserError {
                     lo: start,
                     hi: end,
                     desc: format!("expected type `{}`, found type `{}`",
@@ -598,7 +598,7 @@ impl<'a> Parser<'a> {
     fn insert(&mut self, into: &mut Table, key: String, value: Value,
               key_lo: uint) {
         if into.contains_key(&key) {
-            self.errors.push(Error {
+            self.errors.push(ParserError {
                 lo: key_lo,
                 hi: key_lo + key.len(),
                 desc: format!("duplicate key: `{}`", key),
@@ -612,7 +612,7 @@ impl<'a> Parser<'a> {
                    key_lo: uint) -> Option<(&'a mut Table, &'a str)> {
         if orig_key.starts_with(".") || orig_key.ends_with(".") ||
            orig_key.contains("..") {
-            self.errors.push(Error {
+            self.errors.push(ParserError {
                 lo: key_lo,
                 hi: key_lo + orig_key.len(),
                 desc: format!("tables cannot have empty names"),
@@ -637,7 +637,7 @@ impl<'a> Parser<'a> {
                         match array.as_mut_slice().mut_last() {
                             Some(&Table(ref mut table)) => cur = table,
                             _ => {
-                                self.errors.push(Error {
+                                self.errors.push(ParserError {
                                     lo: key_lo,
                                     hi: key_lo + key.len(),
                                     desc: format!("array `{}` does not contain \
@@ -649,7 +649,7 @@ impl<'a> Parser<'a> {
                         continue
                     }
                     _ => {
-                        self.errors.push(Error {
+                        self.errors.push(ParserError {
                             lo: key_lo,
                             hi: key_lo + key.len(),
                             desc: format!("key `{}` was not previously a table",
@@ -673,7 +673,7 @@ impl<'a> Parser<'a> {
     fn insert_table(&mut self, into: &mut Table, key: String, value: Table,
                     key_lo: uint) {
         if !self.tables_defined.insert(key.clone()) {
-            self.errors.push(Error {
+            self.errors.push(ParserError {
                 lo: key_lo,
                 hi: key_lo + key.len(),
                 desc: format!("redefinition of table `{}`", key),
@@ -693,7 +693,7 @@ impl<'a> Parser<'a> {
             Some(&Table(ref mut table)) => {
                 for (k, v) in value.move_iter() {
                     if !table.insert(k.clone(), v) {
-                        self.errors.push(Error {
+                        self.errors.push(ParserError {
                             lo: key_lo,
                             hi: key_lo + key.len(),
                             desc: format!("duplicate key `{}` in table", k),
@@ -702,7 +702,7 @@ impl<'a> Parser<'a> {
                 }
             }
             Some(_) => {
-                self.errors.push(Error {
+                self.errors.push(ParserError {
                     lo: key_lo,
                     hi: key_lo + key.len(),
                     desc: format!("duplicate key `{}` in table", key),
@@ -726,7 +726,7 @@ impl<'a> Parser<'a> {
             Array(ref mut vec) => {
                 match vec.as_slice().head() {
                     Some(ref v) if !v.same_type(&value) => {
-                        self.errors.push(Error {
+                        self.errors.push(ParserError {
                             lo: key_lo,
                             hi: key_lo + key.len(),
                             desc: format!("expected type `{}`, found type `{}`",
@@ -738,7 +738,7 @@ impl<'a> Parser<'a> {
                 vec.push(value);
             }
             _ => {
-                self.errors.push(Error {
+                self.errors.push(ParserError {
                     lo: key_lo,
                     hi: key_lo + key.len(),
                     desc: format!("key `{}` was previously not an array", key),
