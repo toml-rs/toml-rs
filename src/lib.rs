@@ -36,6 +36,7 @@
 //! [2]: https://github.com/BurntSushi/toml-test
 //!
 
+#![crate_name = "toml"]
 #![crate_type = "lib"]
 #![feature(macro_rules)]
 #![deny(warnings, missing_doc)]
