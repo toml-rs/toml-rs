@@ -2,7 +2,7 @@ use std::fmt;
 
 use {Value, String, Integer, Float, Boolean, Datetime, Array, Table};
 
-struct Printer<'a, 'b> {
+struct Printer<'a, 'b:'a> {
     output: &'a mut fmt::Formatter<'b>,
     stack: Vec<&'a str>,
 }
