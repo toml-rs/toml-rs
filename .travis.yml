@@ -1,5 +1,4 @@
-install:
-- curl http://www.rust-lang.org/rustup.sh | sudo sh -
+language: rust
 script:
 - cargo build --verbose
 - cargo test --verbose
@@ -10,5 +9,4 @@ after_success: ! '[ $TRAVIS_BRANCH = master ] && [ $TRAVIS_PULL_REQUEST = false 
   gh-pages '
 env:
   global:
-  - LD_LIBRARY_PATH: /usr/local/lib
   - secure: bK8RmAtQcJvxXZFe+WqfRwuQqq1h3PXCFtrd73m4PWysdMEhtWb+ZKugPw8ykT3YVVLqbLnzH2Z8iM0RkF57aJvk7H1P4Syw4h2pPvvgP91ayzHbUnWwxkkJJ+oQ8lDJtcDHQ4BQhKMpTqY4tbaG6KeSwSdqDRCJuzHbZJzR0Eg=
