@@ -634,7 +634,7 @@ impl<'a> Parser<'a> {
                         continue
                     }
                     Array(ref mut array) => {
-                        match array.as_mut_slice().mut_last() {
+                        match array.as_mut_slice().last_mut() {
                             Some(&Table(ref mut table)) => cur = table,
                             _ => {
                                 self.errors.push(ParserError {
@@ -691,7 +691,7 @@ impl<'a> Parser<'a> {
         }
         match into.find_mut(&key) {
             Some(&Table(ref mut table)) => {
-                for (k, v) in value.move_iter() {
+                for (k, v) in value.into_iter() {
                     if !table.insert(k.clone(), v) {
                         self.errors.push(ParserError {
                             lo: key_lo,
