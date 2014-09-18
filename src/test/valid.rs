@@ -33,10 +33,10 @@ fn to_json(toml: Value) -> json::Json {
                 Some(&Table(..)) => true,
                 _ => false,
             };
-            let json = json::List(arr.move_iter().map(to_json).collect());
+            let json = json::List(arr.into_iter().map(to_json).collect());
             if is_table {json} else {doit("array", json)}
         }
-        Table(table) => json::Object(table.move_iter().map(|(k, v)| {
+        Table(table) => json::Object(table.into_iter().map(|(k, v)| {
             (k, to_json(v))
         }).collect()),
     }
