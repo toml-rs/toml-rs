@@ -36,8 +36,9 @@ impl fmt::Show for Value {
             Datetime(ref s) => write!(f, "{}", s),
             Array(ref a) => {
                 match a.as_slice().head() {
-                    Some(&Table(..)) => fail!("invalid toml array of tables"),
-                    _ => {}
+                   Some(&Table(..)) =>
+                       try!(write!(f, "invalid toml array of tables")),
+                   _ => {}
                 }
                 write!(f, "{}", a)
             }
@@ -166,4 +167,3 @@ mod tests {
                     test = \"wut\"\n")
     }
 }
-
