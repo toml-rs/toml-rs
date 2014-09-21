@@ -4,7 +4,7 @@ use std::num::strconv;
 use std::collections::TreeMap;
 use self::serialize::json;
 
-use {Parser, Value, Table, String, Integer, Float, Boolean, Datetime, Array};
+use {Parser, Value, Table, Integer, Float, Boolean, Datetime, Array};
 
 fn to_json(toml: Value) -> json::Json {
     fn doit(s: &str, json: json::Json) -> json::Json {
@@ -14,7 +14,7 @@ fn to_json(toml: Value) -> json::Json {
         json::Object(map)
     }
     match toml {
-        String(s) => doit("string", json::String(s)),
+        ::String(s) => doit("string", json::String(s)),
         Integer(i) => doit("integer", json::String(i.to_string())),
         Float(f) => doit("float", json::String({
             let (bytes, _) =

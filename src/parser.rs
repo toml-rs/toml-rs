@@ -3,7 +3,7 @@ use std::collections::{TreeMap, HashSet};
 use std::num::FromStrRadix;
 use std::str;
 
-use {Array, Table, Value, String, Float, Integer, Boolean, Datetime};
+use {Array, Table, Value, Float, Integer, Boolean, Datetime, TomlTable};
 
 /// Parser for converting a string to a TOML `Value` instance.
 ///
@@ -129,13 +129,13 @@ impl<'a> Parser<'a> {
 
     /// Executes the parser, parsing the string contained within.
     ///
-    /// This function will return the `Table` instance if parsing is successful,
-    /// or it will return `None` if any parse error or invalid TOML error
-    /// occurs.
+    /// This function will return the `TomlTable` instance if parsing is
+    /// successful, or it will return `None` if any parse error or invalid TOML
+    /// error occurs.
     ///
     /// If an error occurs, the `errors` field of this parser can be consulted
     /// to determine the cause of the parse failure.
-    pub fn parse(&mut self) -> Option<Table> {
+    pub fn parse(&mut self) -> Option<TomlTable> {
         let mut ret = TreeMap::new();
         loop {
             self.ws();
@@ -189,7 +189,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn values(&mut self, into: &mut Table) -> bool {
+    fn values(&mut self, into: &mut TomlTable) -> bool {
         loop {
             self.ws();
             match self.cur.clone().next() {
@@ -273,7 +273,7 @@ impl<'a> Parser<'a> {
                 self.eat('\n');
             } else {
                 // empty
-                return Some(String(ret))
+                return Some(::String(ret))
             }
         }
 
@@ -315,7 +315,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        return Some(String(ret));
+        return Some(::String(ret));
 
         fn escape(me: &mut Parser, pos: uint, multiline: bool) -> Option<char> {
             match me.cur.next() {
@@ -434,7 +434,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        return Some(String(ret));
+        return Some(::String(ret));
     }
 
     fn number_or_datetime(&mut self, start: uint) -> Option<Value> {
@@ -595,7 +595,7 @@ impl<'a> Parser<'a> {
         return Some(Array(ret))
     }
 
-    fn insert(&mut self, into: &mut Table, key: String, value: Value,
+    fn insert(&mut self, into: &mut TomlTable, key: String, value: Value,
               key_lo: uint) {
         if into.contains_key(&key) {
             self.errors.push(ParserError {
@@ -608,8 +608,8 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn recurse<'a>(&mut self, mut cur: &'a mut Table, orig_key: &'a str,
-                   key_lo: uint) -> Option<(&'a mut Table, &'a str)> {
+    fn recurse<'a>(&mut self, mut cur: &'a mut TomlTable, orig_key: &'a str,
+                   key_lo: uint) -> Option<(&'a mut TomlTable, &'a str)> {
         if orig_key.starts_with(".") || orig_key.ends_with(".") ||
            orig_key.contains("..") {
             self.errors.push(ParserError {
@@ -670,7 +670,7 @@ impl<'a> Parser<'a> {
         return Some((cur, orig_key.slice_from(key.len() + 1)))
     }
 
-    fn insert_table(&mut self, into: &mut Table, key: String, value: Table,
+    fn insert_table(&mut self, into: &mut TomlTable, key: String, value: TomlTable,
                     key_lo: uint) {
         if !self.tables_defined.insert(key.clone()) {
             self.errors.push(ParserError {
@@ -712,7 +712,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn insert_array(&mut self, into: &mut Table, key: String, value: Value,
+    fn insert_array(&mut self, into: &mut TomlTable, key: String, value: Value,
                    key_lo: uint) {
         let (into, key) = match self.recurse(into, key.as_slice(), key_lo) {
             Some(pair) => pair,

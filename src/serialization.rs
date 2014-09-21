@@ -3,7 +3,7 @@ use std::mem;
 use std::fmt;
 
 use serialize;
-use {Value, Table, Array, String, Integer, Float, Boolean, Parser};
+use {Value, Table, Array, Integer, Float, Boolean, Parser, TomlTable};
 
 /// A structure to transform Rust values into TOML values.
 ///
@@ -38,7 +38,7 @@ pub struct Encoder {
     ///
     /// This field can be used to extract the return value after feeding a value
     /// into this `Encoder`.
-    pub toml: Table,
+    pub toml: TomlTable,
     state: EncoderState,
 }
 
@@ -142,7 +142,7 @@ impl Encoder {
             }
             NextMapKey => {
                 match v {
-                    String(s) => { self.state = NextKey(s); Ok(()) }
+                    ::String(s) => { self.state = NextKey(s); Ok(()) }
                     _ => Err(InvalidMapKeyType)
                 }
             }
@@ -194,7 +194,7 @@ impl serialize::Encoder<Error> for Encoder {
         self.emit_str(v.to_string().as_slice())
     }
     fn emit_str(&mut self, v: &str) -> Result<(), Error> {
-        self.emit_value(String(v.to_string()))
+        self.emit_value(::String(v.to_string()))
     }
     fn emit_enum(&mut self, _name: &str,
                  f: |&mut Encoder| -> Result<(), Error>) -> Result<(), Error> {
@@ -409,8 +409,8 @@ impl Decoder {
 impl serialize::Decoder<DecodeError> for Decoder {
     fn read_nil(&mut self) -> Result<(), DecodeError> {
         match self.toml {
-            Some(String(ref s)) if s.len() == 0 => {}
-            Some(String(..)) => return Err(self.err(NilTooLong)),
+            Some(::String(ref s)) if s.len() == 0 => {}
+            Some(::String(..)) => return Err(self.err(NilTooLong)),
             ref found => return Err(self.mismatch("string", found)),
         }
         self.toml.take();
@@ -466,7 +466,7 @@ impl serialize::Decoder<DecodeError> for Decoder {
     }
     fn read_char(&mut self) -> Result<char, DecodeError> {
         let ch = match self.toml {
-            Some(String(ref s)) if s.as_slice().char_len() == 1 =>
+            Some(::String(ref s)) if s.as_slice().char_len() == 1 =>
                 s.as_slice().char_at(0),
             ref found => return Err(self.mismatch("string", found)),
         };
@@ -475,7 +475,7 @@ impl serialize::Decoder<DecodeError> for Decoder {
     }
     fn read_str(&mut self) -> Result<String, DecodeError> {
         match self.toml.take() {
-            Some(String(s)) => Ok(s),
+            Some(::String(s)) => Ok(s),
             found => {
                 let err = Err(self.mismatch("string", &found));
                 self.toml = found;
@@ -673,7 +673,7 @@ impl serialize::Decoder<DecodeError> for Decoder {
             Some(Table(ref table)) => {
                 match table.iter().skip(idx).next() {
                     Some((key, _)) => {
-                        f(&mut self.sub_decoder(Some(String(key.to_string())),
+                        f(&mut self.sub_decoder(Some(::String(key.to_string())),
                                                 key.as_slice()))
                     }
                     None => Err(self.err(ExpectedMapKey(idx))),
@@ -761,7 +761,7 @@ mod tests {
     use serialize::{Encodable, Decodable};
 
     use super::{Encoder, Decoder, DecodeError};
-    use {Table, Integer, String, Array, Float};
+    use {Table, Integer, Array, Float};
 
     macro_rules! encode( ($t:expr) => ({
         let mut e = Encoder::new();
@@ -816,7 +816,7 @@ mod tests {
                    map! {
                        a: Integer(2),
                        b: Table(map! {
-                           a: String("test".to_string())
+                           a: ::String("test".to_string())
                        })
                    });
         assert_eq!(v, decode!(Table(encode!(v))));
@@ -837,7 +837,7 @@ mod tests {
              }
         }
         let mut d_good = Decoder::new(Integer(5));
-        let mut d_bad1 = Decoder::new(String("not an int".to_string()));
+        let mut d_bad1 = Decoder::new(::String("not an int".to_string()));
         let mut d_bad2 = Decoder::new(Integer(11));
 
         assert_eq!(Ok(Range10(5)), Decodable::decode(&mut d_good));
@@ -908,12 +908,12 @@ mod tests {
                    map! {
                        a: Table(map! {
                            b: Table(map! {
-                               a: String("foo".to_string()),
+                               a: ::String("foo".to_string()),
                                b: Float(4.5)
                            })
                        }),
                        b: Table(map! {
-                           a: String("bar".to_string()),
+                           a: ::String("bar".to_string()),
                            b: Float(1.0)
                        })
                    });
@@ -947,7 +947,7 @@ mod tests {
                     foo: Integer(10),
                     bar: Integer(4)
                 }),
-                set: Array(vec![String("a".to_string())])
+                set: Array(vec![::String("a".to_string())])
             }
         );
         assert_eq!(v, decode!(Table(encode!(v))));
@@ -963,7 +963,7 @@ mod tests {
             encode!(v),
             map! {
                 _field0: Integer(1),
-                _field1: String("foo".to_string()),
+                _field1: ::String("foo".to_string()),
                 _field2: Float(4.5)
             }
         );
@@ -1058,7 +1058,7 @@ mod tests {
         let v = Foo { a: Last(Foo2 { test: "test".to_string() }) };
         assert_eq!(
             encode!(v),
-            map! { a: Table(map! { test: String("test".to_string()) }) }
+            map! { a: Table(map! { test: ::String("test".to_string()) }) }
         );
         assert_eq!(v, decode!(Table(encode!(v))));
     }
@@ -1129,7 +1129,7 @@ mod tests {
         let v = Foo { a: map! { a: "foo".to_string() } };
         let mut d = Decoder::new(Table(map! {
             a: Table(map! {
-                a: String("foo".to_string())
+                a: ::String("foo".to_string())
             })
         }));
         assert_eq!(v, Decodable::decode(&mut d).unwrap());
@@ -1144,7 +1144,7 @@ mod tests {
 
         let v = Foo { a: vec!["a".to_string()] };
         let mut d = Decoder::new(Table(map! {
-            a: Array(vec![String("a".to_string())])
+            a: Array(vec![::String("a".to_string())])
         }));
         assert_eq!(v, Decodable::decode(&mut d).unwrap());
 

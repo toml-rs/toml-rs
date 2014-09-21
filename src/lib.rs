@@ -46,6 +46,7 @@ extern crate serialize;
 
 use std::collections::TreeMap;
 use std::from_str::FromStr;
+use std::string;
 
 pub use parser::{Parser,ParserError};
 pub use serialization::{Encoder, encode, encode_str};
@@ -61,17 +62,17 @@ mod serialization;
 #[deriving(PartialEq, Clone)]
 #[allow(missing_doc)]
 pub enum Value {
-    String(String),
+    String(string::String),
     Integer(i64),
     Float(f64),
     Boolean(bool),
-    Datetime(String),
-    Array(Array),
-    Table(Table),
+    Datetime(string::String),
+    Array(TomlArray),
+    Table(TomlTable),
 }
 
-pub type Array = Vec<Value>;
-pub type Table = TreeMap<String, Value>;
+pub type TomlArray = Vec<Value>;
+pub type TomlTable = TreeMap<string::String, Value>;
 
 impl Value {
     /// Tests whether this and another value have the same type.
@@ -140,7 +141,7 @@ impl Value {
     }
 
     /// Extracts the table value if it is a table.
-    pub fn as_table<'a>(&'a self) -> Option<&'a Table> {
+    pub fn as_table<'a>(&'a self) -> Option<&'a TomlTable> {
         match *self { Table(ref s) => Some(s), _ => None }
     }
 

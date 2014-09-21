@@ -1,6 +1,6 @@
 use std::fmt;
 
-use {Value, String, Integer, Float, Boolean, Datetime, Array, Table};
+use {Value, String, Integer, Float, Boolean, Datetime, Array, Table, TomlTable};
 
 struct Printer<'a, 'b:'a> {
     output: &'a mut fmt::Formatter<'b>,
@@ -51,7 +51,7 @@ impl fmt::Show for Value {
 }
 
 impl<'a, 'b> Printer<'a, 'b> {
-    fn print(&mut self, table: &'a Table) -> fmt::Result {
+    fn print(&mut self, table: &'a TomlTable) -> fmt::Result {
         for (k, v) in table.iter() {
             match *v {
                 Table(..) => continue,
