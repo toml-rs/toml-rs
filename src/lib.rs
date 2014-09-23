@@ -40,7 +40,6 @@
 #![crate_type = "lib"]
 #![feature(macro_rules)]
 #![deny(warnings, missing_doc)]
-#![allow(visible_private_types)]
 
 extern crate serialize;
 
