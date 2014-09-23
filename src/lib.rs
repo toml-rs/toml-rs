@@ -39,7 +39,7 @@
 #![crate_name = "toml"]
 #![crate_type = "lib"]
 #![feature(macro_rules)]
-#![deny(warnings, missing_doc)]
+#![deny(missing_doc)]
 
 extern crate serialize;
 
