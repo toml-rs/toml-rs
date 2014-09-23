@@ -1,12 +1,20 @@
 language: rust
 script:
-- cargo build --verbose
-- cargo test --verbose
-- cargo doc
-after_success: ! '[ $TRAVIS_BRANCH = master ] && [ $TRAVIS_PULL_REQUEST = false ]
-  && echo ''<meta http-equiv=refresh content=0;url=toml/index.html>'' > target/doc/index.html
-  && sudo pip install ghp-import && ghp-import -n target/doc && git push -fq https://${TOKEN}@github.com/${TRAVIS_REPO_SLUG}.git
-  gh-pages '
+  - cargo build --verbose
+  - cargo test --verbose
+  - rustdoc --test README.md -L target
+  - cargo doc
+after_success: |
+  [ $TRAVIS_BRANCH = master ] &&
+  [ $TRAVIS_PULL_REQUEST = false ] &&
+  echo '<meta http-equiv=refresh content=0;url=toml/index.html>' > target/doc/index.html &&
+  sudo pip install ghp-import &&
+  ghp-import -n target/doc &&
+  git push -f https://${TOKEN}@github.com/${TRAVIS_REPO_SLUG}.git gh-pages &&
+  rm target/doc/index.html &&
+  mv target/doc . &&
+  (curl http://www.rust-ci.org/artifacts/put?t=$RUSTCI_TOKEN | sh)
 env:
   global:
-  - secure: bK8RmAtQcJvxXZFe+WqfRwuQqq1h3PXCFtrd73m4PWysdMEhtWb+ZKugPw8ykT3YVVLqbLnzH2Z8iM0RkF57aJvk7H1P4Syw4h2pPvvgP91ayzHbUnWwxkkJJ+oQ8lDJtcDHQ4BQhKMpTqY4tbaG6KeSwSdqDRCJuzHbZJzR0Eg=
+    - secure: bK8RmAtQcJvxXZFe+WqfRwuQqq1h3PXCFtrd73m4PWysdMEhtWb+ZKugPw8ykT3YVVLqbLnzH2Z8iM0RkF57aJvk7H1P4Syw4h2pPvvgP91ayzHbUnWwxkkJJ+oQ8lDJtcDHQ4BQhKMpTqY4tbaG6KeSwSdqDRCJuzHbZJzR0Eg=
+    - secure: WVCzGVsthRub6ezJU15xzo+ahlUoZEwvZDeMPmjIMf1G28ObE9Y4BeUNW0j9CxCjyQ+5S0mrp1l0TESN326XTDosigabDiGnKyr5wfncnreN3PCUi3gx7NI+bRTy9B3eV318BhuCDgLgRWLWufCyPtkgAdT6cl+u6p+bEh+vyxo=
