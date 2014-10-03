@@ -52,6 +52,9 @@ pub use serialization::{Encoder, encode, encode_str};
 pub use serialization::{Decoder, decode, decode_str};
 pub use serialization::{Error, NeedsKey, NoValue};
 pub use serialization::{InvalidMapKeyLocation, InvalidMapKeyType};
+pub use serialization::{DecodeError, ApplicationError, ExpectedField};
+pub use serialization::{ExpectedMapElement, ExpectedMapKey, NoEnumVariants};
+pub use serialization::{ExpectedType, NilTooLong};
 
 mod parser;
 mod show;
