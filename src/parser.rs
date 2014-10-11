@@ -158,7 +158,7 @@ impl<'a> Parser<'a> {
                             });
                             continue
                         }
-                        section.push_char(ch);
+                        section.push(ch);
                     }
 
                     if section.len() == 0 {
@@ -212,7 +212,7 @@ impl<'a> Parser<'a> {
                                                    across lines"),
                                 })
                             }
-                            c => key.push_char(c),
+                            c => key.push(c),
                         }
                     }
                     if !found_eq {
@@ -288,14 +288,14 @@ impl<'a> Parser<'a> {
                 }
                 Some((pos, '\\')) => {
                     match escape(self, pos, multiline) {
-                        Some(c) => ret.push_char(c),
+                        Some(c) => ret.push(c),
                         None => {}
                     }
                 }
-                Some((_, '\n')) if multiline => ret.push_char('\n'),
+                Some((_, '\n')) if multiline => ret.push('\n'),
                 Some((pos, ch)) if ch < '\u001f' => {
                     let mut escaped = String::new();
-                    ch.escape_default(|c| escaped.push_char(c));
+                    ch.escape_default(|c| escaped.push(c));
                     self.errors.push(ParserError {
                         lo: pos,
                         hi: pos + 1,
@@ -303,7 +303,7 @@ impl<'a> Parser<'a> {
                                       escaped)
                     });
                 }
-                Some((_, ch)) => ret.push_char(ch),
+                Some((_, ch)) => ret.push(ch),
                 None => {
                     self.errors.push(ParserError {
                         lo: start,
@@ -379,7 +379,7 @@ impl<'a> Parser<'a> {
                 }
                 Some((pos, ch)) => {
                     let mut escaped = String::new();
-                    ch.escape_default(|c| escaped.push_char(c));
+                    ch.escape_default(|c| escaped.push(c));
                     let next_pos = me.next_pos();
                     me.errors.push(ParserError {
                         lo: pos,
@@ -422,7 +422,7 @@ impl<'a> Parser<'a> {
                     }
                     break
                 }
-                Some((_, ch)) => ret.push_char(ch),
+                Some((_, ch)) => ret.push(ch),
                 None => {
                     self.errors.push(ParserError {
                         lo: start,
@@ -500,7 +500,7 @@ impl<'a> Parser<'a> {
         let mut date = self.input.slice(start, end_so_far).to_string();
         for _ in range(0u, 15u) {
             match self.cur.next() {
-                Some((_, ch)) => date.push_char(ch),
+                Some((_, ch)) => date.push(ch),
                 None => {
                     self.errors.push(ParserError {
                         lo: start,
