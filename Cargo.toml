@@ -3,3 +3,14 @@
 name = "toml"
 version = "0.1.0"
 authors = ["Alex Crichton <alex@alexcrichton.com>"]
+license = "MIT/APL2"
+readme = "README.md"
+keywords = ["encoding"]
+repository = "https://github.com/alexcrichton/toml-rs"
+homepage = "https://github.com/alexcrichton/toml-rs"
+documentation = "http://alexcrichton.com/toml-rs"
+description = """
+A native Rust encoder and decoder of TOML-formatted files and streams. Provides
+implementations of the standard Encodable/Decodable traits for TOML data to
+facilitate deserializing and serializing Rust structures.
+"""
