@@ -84,6 +84,8 @@ impl<'a> Parser<'a> {
         self.cur.clone().next().map(|p| p.val0()).unwrap_or(self.input.len())
     }
 
+    // Returns true and consumes the next character if it matches `ch`,
+    // otherwise do nothing and return false
     fn eat(&mut self, ch: char) -> bool {
         match self.cur.clone().next() {
             Some((_, c)) if c == ch => { self.cur.next(); true }
@@ -107,6 +109,7 @@ impl<'a> Parser<'a> {
         false
     }
 
+    // Consumes whitespace ('\t' and ' ') until another character (or EOF) is reached
     fn ws(&mut self) {
         loop {
             match self.cur.clone().next() {
@@ -117,6 +120,7 @@ impl<'a> Parser<'a> {
         }
     }
 
+    // Consumes the rest of the line after a comment character
     fn comment(&mut self) {
         match self.cur.clone().next() {
             Some((_, '#')) => {}
@@ -146,6 +150,8 @@ impl<'a> Parser<'a> {
                 Some((start, '[')) => {
                     self.cur.next();
                     let array = self.eat('[');
+
+                    // Parse the name of the section
                     let mut section = String::new();
                     for (pos, ch) in self.cur {
                         if ch == ']' { break }
@@ -172,6 +178,7 @@ impl<'a> Parser<'a> {
                         return None
                     }
 
+                    // Build the section table
                     let mut table = TreeMap::new();
                     if !self.values(&mut table) { return None }
                     if array {
@@ -189,6 +196,8 @@ impl<'a> Parser<'a> {
         }
     }
 
+    // Parses the values into the given TomlTable. Returns true in case of success
+    // and false in case of error.
     fn values(&mut self, into: &mut TomlTable) -> bool {
         loop {
             self.ws();
@@ -236,6 +245,7 @@ impl<'a> Parser<'a> {
         return true
     }
 
+    // Parses a value
     fn value(&mut self) -> Option<Value> {
         self.ws();
         match self.cur.clone().next() {
@@ -260,6 +270,7 @@ impl<'a> Parser<'a> {
         }
     }
 
+    // Parses a single or multi-line string
     fn string(&mut self, start: uint) -> Option<Value> {
         if !self.expect('"') { return None }
         let mut multiline = false;
@@ -292,7 +303,8 @@ impl<'a> Parser<'a> {
                         None => {}
                     }
                 }
-                Some((_, '\n')) if multiline => ret.push('\n'),
+                Some((_, '\n')) |
+                Some((_, '\r')) if multiline => ret.push('\n'),
                 Some((pos, ch)) if ch < '\u001f' => {
                     let mut escaped = String::new();
                     ch.escape_default(|c| escaped.push(c));
@@ -765,6 +777,12 @@ authors = [\"alex@crichton.co\"]\r\n\
 \r\n\
 path = \"lib.rs\"\r\n\
 name = \"splay\"\r\n\
+description = \"\"\"\
+A Rust implementation of a TAR file reader and writer. This library does not\r\n\
+currently handle compression, but it is abstract over all I/O readers and\r\n\
+writers. Additionally, great lengths are taken to ensure that the entire\r\n\
+contents are never required to be entirely resident in memory all at once.\r\n\
+\"\"\"\
 ");
         assert!(p.parse().is_some());
     }
