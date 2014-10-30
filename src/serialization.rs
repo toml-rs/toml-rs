@@ -217,13 +217,13 @@ impl serialize::Encoder<Error> for Encoder {
                                 _f: |&mut Encoder| -> Result<(), Error>)
         -> Result<(), Error>
     {
-        fail!()
+        panic!()
     }
     fn emit_enum_struct_variant_field(&mut self, _f_name: &str, _f_idx: uint,
                                       _f: |&mut Encoder| -> Result<(), Error>)
         -> Result<(), Error>
     {
-        fail!()
+        panic!()
     }
     fn emit_struct(&mut self, _name: &str, _len: uint,
                    f: |&mut Encoder| -> Result<(), Error>) -> Result<(), Error> {
@@ -290,7 +290,7 @@ impl serialize::Encoder<Error> for Encoder {
         match mem::replace(&mut self.state, Start) {
             Start => unreachable!(),
             NextKey(_) => Ok(()),
-            NextArray(..) => fail!("how to encode None in an array?"),
+            NextArray(..) => panic!("how to encode None in an array?"),
             NextMapKey => Err(InvalidMapKeyLocation),
         }
     }
@@ -523,7 +523,7 @@ impl serialize::Decoder<DecodeError> for Decoder {
                                         -> Result<T, DecodeError>)
         -> Result<T, DecodeError>
     {
-        fail!()
+        panic!()
     }
     fn read_enum_struct_variant_field<T>(&mut self,
                                          _f_name: &str,
@@ -532,7 +532,7 @@ impl serialize::Decoder<DecodeError> for Decoder {
                                             -> Result<T, DecodeError>)
         -> Result<T, DecodeError>
     {
-        fail!()
+        panic!()
     }
 
     fn read_struct<T>(&mut self, _s_name: &str, _len: uint,
@@ -595,14 +595,14 @@ impl serialize::Decoder<DecodeError> for Decoder {
                             _f: |&mut Decoder, uint| -> Result<T, DecodeError>)
         -> Result<T, DecodeError>
     {
-        fail!()
+        panic!()
     }
     fn read_tuple_struct_arg<T>(&mut self,
                                 _a_idx: uint,
                                 _f: |&mut Decoder| -> Result<T, DecodeError>)
         -> Result<T, DecodeError>
     {
-        fail!()
+        panic!()
     }
 
     // Specialized types:
@@ -1000,7 +1000,7 @@ mod tests {
         }));
         let a: Result<Foo, DecodeError> = Decodable::decode(&mut d);
         match a {
-            Ok(..) => fail!("should not have decoded"),
+            Ok(..) => panic!("should not have decoded"),
             Err(e) => {
                 assert_eq!(e.to_string().as_slice(),
                            "expected a value of type `integer`, but \
@@ -1018,7 +1018,7 @@ mod tests {
         }));
         let a: Result<Foo, DecodeError> = Decodable::decode(&mut d);
         match a {
-            Ok(..) => fail!("should not have decoded"),
+            Ok(..) => panic!("should not have decoded"),
             Err(e) => {
                 assert_eq!(e.to_string().as_slice(),
                            "expected a value of type `integer` for the key `bar`");

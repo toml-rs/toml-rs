@@ -85,7 +85,7 @@ impl<'a, 'b> Printer<'a, 'b> {
                                       self.stack.connect(".")));
                         match *inner {
                             Table(ref inner) => try!(self.print(inner)),
-                            _ => fail!("non-heterogeneous toml array"),
+                            _ => panic!("non-heterogeneous toml array"),
                         }
                     }
                     self.stack.pop();
