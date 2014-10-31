@@ -639,14 +639,14 @@ impl serialize::Decoder<DecodeError> for Decoder {
         -> Result<T, DecodeError>
     {
         let toml = match self.toml {
-            Some(Array(ref mut arr)) => mem::replace(arr.get_mut(idx), Integer(0)),
+            Some(Array(ref mut arr)) => mem::replace(&mut arr[idx], Integer(0)),
             ref found => return Err(self.mismatch("array", found)),
         };
         let mut d = self.sub_decoder(Some(toml), "");
         let ret = try!(f(&mut d));
         match d.toml {
             Some(toml) => match self.toml {
-                Some(Array(ref mut arr)) => *arr.get_mut(idx) = toml,
+                Some(Array(ref mut arr)) => arr[idx] = toml,
                 _ => {}
             },
             _ => {}

@@ -39,7 +39,7 @@
 #![crate_name = "toml"]
 #![crate_type = "lib"]
 #![feature(macro_rules)]
-#![deny(missing_doc)]
+#![deny(missing_docs)]
 
 extern crate serialize;
 
@@ -62,7 +62,7 @@ mod serialization;
 #[cfg(test)]mod test;
 /// Representation of a TOML value.
 #[deriving(PartialEq, Clone)]
-#[allow(missing_doc)]
+#[allow(missing_docs)]
 pub enum Value {
     String(string::String),
     Integer(i64),
