@@ -578,10 +578,16 @@ impl serialize::Decoder<DecodeError> for Decoder {
     }
 
     fn read_tuple<T>(&mut self,
-                     f: |&mut Decoder, uint| -> Result<T, DecodeError>)
+                     tuple_len: uint,
+                     f: |&mut Decoder| -> Result<T, DecodeError>)
         -> Result<T, DecodeError>
     {
-        self.read_seq(f)
+        self.read_seq(|d, len| {
+            assert!(len == tuple_len,
+                    "expected tuple of length `{}`, found tuple \
+                         of length `{}`", tuple_len, len);
+            f(d)
+        })
     }
     fn read_tuple_arg<T>(&mut self, a_idx: uint,
                          f: |&mut Decoder| -> Result<T, DecodeError>)
@@ -592,7 +598,8 @@ impl serialize::Decoder<DecodeError> for Decoder {
 
     fn read_tuple_struct<T>(&mut self,
                             _s_name: &str,
-                            _f: |&mut Decoder, uint| -> Result<T, DecodeError>)
+                            _len: uint,
+                            _f: |&mut Decoder| -> Result<T, DecodeError>)
         -> Result<T, DecodeError>
     {
         panic!()
