@@ -47,7 +47,7 @@ use std::collections::TreeMap;
 use std::from_str::FromStr;
 use std::string;
 
-pub use parser::{Parser,ParserError};
+pub use parser::{Parser, ParserError};
 pub use serialization::{Encoder, encode, encode_str};
 pub use serialization::{Decoder, decode, decode_str};
 pub use serialization::{Error, NeedsKey, NoValue};

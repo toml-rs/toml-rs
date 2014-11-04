@@ -1,6 +1,7 @@
 use std::collections::TreeMap;
 use std::mem;
 use std::fmt;
+use std::error::Error as StdError;
 
 use serialize;
 use {Value, Table, Array, Integer, Float, Boolean, Parser, TomlTable};
@@ -56,7 +57,6 @@ pub struct Decoder {
 
 /// Enumeration of errors which can occur while encoding a rust value into a
 /// TOML value.
-#[deriving(Show)]
 pub enum Error {
     /// Indication that a key was needed when a value was emitted, but no key
     /// was previously emitted.
@@ -760,6 +760,39 @@ impl fmt::Show for DecodeError {
             None => Ok(())
         }
     }
+}
+
+impl StdError for DecodeError {
+    fn description(&self) -> &str {
+        match self.kind {
+            ApplicationError(ref s) => s.as_slice(),
+            ExpectedField(..) => "expected a field",
+            ExpectedType(..) => "expected a type",
+            ExpectedMapKey(..) => "expected a map key",
+            ExpectedMapElement(..) => "expected a map element",
+            NoEnumVariants => "no enum variants to decode to",
+            NilTooLong => "nonzero length string representing nil",
+        }
+    }
+    fn detail(&self) -> Option<String> { Some(self.to_string()) }
+}
+
+impl fmt::Show for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match *self {
+            NeedsKey => write!(f, "need a key to encode"),
+            NoValue => write!(f, "not value to emit for a previous key"),
+            InvalidMapKeyLocation => write!(f, "a map cannot be emitted at \
+                                                this location"),
+            InvalidMapKeyType => write!(f, "only strings can be used as \
+                                            key types"),
+        }
+    }
+}
+
+impl StdError for Error {
+    fn description(&self) -> &str { "TOML encoding error" }
+    fn detail(&self) -> Option<String> { Some(self.to_string()) }
 }
 
 #[cfg(test)]

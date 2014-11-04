@@ -1,5 +1,6 @@
 use std::char;
 use std::collections::{TreeMap, HashSet};
+use std::error::Error;
 use std::num::FromStrRadix;
 use std::str;
 
@@ -758,6 +759,11 @@ impl<'a> Parser<'a> {
             }
         }
     }
+}
+
+impl Error for ParserError {
+    fn description(&self) -> &str { "TOML parse error" }
+    fn detail(&self) -> Option<String> { Some(self.desc.clone()) }
 }
 
 #[cfg(test)]
