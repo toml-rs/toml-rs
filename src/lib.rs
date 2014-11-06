@@ -180,7 +180,7 @@ impl Value {
         for key in path.split('.') {
             match cur_value {
                 &Table(ref hm) => {
-                    match hm.find_with(|k| key.cmp(&k.as_slice())) {
+                    match hm.find_with(|k| key.cmp(k.as_slice())) {
                         Some(v) => cur_value = v,
                         _ => return None
                     }
