@@ -641,7 +641,7 @@ impl<'a> Parser<'a> {
             let tmp = cur;
 
             if tmp.contains_key(&part) {
-                match *tmp.find_mut(&part).unwrap() {
+                match *tmp.get_mut(&part).unwrap() {
                     Table(ref mut table) => {
                         cur = table;
                         continue
@@ -675,7 +675,7 @@ impl<'a> Parser<'a> {
 
             // Initialize an empty table as part of this sub-key
             tmp.insert(part.clone(), Table(TreeMap::new()));
-            match *tmp.find_mut(&part).unwrap() {
+            match *tmp.get_mut(&part).unwrap() {
                 Table(ref mut inner) => cur = inner,
                 _ => unreachable!(),
             }
@@ -702,10 +702,10 @@ impl<'a> Parser<'a> {
         if !into.contains_key(&key) {
             into.insert(key.clone(), Table(TreeMap::new()));
         }
-        match into.find_mut(&key) {
+        match into.get_mut(&key) {
             Some(&Table(ref mut table)) => {
                 for (k, v) in value.into_iter() {
-                    if !table.insert(k.clone(), v) {
+                    if table.insert(k.clone(), v).is_some() {
                         self.errors.push(ParserError {
                             lo: key_lo,
                             hi: key_lo + key.len(),
@@ -735,7 +735,7 @@ impl<'a> Parser<'a> {
         if !into.contains_key(&key) {
             into.insert(key.clone(), Array(Vec::new()));
         }
-        match *into.find_mut(&key).unwrap() {
+        match *into.get_mut(&key).unwrap() {
             Array(ref mut vec) => {
                 match vec.as_slice().head() {
                     Some(ref v) if !v.same_type(&value) => {

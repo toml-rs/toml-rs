@@ -560,8 +560,8 @@ impl serialize::Decoder<DecodeError> for Decoder {
         let field = f_name.to_string();
         let toml = match self.toml {
             Some(Table(ref mut table)) => {
-                table.pop(&field)
-                    .or_else(|| table.pop(&f_name.replace("_", "-")))
+                table.remove(&field)
+                    .or_else(|| table.remove(&f_name.replace("_", "-")))
             },
             ref found => return Err(self.mismatch("table", found)),
         };
