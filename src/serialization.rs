@@ -30,7 +30,7 @@ use {Value, Table, Array, Integer, Float, Boolean, Parser, TomlTable};
 /// let mut e = Encoder::new();
 /// my_struct.encode(&mut e).unwrap();
 ///
-/// assert_eq!(e.toml.find(&"foo".to_string()), Some(&Integer(4)))
+/// assert_eq!(e.toml.get(&"foo".to_string()), Some(&Integer(4)))
 /// # }
 /// ```
 pub struct Encoder {
