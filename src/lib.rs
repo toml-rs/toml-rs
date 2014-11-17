@@ -44,7 +44,7 @@
 extern crate serialize;
 
 use std::collections::TreeMap;
-use std::from_str::FromStr;
+use std::str::FromStr;
 use std::string;
 
 pub use parser::{Parser, ParserError};
