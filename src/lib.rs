@@ -50,11 +50,15 @@ use std::string;
 pub use parser::{Parser, ParserError};
 pub use serialization::{Encoder, encode, encode_str};
 pub use serialization::{Decoder, decode, decode_str};
-pub use serialization::{Error, NeedsKey, NoValue};
-pub use serialization::{InvalidMapKeyLocation, InvalidMapKeyType};
-pub use serialization::{DecodeError, ApplicationError, ExpectedField};
-pub use serialization::{ExpectedMapElement, ExpectedMapKey, NoEnumVariants};
-pub use serialization::{ExpectedType, NilTooLong};
+pub use serialization::Error;
+pub use serialization::Error::{NeedsKey, NoValue};
+pub use serialization::Error::{InvalidMapKeyLocation, InvalidMapKeyType};
+pub use serialization::{DecodeError, DecodeErrorKind};
+pub use serialization::DecodeErrorKind::{ApplicationError, ExpectedField};
+pub use serialization::DecodeErrorKind::{ExpectedMapElement, ExpectedMapKey, NoEnumVariants};
+pub use serialization::DecodeErrorKind::{ExpectedType, NilTooLong};
+
+pub use Value::{String, Integer, Float, Boolean, Datetime, Array, Table};
 
 mod parser;
 mod show;

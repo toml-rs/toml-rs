@@ -4,7 +4,8 @@ use std::error::Error;
 use std::num::FromStrRadix;
 use std::str;
 
-use {Array, Table, Value, Float, Integer, Boolean, Datetime, TomlTable};
+use {Value, TomlTable};
+use Value::{Array, Table, Float, Integer, Boolean, Datetime};
 
 /// Parser for converting a string to a TOML `Value` instance.
 ///
@@ -285,7 +286,7 @@ impl<'a> Parser<'a> {
                 self.eat('\n');
             } else {
                 // empty
-                return Some(::String(ret))
+                return Some(Value::String(ret))
             }
         }
 
@@ -328,7 +329,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        return Some(::String(ret));
+        return Some(Value::String(ret));
 
         fn escape(me: &mut Parser, pos: uint, multiline: bool) -> Option<char> {
             match me.cur.next() {
@@ -447,7 +448,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        return Some(::String(ret));
+        return Some(Value::String(ret));
     }
 
     fn number_or_datetime(&mut self, start: uint) -> Option<Value> {
@@ -768,7 +769,8 @@ impl Error for ParserError {
 
 #[cfg(test)]
 mod tests {
-    use {Table, Parser};
+    use Value::Table;
+    use Parser;
 
     #[test]
     fn crlf() {
