@@ -1,6 +1,7 @@
 use std::fmt;
 
-use {Value, String, Integer, Float, Boolean, Datetime, Array, Table, TomlTable};
+use {Value, TomlTable};
+use Value::{String, Integer, Float, Boolean, Datetime, Array, Table};
 
 struct Printer<'a, 'b:'a> {
     output: &'a mut fmt::Formatter<'b>,
@@ -100,7 +101,8 @@ impl<'a, 'b> Printer<'a, 'b> {
 #[cfg(test)]
 #[allow(warnings)]
 mod tests {
-    use {Value, String, Integer, Float, Boolean, Datetime, Array, Table};
+    use Value;
+    use Value::{String, Integer, Float, Boolean, Datetime, Array, Table};
     use std::collections::TreeMap;
 
     macro_rules! map( ($($k:expr: $v:expr),*) => ({
