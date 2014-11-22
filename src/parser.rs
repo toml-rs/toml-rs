@@ -257,7 +257,7 @@ impl<'a> Parser<'a> {
             Some((pos, 'f')) => self.boolean(pos),
             Some((pos, '[')) => self.array(pos),
             Some((pos, '-')) => self.number_or_datetime(pos),
-            Some((pos, ch)) if ch.is_digit() => self.number_or_datetime(pos),
+            Some((pos, ch)) if ch.is_digit(10) => self.number_or_datetime(pos),
             _ => {
                 let mut it = self.cur.clone();
                 let lo = it.next().map(|p| p.val0()).unwrap_or(self.input.len());
@@ -309,7 +309,9 @@ impl<'a> Parser<'a> {
                 Some((_, '\r')) if multiline => ret.push('\n'),
                 Some((pos, ch)) if ch < '\u001f' => {
                     let mut escaped = String::new();
-                    ch.escape_default(|c| escaped.push(c));
+                    for c in ch.escape_default() {
+                        escaped.push(c);
+                    }
                     self.errors.push(ParserError {
                         lo: pos,
                         hi: pos + 1,
@@ -393,7 +395,9 @@ impl<'a> Parser<'a> {
                 }
                 Some((pos, ch)) => {
                     let mut escaped = String::new();
-                    ch.escape_default(|c| escaped.push(c));
+                    for c in ch.escape_default() {
+                        escaped.push(c);
+                    }
                     let next_pos = me.next_pos();
                     me.errors.push(ParserError {
                         lo: pos,
@@ -456,7 +460,7 @@ impl<'a> Parser<'a> {
         let mut is_float = false;
         loop {
             match self.cur.clone().next() {
-                Some((_, ch)) if ch.is_digit() => { self.cur.next(); }
+                Some((_, ch)) if ch.is_digit(10) => { self.cur.next(); }
                 Some((_, '.')) if !is_float => {
                     is_float = true;
                     self.cur.next();
@@ -527,25 +531,25 @@ impl<'a> Parser<'a> {
         }
         let mut it = date.as_slice().chars();
         let mut valid = true;
-        valid = valid && it.next().map(|c| c.is_digit()).unwrap_or(false);
-        valid = valid && it.next().map(|c| c.is_digit()).unwrap_or(false);
-        valid = valid && it.next().map(|c| c.is_digit()).unwrap_or(false);
-        valid = valid && it.next().map(|c| c.is_digit()).unwrap_or(false);
+        valid = valid && it.next().map(|c| c.is_digit(10)).unwrap_or(false);
+        valid = valid && it.next().map(|c| c.is_digit(10)).unwrap_or(false);
+        valid = valid && it.next().map(|c| c.is_digit(10)).unwrap_or(false);
+        valid = valid && it.next().map(|c| c.is_digit(10)).unwrap_or(false);
         valid = valid && it.next().map(|c| c == '-').unwrap_or(false);
-        valid = valid && it.next().map(|c| c.is_digit()).unwrap_or(false);
-        valid = valid && it.next().map(|c| c.is_digit()).unwrap_or(false);
+        valid = valid && it.next().map(|c| c.is_digit(10)).unwrap_or(false);
+        valid = valid && it.next().map(|c| c.is_digit(10)).unwrap_or(false);
         valid = valid && it.next().map(|c| c == '-').unwrap_or(false);
-        valid = valid && it.next().map(|c| c.is_digit()).unwrap_or(false);
-        valid = valid && it.next().map(|c| c.is_digit()).unwrap_or(false);
+        valid = valid && it.next().map(|c| c.is_digit(10)).unwrap_or(false);
+        valid = valid && it.next().map(|c| c.is_digit(10)).unwrap_or(false);
         valid = valid && it.next().map(|c| c == 'T').unwrap_or(false);
-        valid = valid && it.next().map(|c| c.is_digit()).unwrap_or(false);
-        valid = valid && it.next().map(|c| c.is_digit()).unwrap_or(false);
+        valid = valid && it.next().map(|c| c.is_digit(10)).unwrap_or(false);
+        valid = valid && it.next().map(|c| c.is_digit(10)).unwrap_or(false);
         valid = valid && it.next().map(|c| c == ':').unwrap_or(false);
-        valid = valid && it.next().map(|c| c.is_digit()).unwrap_or(false);
-        valid = valid && it.next().map(|c| c.is_digit()).unwrap_or(false);
+        valid = valid && it.next().map(|c| c.is_digit(10)).unwrap_or(false);
+        valid = valid && it.next().map(|c| c.is_digit(10)).unwrap_or(false);
         valid = valid && it.next().map(|c| c == ':').unwrap_or(false);
-        valid = valid && it.next().map(|c| c.is_digit()).unwrap_or(false);
-        valid = valid && it.next().map(|c| c.is_digit()).unwrap_or(false);
+        valid = valid && it.next().map(|c| c.is_digit(10)).unwrap_or(false);
+        valid = valid && it.next().map(|c| c.is_digit(10)).unwrap_or(false);
         valid = valid && it.next().map(|c| c == 'Z').unwrap_or(false);
         if valid {
             Some(Datetime(date.clone()))
