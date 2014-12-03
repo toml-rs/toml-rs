@@ -2,22 +2,22 @@ extern crate serialize;
 
 use std::num::strconv;
 use std::collections::TreeMap;
-use self::serialize::json;
+use self::serialize::json::{mod, Json};
 
 use {Parser, Value};
 use Value::{Table, Integer, Float, Boolean, Datetime, Array};
 
-fn to_json(toml: Value) -> json::Json {
-    fn doit(s: &str, json: json::Json) -> json::Json {
+fn to_json(toml: Value) -> Json {
+    fn doit(s: &str, json: Json) -> Json {
         let mut map = TreeMap::new();
-        map.insert("type".to_string(), json::String(s.to_string()));
+        map.insert("type".to_string(), Json::String(s.to_string()));
         map.insert("value".to_string(), json);
-        json::Object(map)
+        Json::Object(map)
     }
     match toml {
-        Value::String(s) => doit("string", json::String(s)),
-        Integer(i) => doit("integer", json::String(i.to_string())),
-        Float(f) => doit("float", json::String({
+        Value::String(s) => doit("string", Json::String(s)),
+        Integer(i) => doit("integer", Json::String(i.to_string())),
+        Float(f) => doit("float", Json::String({
             let (bytes, _) =
                 strconv::float_to_str_bytes_common(f, 10, true,
                                                    strconv::SignNeg,
@@ -27,17 +27,17 @@ fn to_json(toml: Value) -> json::Json {
             let s = String::from_utf8(bytes).unwrap();
             if s.as_slice().contains(".") {s} else {format!("{}.0", s)}
         })),
-        Boolean(b) => doit("bool", json::String(b.to_string())),
-        Datetime(s) => doit("datetime", json::String(s)),
+        Boolean(b) => doit("bool", Json::String(b.to_string())),
+        Datetime(s) => doit("datetime", Json::String(s)),
         Array(arr) => {
             let is_table = match arr.as_slice().head() {
                 Some(&Table(..)) => true,
                 _ => false,
             };
-            let json = json::Array(arr.into_iter().map(to_json).collect());
+            let json = Json::Array(arr.into_iter().map(to_json).collect());
             if is_table {json} else {doit("array", json)}
         }
-        Table(table) => json::Object(table.into_iter().map(|(k, v)| {
+        Table(table) => Json::Object(table.into_iter().map(|(k, v)| {
             (k, to_json(v))
         }).collect()),
     }
