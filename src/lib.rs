@@ -58,8 +58,6 @@ pub use serialization::DecodeErrorKind::{ApplicationError, ExpectedField};
 pub use serialization::DecodeErrorKind::{ExpectedMapElement, ExpectedMapKey, NoEnumVariants};
 pub use serialization::DecodeErrorKind::{ExpectedType, NilTooLong};
 
-pub use Value::{String, Integer, Float, Boolean, Datetime, Array, Table};
-
 mod parser;
 mod show;
 mod serialization;
@@ -73,8 +71,8 @@ pub enum Value {
     Float(f64),
     Boolean(bool),
     Datetime(string::String),
-    Array(TomlArray),
-    Table(TomlTable),
+    Array(Array),
+    Table(Table),
 }
 
 /// Type representing a TOML array, payload of the Value::Array variant
@@ -87,13 +85,13 @@ impl Value {
     /// Tests whether this and another value have the same type.
     pub fn same_type(&self, other: &Value) -> bool {
         match (self, other) {
-            (&String(..), &String(..)) |
-            (&Integer(..), &Integer(..)) |
-            (&Float(..), &Float(..)) |
-            (&Boolean(..), &Boolean(..)) |
-            (&Datetime(..), &Datetime(..)) |
-            (&Array(..), &Array(..)) |
-            (&Table(..), &Table(..)) => true,
+            (&Value::String(..), &Value::String(..)) |
+            (&Value::Integer(..), &Value::Integer(..)) |
+            (&Value::Float(..), &Value::Float(..)) |
+            (&Value::Boolean(..), &Value::Boolean(..)) |
+            (&Value::Datetime(..), &Value::Datetime(..)) |
+            (&Value::Array(..), &Value::Array(..)) |
+            (&Value::Table(..), &Value::Table(..)) => true,
 
             _ => false,
         }
@@ -102,34 +100,34 @@ impl Value {
     /// Returns a human-readable representation of the type of this value.
     pub fn type_str(&self) -> &'static str {
         match *self {
-            String(..) => "string",
-            Integer(..) => "integer",
-            Float(..) => "float",
-            Boolean(..) => "boolean",
-            Datetime(..) => "datetime",
-            Array(..) => "array",
-            Table(..) => "table",
+            Value::String(..) => "string",
+            Value::Integer(..) => "integer",
+            Value::Float(..) => "float",
+            Value::Boolean(..) => "boolean",
+            Value::Datetime(..) => "datetime",
+            Value::Array(..) => "array",
+            Value::Table(..) => "table",
         }
     }
 
     /// Extracts the string of this value if it is a string.
     pub fn as_str<'a>(&'a self) -> Option<&'a str> {
-        match *self { String(ref s) => Some(s.as_slice()), _ => None }
+        match *self { Value::String(ref s) => Some(s.as_slice()), _ => None }
     }
 
     /// Extracts the integer value if it is an integer.
     pub fn as_integer(&self) -> Option<i64> {
-        match *self { Integer(i) => Some(i), _ => None }
+        match *self { Value::Integer(i) => Some(i), _ => None }
     }
 
     /// Extracts the float value if it is a float.
     pub fn as_float(&self) -> Option<f64> {
-        match *self { Float(f) => Some(f), _ => None }
+        match *self { Value::Float(f) => Some(f), _ => None }
     }
 
     /// Extracts the boolean value if it is a boolean.
     pub fn as_bool(&self) -> Option<bool> {
-        match *self { Boolean(b) => Some(b), _ => None }
+        match *self { Value::Boolean(b) => Some(b), _ => None }
     }
 
     /// Extracts the datetime value if it is a datetime.
@@ -141,17 +139,17 @@ impl Value {
     /// 1979-05-27T07:32:00Z
     /// ```
     pub fn as_datetime<'a>(&'a self) -> Option<&'a str> {
-        match *self { Datetime(ref s) => Some(s.as_slice()), _ => None }
+        match *self { Value::Datetime(ref s) => Some(s.as_slice()), _ => None }
     }
 
     /// Extracts the array value if it is an array.
     pub fn as_slice<'a>(&'a self) -> Option<&'a [Value]> {
-        match *self { Array(ref s) => Some(s.as_slice()), _ => None }
+        match *self { Value::Array(ref s) => Some(s.as_slice()), _ => None }
     }
 
     /// Extracts the table value if it is a table.
-    pub fn as_table<'a>(&'a self) -> Option<&'a TomlTable> {
-        match *self { Table(ref s) => Some(s), _ => None }
+    pub fn as_table<'a>(&'a self) -> Option<&'a Table> {
+        match *self { Value::Table(ref s) => Some(s), _ => None }
     }
 
     /// Lookups for value at specified path.
@@ -186,13 +184,13 @@ impl Value {
         let mut cur_value = self;
         for key in path.split('.') {
             match cur_value {
-                &Table(ref hm) => {
+                &Value::Table(ref hm) => {
                     match hm.find_with(|k| key.cmp(k.as_slice())) {
                         Some(v) => cur_value = v,
                         _ => return None
                     }
                 },
-                &Array(ref v) => {
+                &Value::Array(ref v) => {
                     let idx: Option<uint> = FromStr::from_str(key);
                     match idx {
                         Some(idx) if idx < v.len() => cur_value = &v[idx],
@@ -209,7 +207,7 @@ impl Value {
 
 impl FromStr for Value {
     fn from_str(s: &str) -> Option<Value> {
-        Parser::new(s).parse().map(Table)
+        Parser::new(s).parse().map(Value::Table)
     }
 }
 

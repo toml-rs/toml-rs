@@ -4,8 +4,8 @@ use std::error::Error;
 use std::num::FromStrRadix;
 use std::str;
 
-use {Value, TomlTable};
-use Value::{Array, Table, Float, Integer, Boolean, Datetime};
+use Table as TomlTable;
+use Value::{mod, Array, Table, Float, Integer, Boolean, Datetime};
 
 /// Parser for converting a string to a TOML `Value` instance.
 ///

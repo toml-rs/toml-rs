@@ -4,7 +4,8 @@ use std::fmt;
 use std::error::Error as StdError;
 
 use serialize;
-use {Value, Parser, TomlTable};
+use {Value, Parser};
+use Table as TomlTable;
 use Value::{Table, Array, Integer, Float, Boolean};
 
 use self::EncoderState::{Start, NextKey, NextArray, NextMapKey};
@@ -26,7 +27,7 @@ use self::DecodeErrorKind::{ExpectedMapElement, NoEnumVariants, NilTooLong};
 /// extern crate toml;
 ///
 /// # fn main() {
-/// use toml::{Encoder, Integer};
+/// use toml::{Encoder, Value};
 /// use serialize::Encodable;
 ///
 /// #[deriving(Encodable)]
@@ -36,7 +37,7 @@ use self::DecodeErrorKind::{ExpectedMapElement, NoEnumVariants, NilTooLong};
 /// let mut e = Encoder::new();
 /// my_struct.encode(&mut e).unwrap();
 ///
-/// assert_eq!(e.toml.get(&"foo".to_string()), Some(&Integer(4)))
+/// assert_eq!(e.toml.get(&"foo".to_string()), Some(&Value::Integer(4)))
 /// # }
 /// ```
 pub struct Encoder {
