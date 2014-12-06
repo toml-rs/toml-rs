@@ -77,8 +77,11 @@ pub enum Value {
     Table(TomlTable),
 }
 
-pub type TomlArray = Vec<Value>;
-pub type TomlTable = TreeMap<string::String, Value>;
+/// Type representing a TOML array, payload of the Value::Array variant
+pub type Array = Vec<Value>;
+
+/// Type representing a TOML table, payload of the Value::Table variant
+pub type Table = TreeMap<string::String, Value>;
 
 impl Value {
     /// Tests whether this and another value have the same type.
