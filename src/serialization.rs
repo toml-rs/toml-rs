@@ -260,7 +260,6 @@ impl serialize::Encoder<Error> for Encoder {
         let old = mem::replace(&mut self.state, NextKey(f_name.to_string()));
         try!(f(self));
         if self.state != Start {
-            println!("{}", self.state);
             return Err(NoValue)
         }
         self.state = old;
@@ -636,6 +635,7 @@ impl serialize::Decoder<DecodeError> for Decoder {
     {
         let len = match self.toml {
             Some(Array(ref arr)) => arr.len(),
+            None => 0,
             ref found => return Err(self.mismatch("array", found)),
         };
         let ret = try!(f(self, len));
@@ -1235,5 +1235,35 @@ mod tests {
                 b: Integer(2)
             })])
         })));
+    }
+
+    #[test]
+    fn empty_arrays() {
+        #[deriving(Encodable, Decodable, PartialEq, Show)]
+        struct Foo { a: Vec<Bar> }
+        #[deriving(Encodable, Decodable, PartialEq, Show)]
+        struct Bar;
+
+        let v = Foo { a: vec![] };
+        let mut d = Decoder::new(Table(map! {}));
+        assert_eq!(v, Decodable::decode(&mut d).unwrap());
+    }
+
+    #[test]
+    fn empty_arrays2() {
+        #[deriving(Encodable, Decodable, PartialEq, Show)]
+        struct Foo { a: Option<Vec<Bar>> }
+        #[deriving(Encodable, Decodable, PartialEq, Show)]
+        struct Bar;
+
+        let v = Foo { a: None };
+        let mut d = Decoder::new(Table(map! {}));
+        assert_eq!(v, Decodable::decode(&mut d).unwrap());
+
+        let v = Foo { a: Some(vec![]) };
+        let mut d = Decoder::new(Table(map! {
+            a: Array(vec![])
+        }));
+        assert_eq!(v, Decodable::decode(&mut d).unwrap());
     }
 }
