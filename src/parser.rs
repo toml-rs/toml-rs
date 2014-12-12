@@ -305,7 +305,7 @@ impl<'a> Parser<'a> {
                 }
                 Some((_, '\n')) |
                 Some((_, '\r')) if multiline => ret.push('\n'),
-                Some((pos, ch)) if ch < '\u001f' => {
+                Some((pos, ch)) if ch < '\u{1f}' => {
                     let mut escaped = String::new();
                     for c in ch.escape_default() {
                         escaped.push(c);
@@ -333,14 +333,14 @@ impl<'a> Parser<'a> {
 
         fn escape(me: &mut Parser, pos: uint, multiline: bool) -> Option<char> {
             match me.cur.next() {
-                Some((_, 'b')) => Some('\u0008'),
-                Some((_, 't')) => Some('\u0009'),
-                Some((_, 'n')) => Some('\u000a'),
-                Some((_, 'f')) => Some('\u000c'),
-                Some((_, 'r')) => Some('\u000d'),
-                Some((_, '"')) => Some('\u0022'),
-                Some((_, '/')) => Some('\u002f'),
-                Some((_, '\\')) => Some('\u005c'),
+                Some((_, 'b')) => Some('\u{8}'),
+                Some((_, 't')) => Some('\u{9}'),
+                Some((_, 'n')) => Some('\u{a}'),
+                Some((_, 'f')) => Some('\u{c}'),
+                Some((_, 'r')) => Some('\u{d}'),
+                Some((_, '"')) => Some('\u{22}'),
+                Some((_, '/')) => Some('\u{2f}'),
+                Some((_, '\\')) => Some('\u{5c}'),
                 Some((pos, c @ 'u')) |
                 Some((pos, c @ 'U')) => {
                     let len = if c == 'u' {4} else {8};

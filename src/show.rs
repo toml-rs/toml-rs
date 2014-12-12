@@ -15,13 +15,13 @@ impl fmt::Show for Value {
                 try!(write!(f, "\""));
                 for ch in s.as_slice().chars() {
                     match ch {
-                        '\u0008' => try!(write!(f, "\\b")),
-                        '\u0009' => try!(write!(f, "\\t")),
-                        '\u000a' => try!(write!(f, "\\n")),
-                        '\u000c' => try!(write!(f, "\\f")),
-                        '\u000d' => try!(write!(f, "\\r")),
-                        '\u0022' => try!(write!(f, "\\\"")),
-                        '\u005c' => try!(write!(f, "\\\\")),
+                        '\u{8}' => try!(write!(f, "\\b")),
+                        '\u{9}' => try!(write!(f, "\\t")),
+                        '\u{a}' => try!(write!(f, "\\n")),
+                        '\u{c}' => try!(write!(f, "\\f")),
+                        '\u{d}' => try!(write!(f, "\\r")),
+                        '\u{22}' => try!(write!(f, "\\\"")),
+                        '\u{5c}' => try!(write!(f, "\\\\")),
                         ch => try!(write!(f, "{}", ch)),
                     }
                 }
