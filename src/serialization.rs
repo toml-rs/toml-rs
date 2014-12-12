@@ -64,6 +64,7 @@ pub struct Decoder {
 
 /// Enumeration of errors which can occur while encoding a rust value into a
 /// TOML value.
+#[allow(missing_copy_implementations)]
 pub enum Error {
     /// Indication that a key was needed when a value was emitted, but no key
     /// was previously emitted.

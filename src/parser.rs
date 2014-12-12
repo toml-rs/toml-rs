@@ -1,5 +1,5 @@
 use std::char;
-use std::collections::{TreeMap, HashSet};
+use std::collections::TreeMap;
 use std::error::Error;
 use std::num::FromStrRadix;
 use std::str;
@@ -14,7 +14,6 @@ use Value::{mod, Array, Table, Float, Integer, Boolean, Datetime};
 pub struct Parser<'a> {
     input: &'a str,
     cur: str::CharOffsets<'a>,
-    tables_defined: HashSet<String>,
 
     /// A list of all errors which have occurred during parsing.
     ///
@@ -64,7 +63,6 @@ impl<'a> Parser<'a> {
             input: s,
             cur: s.char_indices(),
             errors: Vec::new(),
-            tables_defined: HashSet::new(),
         }
     }
 
@@ -690,25 +688,26 @@ impl<'a> Parser<'a> {
 
     fn insert_table(&mut self, into: &mut TomlTable, key: String, value: TomlTable,
                     key_lo: uint) {
-        if !self.tables_defined.insert(key.clone()) {
-            self.errors.push(ParserError {
-                lo: key_lo,
-                hi: key_lo + key.len(),
-                desc: format!("redefinition of table `{}`", key),
-            });
-            return
-        }
-
         let (into, key) = match self.recurse(into, key.as_slice(), key_lo) {
             Some(pair) => pair,
             None => return,
         };
         let key = key.to_string();
+        let mut added = false;
         if !into.contains_key(&key) {
             into.insert(key.clone(), Table(TreeMap::new()));
+            added = true;
         }
         match into.get_mut(&key) {
             Some(&Table(ref mut table)) => {
+                let any_tables = table.values().any(|v| v.as_table().is_some());
+                if !any_tables && !added {
+                    self.errors.push(ParserError {
+                        lo: key_lo,
+                        hi: key_lo + key.len(),
+                        desc: format!("redefinition of table `{}`", key),
+                    });
+                }
                 for (k, v) in value.into_iter() {
                     if table.insert(k.clone(), v).is_some() {
                         self.errors.push(ParserError {
@@ -874,5 +873,62 @@ trimmed in raw strings.
                          trimmed in raw strings.\n   \
                             All other whitespace\n   \
                             is preserved.\n"));
+    }
+
+    #[test]
+    fn tables_in_arrays() {
+        let mut p = Parser::new(r#"
+[[foo]]
+  #…
+  [foo.bar]
+    #…
+
+[[foo]]
+  #…
+  [foo.bar]
+    #...
+"#);
+        let table = Table(p.parse().unwrap());
+        table.lookup("foo.0.bar").unwrap().as_table().unwrap();
+        table.lookup("foo.1.bar").unwrap().as_table().unwrap();
+    }
+
+    #[test]
+    fn fruit() {
+        let mut p = Parser::new(r#"
+[[fruit]]
+  name = "apple"
+
+  [fruit.physical]
+    color = "red"
+    shape = "round"
+
+  [[fruit.variety]]
+    name = "red delicious"
+
+  [[fruit.variety]]
+    name = "granny smith"
+
+[[fruit]]
+  name = "banana"
+
+  [[fruit.variety]]
+    name = "plantain"
+"#);
+        let table = Table(p.parse().unwrap());
+        assert_eq!(table.lookup("fruit.0.name").and_then(|k| k.as_str()),
+                   Some("apple"));
+        assert_eq!(table.lookup("fruit.0.physical.color").and_then(|k| k.as_str()),
+                   Some("red"));
+        assert_eq!(table.lookup("fruit.0.physical.shape").and_then(|k| k.as_str()),
+                   Some("round"));
+        assert_eq!(table.lookup("fruit.0.variety.0.name").and_then(|k| k.as_str()),
+                   Some("red delicious"));
+        assert_eq!(table.lookup("fruit.0.variety.1.name").and_then(|k| k.as_str()),
+                   Some("granny smith"));
+        assert_eq!(table.lookup("fruit.1.name").and_then(|k| k.as_str()),
+                   Some("banana"));
+        assert_eq!(table.lookup("fruit.1.variety.0.name").and_then(|k| k.as_str()),
+                   Some("plantain"));
     }
 }
