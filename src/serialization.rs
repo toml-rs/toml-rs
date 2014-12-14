@@ -204,37 +204,45 @@ impl serialize::Encoder<Error> for Encoder {
     fn emit_str(&mut self, v: &str) -> Result<(), Error> {
         self.emit_value(Value::String(v.to_string()))
     }
-    fn emit_enum(&mut self, _name: &str,
-                 f: |&mut Encoder| -> Result<(), Error>) -> Result<(), Error> {
-        f(self)
-    }
-    fn emit_enum_variant(&mut self, _v_name: &str, _v_id: uint, _len: uint,
-                         f: |&mut Encoder| -> Result<(), Error>)
+    fn emit_enum<F>(&mut self, _name: &str, f: F)
         -> Result<(), Error>
+        where F: FnOnce(&mut Encoder) -> Result<(), Error>
     {
         f(self)
     }
-    fn emit_enum_variant_arg(&mut self, _a_idx: uint,
-                             f: |&mut Encoder| -> Result<(), Error>)
+    fn emit_enum_variant<F>(&mut self, _v_name: &str, _v_id: uint, _len: uint, f: F)
         -> Result<(), Error>
+        where F: FnOnce(&mut Encoder) -> Result<(), Error>
     {
         f(self)
     }
-    fn emit_enum_struct_variant(&mut self, _v_name: &str, _v_id: uint,
-                                _len: uint,
-                                _f: |&mut Encoder| -> Result<(), Error>)
+    fn emit_enum_variant_arg<F>(&mut self, _a_idx: uint, f: F)
         -> Result<(), Error>
+        where F: FnOnce(&mut Encoder) -> Result<(), Error>
+    {
+        f(self)
+    }
+    fn emit_enum_struct_variant<F>(&mut self, _v_name: &str, _v_id: uint,
+                                   _len: uint,
+                                   _f: F)
+        -> Result<(), Error>
+        where F: FnOnce(&mut Encoder) -> Result<(), Error>
     {
         panic!()
     }
-    fn emit_enum_struct_variant_field(&mut self, _f_name: &str, _f_idx: uint,
-                                      _f: |&mut Encoder| -> Result<(), Error>)
+    fn emit_enum_struct_variant_field<F>(&mut self,
+                                         _f_name: &str,
+                                         _f_idx: uint,
+                                         _f: F)
         -> Result<(), Error>
+        where F: FnOnce(&mut Encoder) -> Result<(), Error>
     {
         panic!()
     }
-    fn emit_struct(&mut self, _name: &str, _len: uint,
-                   f: |&mut Encoder| -> Result<(), Error>) -> Result<(), Error> {
+    fn emit_struct<F>(&mut self, _name: &str, _len: uint, f: F)
+        -> Result<(), Error>
+        where F: FnOnce(&mut Encoder) -> Result<(), Error>
+    {
         match mem::replace(&mut self.state, Start) {
             NextKey(key) => {
                 let mut nested = Encoder::new();
@@ -253,9 +261,9 @@ impl serialize::Encoder<Error> for Encoder {
             NextMapKey => Err(InvalidMapKeyLocation),
         }
     }
-    fn emit_struct_field(&mut self, f_name: &str, _f_idx: uint,
-                         f: |&mut Encoder| -> Result<(), Error>)
+    fn emit_struct_field<F>(&mut self, f_name: &str, _f_idx: uint, f: F)
         -> Result<(), Error>
+        where F: FnOnce(&mut Encoder) -> Result<(), Error>
     {
         let old = mem::replace(&mut self.state, NextKey(f_name.to_string()));
         try!(f(self));
@@ -265,31 +273,33 @@ impl serialize::Encoder<Error> for Encoder {
         self.state = old;
         Ok(())
     }
-    fn emit_tuple(&mut self, len: uint,
-                  f: |&mut Encoder| -> Result<(), Error>) -> Result<(), Error> {
+    fn emit_tuple<F>(&mut self, len: uint, f: F)
+        -> Result<(), Error>
+        where F: FnOnce(&mut Encoder) -> Result<(), Error>
+    {
         self.emit_seq(len, f)
     }
-    fn emit_tuple_arg(&mut self, idx: uint,
-                      f: |&mut Encoder| -> Result<(), Error>)
+    fn emit_tuple_arg<F>(&mut self, idx: uint, f: F)
         -> Result<(), Error>
+        where F: FnOnce(&mut Encoder) -> Result<(), Error>
     {
         self.emit_seq_elt(idx, f)
     }
-    fn emit_tuple_struct(&mut self, _name: &str, _len: uint,
-                         _f: |&mut Encoder| -> Result<(), Error>)
+    fn emit_tuple_struct<F>(&mut self, _name: &str, _len: uint, _f: F)
         -> Result<(), Error>
+        where F: FnOnce(&mut Encoder) -> Result<(), Error>
     {
         unimplemented!()
     }
-    fn emit_tuple_struct_arg(&mut self, _f_idx: uint,
-                             _f: |&mut Encoder| -> Result<(), Error>)
+    fn emit_tuple_struct_arg<F>(&mut self, _f_idx: uint, _f: F)
         -> Result<(), Error>
+        where F: FnOnce(&mut Encoder) -> Result<(), Error>
     {
         unimplemented!()
     }
-    fn emit_option(&mut self,
-                   f: |&mut Encoder| -> Result<(), Error>)
+    fn emit_option<F>(&mut self, f: F)
         -> Result<(), Error>
+        where F: FnOnce(&mut Encoder) -> Result<(), Error>
     {
         f(self)
     }
@@ -301,15 +311,15 @@ impl serialize::Encoder<Error> for Encoder {
             NextMapKey => Err(InvalidMapKeyLocation),
         }
     }
-    fn emit_option_some(&mut self,
-                        f: |&mut Encoder| -> Result<(), Error>)
+    fn emit_option_some<F>(&mut self, f: F)
         -> Result<(), Error>
+        where F: FnOnce(&mut Encoder) -> Result<(), Error>
     {
         f(self)
     }
-    fn emit_seq(&mut self, _len: uint,
-                f: |this: &mut Encoder| -> Result<(), Error>)
+    fn emit_seq<F>(&mut self, _len: uint, f: F)
         -> Result<(), Error>
+        where F: FnOnce(&mut Encoder) -> Result<(), Error>
     {
         let old = mem::replace(&mut self.state, NextArray(Vec::new()));
         try!(f(self));
@@ -318,19 +328,21 @@ impl serialize::Encoder<Error> for Encoder {
             _ => unreachable!(),
         }
     }
-    fn emit_seq_elt(&mut self, _idx: uint,
-                    f: |this: &mut Encoder| -> Result<(), Error>)
+    fn emit_seq_elt<F>(&mut self, _idx: uint, f: F)
         -> Result<(), Error>
+        where F: FnOnce(&mut Encoder) -> Result<(), Error>
     {
         f(self)
     }
-    fn emit_map(&mut self, len: uint,
-                f: |&mut Encoder| -> Result<(), Error>) -> Result<(), Error> {
+    fn emit_map<F>(&mut self, len: uint, f: F)
+        -> Result<(), Error>
+        where F: FnOnce(&mut Encoder) -> Result<(), Error>
+    {
         self.emit_struct("foo", len, f)
     }
-    fn emit_map_elt_key(&mut self, _idx: uint,
-                        f: |&mut Encoder| -> Result<(), Error>)
+    fn emit_map_elt_key<F>(&mut self, _idx: uint, mut f: F)
         -> Result<(), Error>
+        where F: FnMut(&mut Encoder) -> Result<(), Error>
     {
         match mem::replace(&mut self.state, NextMapKey) {
             Start => {}
@@ -342,9 +354,9 @@ impl serialize::Encoder<Error> for Encoder {
             _ => Err(InvalidMapKeyLocation),
         }
     }
-    fn emit_map_elt_val(&mut self, _idx: uint,
-                        f: |&mut Encoder| -> Result<(), Error>)
+    fn emit_map_elt_val<F>(&mut self, _idx: uint, f: F)
         -> Result<(), Error>
+        where F: FnOnce(&mut Encoder) -> Result<(), Error>
     {
         f(self)
     }
@@ -492,17 +504,17 @@ impl serialize::Decoder<DecodeError> for Decoder {
     }
 
     // Compound types:
-    fn read_enum<T>(&mut self, _name: &str,
-                    f: |&mut Decoder| -> Result<T, DecodeError>)
+    fn read_enum<T, F>(&mut self, _name: &str, f: F)
         -> Result<T, DecodeError>
+        where F: FnOnce(&mut Decoder) -> Result<T, DecodeError>
     {
         f(self)
     }
 
-    fn read_enum_variant<T>(&mut self,
-                            names: &[&str],
-                            f: |&mut Decoder, uint| -> Result<T, DecodeError>)
-                            -> Result<T, DecodeError> {
+    fn read_enum_variant<T, F>(&mut self, names: &[&str], mut f: F)
+        -> Result<T, DecodeError>
+        where F: FnMut(&mut Decoder, uint) -> Result<T, DecodeError>
+    {
         let mut first_error = None;
         for i in range(0, names.len()) {
             let mut d = self.sub_decoder(self.toml.clone(), "");
@@ -517,34 +529,32 @@ impl serialize::Decoder<DecodeError> for Decoder {
         }
         Err(first_error.unwrap_or_else(|| self.err(NoEnumVariants)))
     }
-    fn read_enum_variant_arg<T>(&mut self,
-                                _a_idx: uint,
-                                f: |&mut Decoder| -> Result<T, DecodeError>)
-                                -> Result<T, DecodeError> {
+    fn read_enum_variant_arg<T, F>(&mut self, _a_idx: uint, f: F)
+        -> Result<T, DecodeError>
+        where F: FnOnce(&mut Decoder) -> Result<T, DecodeError>
+    {
         f(self)
     }
 
-    fn read_enum_struct_variant<T>(&mut self,
-                                   _names: &[&str],
-                                   _f: |&mut Decoder, uint|
-                                        -> Result<T, DecodeError>)
+    fn read_enum_struct_variant<T, F>(&mut self, _names: &[&str], _f: F)
         -> Result<T, DecodeError>
+        where F: FnMut(&mut Decoder, uint) -> Result<T, DecodeError>
     {
         panic!()
     }
-    fn read_enum_struct_variant_field<T>(&mut self,
-                                         _f_name: &str,
-                                         _f_idx: uint,
-                                         _f: |&mut Decoder|
-                                            -> Result<T, DecodeError>)
+    fn read_enum_struct_variant_field<T, F>(&mut self,
+                                            _f_name: &str,
+                                            _f_idx: uint,
+                                            _f: F)
         -> Result<T, DecodeError>
+        where F: FnOnce(&mut Decoder) -> Result<T, DecodeError>
     {
         panic!()
     }
 
-    fn read_struct<T>(&mut self, _s_name: &str, _len: uint,
-                      f: |&mut Decoder| -> Result<T, DecodeError>)
+    fn read_struct<T, F>(&mut self, _s_name: &str, _len: uint, f: F)
         -> Result<T, DecodeError>
+        where F: FnOnce(&mut Decoder) -> Result<T, DecodeError>
     {
         match self.toml {
             Some(Table(..)) => {
@@ -559,11 +569,10 @@ impl serialize::Decoder<DecodeError> for Decoder {
             ref found => Err(self.mismatch("table", found)),
         }
     }
-    fn read_struct_field<T>(&mut self,
-                            f_name: &str,
-                            _f_idx: uint,
-                            f: |&mut Decoder| -> Result<T, DecodeError>)
-                            -> Result<T, DecodeError> {
+    fn read_struct_field<T, F>(&mut self, f_name: &str, _f_idx: uint, f: F)
+        -> Result<T, DecodeError>
+        where F: FnOnce(&mut Decoder) -> Result<T, DecodeError>
+    {
         let field = f_name.to_string();
         let toml = match self.toml {
             Some(Table(ref mut table)) => {
@@ -584,45 +593,41 @@ impl serialize::Decoder<DecodeError> for Decoder {
         Ok(ret)
     }
 
-    fn read_tuple<T>(&mut self,
-                     tuple_len: uint,
-                     f: |&mut Decoder| -> Result<T, DecodeError>)
+    fn read_tuple<T, F>(&mut self, tuple_len: uint, f: F)
         -> Result<T, DecodeError>
+        where F: FnOnce(&mut Decoder) -> Result<T, DecodeError>
     {
-        self.read_seq(|d, len| {
+        self.read_seq(move |d, len| {
             assert!(len == tuple_len,
                     "expected tuple of length `{}`, found tuple \
                          of length `{}`", tuple_len, len);
             f(d)
         })
     }
-    fn read_tuple_arg<T>(&mut self, a_idx: uint,
-                         f: |&mut Decoder| -> Result<T, DecodeError>)
+    fn read_tuple_arg<T, F>(&mut self, a_idx: uint, f: F)
         -> Result<T, DecodeError>
+        where F: FnOnce(&mut Decoder) -> Result<T, DecodeError>
     {
         self.read_seq_elt(a_idx, f)
     }
 
-    fn read_tuple_struct<T>(&mut self,
-                            _s_name: &str,
-                            _len: uint,
-                            _f: |&mut Decoder| -> Result<T, DecodeError>)
+    fn read_tuple_struct<T, F>(&mut self, _s_name: &str, _len: uint, _f: F)
         -> Result<T, DecodeError>
+        where F: FnOnce(&mut Decoder) -> Result<T, DecodeError>
     {
         panic!()
     }
-    fn read_tuple_struct_arg<T>(&mut self,
-                                _a_idx: uint,
-                                _f: |&mut Decoder| -> Result<T, DecodeError>)
+    fn read_tuple_struct_arg<T, F>(&mut self, _a_idx: uint, _f: F)
         -> Result<T, DecodeError>
+        where F: FnOnce(&mut Decoder) -> Result<T, DecodeError>
     {
         panic!()
     }
 
     // Specialized types:
-    fn read_option<T>(&mut self,
-                      f: |&mut Decoder, bool| -> Result<T, DecodeError>)
+    fn read_option<T, F>(&mut self, mut f: F)
         -> Result<T, DecodeError>
+        where F: FnMut(&mut Decoder, bool) -> Result<T, DecodeError>
     {
         match self.toml {
             Some(..) => f(self, true),
@@ -630,8 +635,9 @@ impl serialize::Decoder<DecodeError> for Decoder {
         }
     }
 
-    fn read_seq<T>(&mut self, f: |&mut Decoder, uint| -> Result<T, DecodeError>)
+    fn read_seq<T, F>(&mut self, f: F)
         -> Result<T, DecodeError>
+        where F: FnOnce(&mut Decoder,uint) -> Result<T, DecodeError>
     {
         let len = match self.toml {
             Some(Array(ref arr)) => arr.len(),
@@ -649,9 +655,9 @@ impl serialize::Decoder<DecodeError> for Decoder {
         self.toml.take();
         Ok(ret)
     }
-    fn read_seq_elt<T>(&mut self, idx: uint,
-                       f: |&mut Decoder| -> Result<T, DecodeError>)
+    fn read_seq_elt<T, F>(&mut self, idx: uint, f: F)
         -> Result<T, DecodeError>
+        where F: FnOnce(&mut Decoder) -> Result<T, DecodeError>
     {
         let toml = match self.toml {
             Some(Array(ref mut arr)) => mem::replace(&mut arr[idx], Integer(0)),
@@ -669,8 +675,9 @@ impl serialize::Decoder<DecodeError> for Decoder {
         Ok(ret)
     }
 
-    fn read_map<T>(&mut self, f: |&mut Decoder, uint| -> Result<T, DecodeError>)
+    fn read_map<T, F>(&mut self, f: F)
         -> Result<T, DecodeError>
+        where F: FnOnce(&mut Decoder, uint) -> Result<T, DecodeError>
     {
         let len = match self.toml {
             Some(Table(ref table)) => table.len(),
@@ -680,9 +687,9 @@ impl serialize::Decoder<DecodeError> for Decoder {
         self.toml.take();
         Ok(ret)
     }
-    fn read_map_elt_key<T>(&mut self, idx: uint,
-                           f: |&mut Decoder| -> Result<T, DecodeError>)
+    fn read_map_elt_key<T, F>(&mut self, idx: uint, f: F)
         -> Result<T, DecodeError>
+        where F: FnOnce(&mut Decoder) -> Result<T, DecodeError>
     {
         match self.toml {
             Some(Table(ref table)) => {
@@ -697,9 +704,9 @@ impl serialize::Decoder<DecodeError> for Decoder {
             ref found => Err(self.mismatch("table", found)),
         }
     }
-    fn read_map_elt_val<T>(&mut self, idx: uint,
-                           f: |&mut Decoder| -> Result<T, DecodeError>)
+    fn read_map_elt_val<T, F>(&mut self, idx: uint, f: F)
         -> Result<T, DecodeError>
+        where F: FnOnce(&mut Decoder) -> Result<T, DecodeError>
     {
         match self.toml {
             Some(Table(ref table)) => {
