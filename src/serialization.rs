@@ -513,19 +513,7 @@ impl serialize::Decoder<DecodeError> for Decoder {
                                -> Result<T, DecodeError> where
         F: FnOnce(&mut Decoder, uint) -> Result<T, DecodeError>
     {
-        let mut first_error = None;
-        for i in range(0, names.len()) {
-            let mut d = self.sub_decoder(self.toml.clone(), "");
-            match f(&mut d, i) {
-                Ok(t) => { self.toml = d.toml; return Ok(t) }
-                Err(e) => {
-                    if first_error.is_none() {
-                        first_error = Some(e);
-                    }
-                }
-            }
-        }
-        Err(first_error.unwrap_or_else(|| self.err(NoEnumVariants)))
+        panic!()
     }
     fn read_enum_variant_arg<T, F>(&mut self, _a_idx: uint, f: F)
                                 -> Result<T, DecodeError> where
