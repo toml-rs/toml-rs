@@ -81,7 +81,7 @@ impl<'a> Parser<'a> {
     }
 
     fn next_pos(&self) -> uint {
-        self.cur.clone().next().map(|p| p.val0()).unwrap_or(self.input.len())
+        self.cur.clone().next().map(|p| p.0).unwrap_or(self.input.len())
     }
 
     // Returns true and consumes the next character if it matches `ch`,
@@ -96,8 +96,8 @@ impl<'a> Parser<'a> {
     fn expect(&mut self, ch: char) -> bool {
         if self.eat(ch) { return true }
         let mut it = self.cur.clone();
-        let lo = it.next().map(|p| p.val0()).unwrap_or(self.input.len());
-        let hi = it.next().map(|p| p.val0()).unwrap_or(self.input.len());
+        let lo = it.next().map(|p| p.0).unwrap_or(self.input.len());
+        let hi = it.next().map(|p| p.0).unwrap_or(self.input.len());
         self.errors.push(ParserError {
             lo: lo,
             hi: hi,
@@ -258,8 +258,8 @@ impl<'a> Parser<'a> {
             Some((pos, ch)) if ch.is_digit(10) => self.number_or_datetime(pos),
             _ => {
                 let mut it = self.cur.clone();
-                let lo = it.next().map(|p| p.val0()).unwrap_or(self.input.len());
-                let hi = it.next().map(|p| p.val0()).unwrap_or(self.input.len());
+                let lo = it.next().map(|p| p.0).unwrap_or(self.input.len());
+                let hi = it.next().map(|p| p.0).unwrap_or(self.input.len());
                 self.errors.push(ParserError {
                     lo: lo,
                     hi: hi,
