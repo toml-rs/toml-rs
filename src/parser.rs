@@ -624,8 +624,8 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn recurse<'a>(&mut self, mut cur: &'a mut TomlTable, orig_key: &'a str,
-                   key_lo: uint) -> Option<(&'a mut TomlTable, &'a str)> {
+    fn recurse<'b>(&mut self, mut cur: &'b mut TomlTable, orig_key: &'b str,
+                   key_lo: uint) -> Option<(&'b mut TomlTable, &'b str)> {
         if orig_key.starts_with(".") || orig_key.ends_with(".") ||
            orig_key.contains("..") {
             self.errors.push(ParserError {
