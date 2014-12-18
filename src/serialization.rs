@@ -767,7 +767,7 @@ impl fmt::Show for DecodeError {
             NilTooLong => {
                 write!(f, "expected 0-length string")
             }
-        })
+        });
         match self.field {
             Some(ref s) => {
                 write!(f, " for the key `{}`", s)
@@ -823,18 +823,18 @@ mod tests {
         let mut e = Encoder::new();
         $t.encode(&mut e).unwrap();
         e.toml
-    }) )
+    }) );
 
     macro_rules! decode( ($t:expr) => ({
         let mut d = Decoder::new($t);
         Decodable::decode(&mut d).unwrap()
-    }) )
+    }) );
 
     macro_rules! map( ($($k:ident: $v:expr),*) => ({
         let mut _m = TreeMap::new();
         $(_m.insert(stringify!($k).to_string(), $v);)*
         _m
-    }) )
+    }) );
 
     #[test]
     fn smoke() {
