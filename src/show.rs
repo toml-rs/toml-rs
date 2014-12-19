@@ -109,34 +109,34 @@ mod tests {
         let mut _m = TreeMap::new();
         $(_m.insert($k.to_string(), $v);)*
         _m
-    }) )
+    }) );
 
     #[test]
     fn simple_show() {
         assert_eq!(String("foo".to_string()).to_string().as_slice(),
-                   "\"foo\"")
+                   "\"foo\"");
         assert_eq!(Integer(10).to_string().as_slice(),
-                   "10")
+                   "10");
         assert_eq!(Float(10.0).to_string().as_slice(),
-                   "10.0")
+                   "10.0");
         assert_eq!(Float(2.4).to_string().as_slice(),
-                   "2.4")
+                   "2.4");
         assert_eq!(Boolean(true).to_string().as_slice(),
-                   "true")
+                   "true");
         assert_eq!(Datetime("test".to_string()).to_string().as_slice(),
-                   "test")
+                   "test");
         assert_eq!(Array(vec![]).to_string().as_slice(),
-                   "[]")
+                   "[]");
         assert_eq!(Array(vec![Integer(1), Integer(2)]).to_string().as_slice(),
-                   "[1, 2]")
+                   "[1, 2]");
     }
 
     #[test]
     fn table() {
         assert_eq!(Table(map! { }).to_string().as_slice(),
-                   "")
+                   "");
         assert_eq!(Table(map! { "test": Integer(2) }).to_string().as_slice(),
-                   "test = 2\n")
+                   "test = 2\n");
         assert_eq!(Table(map! {
                         "test": Integer(2),
                         "test2": Table(map! {
@@ -146,7 +146,7 @@ mod tests {
                    "test = 2\n\
                     \n\
                     [test2]\n\
-                    test = \"wut\"\n")
+                    test = \"wut\"\n");
         assert_eq!(Table(map! {
                         "test": Integer(2),
                         "test2": Table(map! {
@@ -156,7 +156,7 @@ mod tests {
                    "test = 2\n\
                     \n\
                     [test2]\n\
-                    test = \"wut\"\n")
+                    test = \"wut\"\n");
         assert_eq!(Table(map! {
                         "test": Integer(2),
                         "test2": Array(vec![Table(map! {
@@ -166,6 +166,6 @@ mod tests {
                    "test = 2\n\
                     \n\
                     [[test2]]\n\
-                    test = \"wut\"\n")
+                    test = \"wut\"\n");
     }
 }

@@ -64,104 +64,104 @@ fn run(toml: &str, json: &str) {
 macro_rules! test( ($name:ident, $toml:expr, $json:expr) => (
     #[test]
     fn $name() { run($toml, $json); }
-) )
+) );
 
 test!(array_empty,
        include_str!("valid/array-empty.toml"),
-       include_str!("valid/array-empty.json"))
+       include_str!("valid/array-empty.json"));
 test!(array_nospaces,
        include_str!("valid/array-nospaces.toml"),
-       include_str!("valid/array-nospaces.json"))
+       include_str!("valid/array-nospaces.json"));
 test!(arrays_hetergeneous,
        include_str!("valid/arrays-hetergeneous.toml"),
-       include_str!("valid/arrays-hetergeneous.json"))
+       include_str!("valid/arrays-hetergeneous.json"));
 test!(arrays,
        include_str!("valid/arrays.toml"),
-       include_str!("valid/arrays.json"))
+       include_str!("valid/arrays.json"));
 test!(arrays_nested,
        include_str!("valid/arrays-nested.toml"),
-       include_str!("valid/arrays-nested.json"))
+       include_str!("valid/arrays-nested.json"));
 test!(empty,
        include_str!("valid/empty.toml"),
-       include_str!("valid/empty.json"))
+       include_str!("valid/empty.json"));
 test!(bool,
        include_str!("valid/bool.toml"),
-       include_str!("valid/bool.json"))
+       include_str!("valid/bool.json"));
 test!(datetime,
        include_str!("valid/datetime.toml"),
-       include_str!("valid/datetime.json"))
+       include_str!("valid/datetime.json"));
 test!(example,
        include_str!("valid/example.toml"),
-       include_str!("valid/example.json"))
+       include_str!("valid/example.json"));
 test!(float,
        include_str!("valid/float.toml"),
-       include_str!("valid/float.json"))
+       include_str!("valid/float.json"));
 test!(implicit_and_explicit_after,
        include_str!("valid/implicit-and-explicit-after.toml"),
-       include_str!("valid/implicit-and-explicit-after.json"))
+       include_str!("valid/implicit-and-explicit-after.json"));
 test!(implicit_and_explicit_before,
        include_str!("valid/implicit-and-explicit-before.toml"),
-       include_str!("valid/implicit-and-explicit-before.json"))
+       include_str!("valid/implicit-and-explicit-before.json"));
 test!(implicit_groups,
        include_str!("valid/implicit-groups.toml"),
-       include_str!("valid/implicit-groups.json"))
+       include_str!("valid/implicit-groups.json"));
 test!(integer,
        include_str!("valid/integer.toml"),
-       include_str!("valid/integer.json"))
+       include_str!("valid/integer.json"));
 test!(key_equals_nospace,
        include_str!("valid/key-equals-nospace.toml"),
-       include_str!("valid/key-equals-nospace.json"))
+       include_str!("valid/key-equals-nospace.json"));
 test!(key_special_chars,
        include_str!("valid/key-special-chars.toml"),
-       include_str!("valid/key-special-chars.json"))
+       include_str!("valid/key-special-chars.json"));
 test!(key_with_pound,
        include_str!("valid/key-with-pound.toml"),
-       include_str!("valid/key-with-pound.json"))
+       include_str!("valid/key-with-pound.json"));
 test!(long_float,
        include_str!("valid/long-float.toml"),
-       include_str!("valid/long-float.json"))
+       include_str!("valid/long-float.json"));
 test!(long_integer,
        include_str!("valid/long-integer.toml"),
-       include_str!("valid/long-integer.json"))
+       include_str!("valid/long-integer.json"));
 test!(string_empty,
        include_str!("valid/string-empty.toml"),
-       include_str!("valid/string-empty.json"))
+       include_str!("valid/string-empty.json"));
 test!(string_escapes,
        include_str!("valid/string-escapes.toml"),
-       include_str!("valid/string-escapes.json"))
+       include_str!("valid/string-escapes.json"));
 test!(string_simple,
        include_str!("valid/string-simple.toml"),
-       include_str!("valid/string-simple.json"))
+       include_str!("valid/string-simple.json"));
 test!(string_with_pound,
        include_str!("valid/string-with-pound.toml"),
-       include_str!("valid/string-with-pound.json"))
+       include_str!("valid/string-with-pound.json"));
 test!(table_array_implicit,
        include_str!("valid/table-array-implicit.toml"),
-       include_str!("valid/table-array-implicit.json"))
+       include_str!("valid/table-array-implicit.json"));
 test!(table_array_many,
        include_str!("valid/table-array-many.toml"),
-       include_str!("valid/table-array-many.json"))
+       include_str!("valid/table-array-many.json"));
 test!(table_array_nest,
        include_str!("valid/table-array-nest.toml"),
-       include_str!("valid/table-array-nest.json"))
+       include_str!("valid/table-array-nest.json"));
 test!(table_array_one,
        include_str!("valid/table-array-one.toml"),
-       include_str!("valid/table-array-one.json"))
+       include_str!("valid/table-array-one.json"));
 test!(table_empty,
        include_str!("valid/table-empty.toml"),
-       include_str!("valid/table-empty.json"))
+       include_str!("valid/table-empty.json"));
 test!(table_sub_empty,
        include_str!("valid/table-sub-empty.toml"),
-       include_str!("valid/table-sub-empty.json"))
+       include_str!("valid/table-sub-empty.json"));
 test!(table_whitespace,
        include_str!("valid/table-whitespace.toml"),
-       include_str!("valid/table-whitespace.json"))
+       include_str!("valid/table-whitespace.json"));
 test!(table_with_pound,
        include_str!("valid/table-with-pound.toml"),
-       include_str!("valid/table-with-pound.json"))
+       include_str!("valid/table-with-pound.json"));
 test!(unicode_escape,
        include_str!("valid/unicode-escape.toml"),
-       include_str!("valid/unicode-escape.json"))
+       include_str!("valid/unicode-escape.json"));
 test!(unicode_literal,
        include_str!("valid/unicode-literal.toml"),
-       include_str!("valid/unicode-literal.json"))
+       include_str!("valid/unicode-literal.json"));
