@@ -35,18 +35,11 @@ impl fmt::Show for Value {
             }
             Boolean(b) => write!(f, "{}", b),
             Datetime(ref s) => write!(f, "{}", s),
-            Array(ref a) => {
-                match a.as_slice().head() {
-                   Some(&Table(..)) =>
-                       try!(write!(f, "invalid toml array of tables")),
-                   _ => {}
-                }
-                write!(f, "{}", a)
-            }
             Table(ref t) => {
                 let mut p = Printer { output: f, stack: Vec::new() };
                 p.print(t)
             }
+            Array(ref a) => write!(f, "{}", a),
         }
     }
 }
