@@ -1,5 +1,5 @@
 use std::char;
-use std::collections::TreeMap;
+use std::collections::BTreeMap;
 use std::error::Error;
 use std::num::FromStrRadix;
 use std::str;
@@ -140,7 +140,7 @@ impl<'a> Parser<'a> {
     /// If an error occurs, the `errors` field of this parser can be consulted
     /// to determine the cause of the parse failure.
     pub fn parse(&mut self) -> Option<TomlTable> {
-        let mut ret = TreeMap::new();
+        let mut ret = BTreeMap::new();
         loop {
             self.ws();
             match self.cur.clone().next() {
@@ -179,7 +179,7 @@ impl<'a> Parser<'a> {
                     }
 
                     // Build the section table
-                    let mut table = TreeMap::new();
+                    let mut table = BTreeMap::new();
                     if !self.values(&mut table) { return None }
                     if array {
                         self.insert_array(&mut ret, section, Table(table), start)
@@ -677,7 +677,7 @@ impl<'a> Parser<'a> {
             }
 
             // Initialize an empty table as part of this sub-key
-            tmp.insert(part.clone(), Table(TreeMap::new()));
+            tmp.insert(part.clone(), Table(BTreeMap::new()));
             match *tmp.get_mut(&part).unwrap() {
                 Table(ref mut inner) => cur = inner,
                 _ => unreachable!(),
@@ -695,7 +695,7 @@ impl<'a> Parser<'a> {
         let key = key.to_string();
         let mut added = false;
         if !into.contains_key(&key) {
-            into.insert(key.clone(), Table(TreeMap::new()));
+            into.insert(key.clone(), Table(BTreeMap::new()));
             added = true;
         }
         match into.get_mut(&key) {

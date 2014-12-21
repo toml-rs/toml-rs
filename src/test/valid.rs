@@ -1,7 +1,7 @@
 extern crate serialize;
 
 use std::num::strconv;
-use std::collections::TreeMap;
+use std::collections::BTreeMap;
 use self::serialize::json::{mod, Json};
 
 use {Parser, Value};
@@ -9,7 +9,7 @@ use Value::{Table, Integer, Float, Boolean, Datetime, Array};
 
 fn to_json(toml: Value) -> Json {
     fn doit(s: &str, json: Json) -> Json {
-        let mut map = TreeMap::new();
+        let mut map = BTreeMap::new();
         map.insert("type".to_string(), Json::String(s.to_string()));
         map.insert("value".to_string(), json);
         Json::Object(map)

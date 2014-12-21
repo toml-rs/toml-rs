@@ -96,10 +96,10 @@ impl<'a, 'b> Printer<'a, 'b> {
 mod tests {
     use Value;
     use Value::{String, Integer, Float, Boolean, Datetime, Array, Table};
-    use std::collections::TreeMap;
+    use std::collections::BTreeMap;
 
     macro_rules! map( ($($k:expr: $v:expr),*) => ({
-        let mut _m = TreeMap::new();
+        let mut _m = BTreeMap::new();
         $(_m.insert($k.to_string(), $v);)*
         _m
     }) );

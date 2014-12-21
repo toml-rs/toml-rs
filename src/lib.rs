@@ -43,7 +43,7 @@
 
 extern crate serialize;
 
-use std::collections::TreeMap;
+use std::collections::BTreeMap;
 use std::str::FromStr;
 use std::string;
 
@@ -79,7 +79,7 @@ pub enum Value {
 pub type Array = Vec<Value>;
 
 /// Type representing a TOML table, payload of the Value::Table variant
-pub type Table = TreeMap<string::String, Value>;
+pub type Table = BTreeMap<string::String, Value>;
 
 impl Value {
     /// Tests whether this and another value have the same type.
@@ -185,9 +185,9 @@ impl Value {
         for key in path.split('.') {
             match cur_value {
                 &Value::Table(ref hm) => {
-                    match hm.find_with(|k| key.cmp(k.as_slice())) {
+                    match hm.get(key) {
                         Some(v) => cur_value = v,
-                        _ => return None
+                        None => return None
                     }
                 },
                 &Value::Array(ref v) => {

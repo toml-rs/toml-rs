@@ -1,4 +1,4 @@
-use std::collections::TreeMap;
+use std::collections::BTreeMap;
 use std::mem;
 use std::fmt;
 use std::error::Error as StdError;
@@ -136,7 +136,7 @@ pub fn encode_str<T: serialize::Encodable<Encoder, Error>>(t: &T) -> String {
 impl Encoder {
     /// Constructs a new encoder which will emit to the given output stream.
     pub fn new() -> Encoder {
-        Encoder { state: Start, toml: TreeMap::new() }
+        Encoder { state: Start, toml: BTreeMap::new() }
     }
 
     fn emit_value(&mut self, v: Value) -> Result<(), Error> {
@@ -812,7 +812,7 @@ impl StdError for Error {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::{TreeMap, HashSet};
+    use std::collections::{BTreeMap, HashSet};
     use serialize::{Encodable, Decodable};
 
     use super::{Encoder, Decoder, DecodeError};
@@ -831,7 +831,7 @@ mod tests {
     }) );
 
     macro_rules! map( ($($k:ident: $v:expr),*) => ({
-        let mut _m = TreeMap::new();
+        let mut _m = BTreeMap::new();
         $(_m.insert(stringify!($k).to_string(), $v);)*
         _m
     }) );
@@ -855,7 +855,7 @@ mod tests {
         assert_eq!(encode!(v), map! { a_b: Integer(2) });
         assert_eq!(v, decode!(Table(encode!(v))));
 
-        let mut m = TreeMap::new();
+        let mut m = BTreeMap::new();
         m.insert("a-b".to_string(), Integer(2));
         assert_eq!(v, decode!(Table(encode!(v))));
     }
@@ -980,13 +980,13 @@ mod tests {
     fn hashmap() {
         #[deriving(Encodable, Decodable, PartialEq, Show)]
         struct Foo {
-            map: TreeMap<String, int>,
+            map: BTreeMap<String, int>,
             set: HashSet<char>,
         }
 
         let v = Foo {
             map: {
-                let mut m = TreeMap::new();
+                let mut m = BTreeMap::new();
                 m.insert("foo".to_string(), 10);
                 m.insert("bar".to_string(), 4);
                 m
@@ -1180,7 +1180,7 @@ mod tests {
     #[test]
     fn unused_fields4() {
         #[deriving(Encodable, Decodable, PartialEq, Show)]
-        struct Foo { a: TreeMap<String, String> }
+        struct Foo { a: BTreeMap<String, String> }
 
         let v = Foo { a: map! { a: "foo".to_string() } };
         let mut d = Decoder::new(Table(map! {
