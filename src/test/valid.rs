@@ -20,9 +20,9 @@ fn to_json(toml: Value) -> Json {
         Float(f) => doit("float", Json::String({
             let (bytes, _) =
                 strconv::float_to_str_bytes_common(f, 10, true,
-                                                   strconv::SignNeg,
-                                                   strconv::DigMax(15),
-                                                   strconv::ExpNone,
+                                                   strconv::SignFormat::SignNeg,
+                                                   strconv::SignificantDigits::DigMax(15),
+                                                   strconv::ExponentFormat::ExpNone,
                                                    false);
             let s = String::from_utf8(bytes).unwrap();
             if s.as_slice().contains(".") {s} else {format!("{}.0", s)}

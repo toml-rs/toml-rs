@@ -14,3 +14,8 @@ A native Rust encoder and decoder of TOML-formatted files and streams. Provides
 implementations of the standard Encodable/Decodable traits for TOML data to
 facilitate deserializing and serializing Rust structures.
 """
+
+[profile.dev]
+debug = false
+[profile.test]
+debug = false
