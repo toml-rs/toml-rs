@@ -13,7 +13,7 @@ use Value::{mod, Array, Table, Float, Integer, Boolean, Datetime};
 /// list of errors which have occurred during parsing.
 pub struct Parser<'a> {
     input: &'a str,
-    cur: str::CharOffsets<'a>,
+    cur: str::CharIndices<'a>,
 
     /// A list of all errors which have occurred during parsing.
     ///
@@ -471,12 +471,12 @@ impl<'a> Parser<'a> {
             if self.input.char_at_reverse(end) == '.' {
                 None
             } else {
-                from_str::<f64>(self.input.slice(start, end)).map(Float)
+                self.input.slice(start, end).parse().map(Float)
             }
         } else if !negative && self.eat('-') {
             self.datetime(start, end + 1)
         } else {
-            from_str::<i64>(self.input.slice(start, end)).map(Integer)
+            self.input.slice(start, end).parse().map(Integer)
         };
         if ret.is_none() {
             self.errors.push(ParserError {

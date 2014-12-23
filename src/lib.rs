@@ -36,12 +36,11 @@
 //! [2]: https://github.com/BurntSushi/toml-test
 //!
 
-#![crate_name = "toml"]
-#![crate_type = "lib"]
 #![feature(macro_rules)]
 #![deny(missing_docs)]
+#![cfg_attr(test, deny(warnings))]
 
-extern crate serialize;
+extern crate "rustc-serialize" as rustc_serialize;
 
 use std::collections::BTreeMap;
 use std::str::FromStr;
@@ -169,7 +168,7 @@ impl Value {
     ///      [[values]]
     ///      foo = "qux"
     /// "#;
-    /// let value: toml::Value = from_str(toml).unwrap();
+    /// let value: toml::Value = toml.parse().unwrap();
     ///
     /// let foo = value.lookup("test.foo").unwrap();
     /// assert_eq!(foo.as_str().unwrap(), "bar");
@@ -191,8 +190,7 @@ impl Value {
                     }
                 },
                 &Value::Array(ref v) => {
-                    let idx: Option<uint> = FromStr::from_str(key);
-                    match idx {
+                    match key.parse::<uint>() {
                         Some(idx) if idx < v.len() => cur_value = &v[idx],
                         _ => return None
                     }
@@ -228,7 +226,7 @@ mod tests {
               foo = "qux"
         "#;
 
-        let value: Value = from_str(toml).unwrap();
+        let value: Value = toml.parse().unwrap();
 
         let test_foo = value.lookup("test.foo").unwrap();
         assert_eq!(test_foo.as_str().unwrap(), "bar");
@@ -247,7 +245,7 @@ mod tests {
             foo = "baz"
         "#;
 
-        let value: Value = from_str(toml).unwrap();
+        let value: Value = toml.parse().unwrap();
 
         let foo = value.lookup("test.foo");
         assert!(foo.is_none());
