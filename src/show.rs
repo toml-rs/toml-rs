@@ -50,7 +50,7 @@ impl<'a, 'b> Printer<'a, 'b> {
             match *v {
                 Table(..) => continue,
                 Array(ref a) => {
-                    match a.as_slice().head() {
+                    match a.as_slice().first() {
                         Some(&Table(..)) => continue,
                         _ => {}
                     }
@@ -69,7 +69,7 @@ impl<'a, 'b> Printer<'a, 'b> {
                     self.stack.pop();
                 }
                 Array(ref inner) => {
-                    match inner.as_slice().head() {
+                    match inner.as_slice().first() {
                         Some(&Table(..)) => {}
                         _ => continue
                     }

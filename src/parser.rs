@@ -741,7 +741,7 @@ impl<'a> Parser<'a> {
         }
         match *into.get_mut(&key).unwrap() {
             Array(ref mut vec) => {
-                match vec.as_slice().head() {
+                match vec.as_slice().first() {
                     Some(ref v) if !v.same_type(&value) => {
                         self.errors.push(ParserError {
                             lo: key_lo,

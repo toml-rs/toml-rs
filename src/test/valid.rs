@@ -30,7 +30,7 @@ fn to_json(toml: Value) -> Json {
         Boolean(b) => doit("bool", Json::String(b.to_string())),
         Datetime(s) => doit("datetime", Json::String(s)),
         Array(arr) => {
-            let is_table = match arr.as_slice().head() {
+            let is_table = match arr.as_slice().first() {
                 Some(&Table(..)) => true,
                 _ => false,
             };
