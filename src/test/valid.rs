@@ -2,7 +2,7 @@ extern crate serialize;
 
 use std::num::strconv;
 use std::collections::BTreeMap;
-use self::serialize::json::{mod, Json};
+use self::serialize::json::{self, Json};
 
 use {Parser, Value};
 use Value::{Table, Integer, Float, Boolean, Datetime, Array};
@@ -57,8 +57,8 @@ fn run(toml: &str, json: &str) {
     let toml_json = to_json(Table(table));
     assert!(json == toml_json,
             "expected\n{}\ngot\n{}\n",
-            json.to_pretty_str(),
-            toml_json.to_pretty_str());
+            json.pretty(),
+            toml_json.pretty());
 }
 
 macro_rules! test( ($name:ident, $toml:expr, $json:expr) => (
