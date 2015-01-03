@@ -37,6 +37,7 @@
 //!
 
 #![feature(macro_rules)]
+#![feature(old_orphan_check)]
 #![deny(missing_docs)]
 #![cfg_attr(test, deny(warnings))]
 
@@ -62,7 +63,7 @@ mod show;
 mod serialization;
 #[cfg(test)]mod test;
 /// Representation of a TOML value.
-#[deriving(PartialEq, Clone)]
+#[derive(PartialEq, Clone)]
 #[allow(missing_docs)]
 pub enum Value {
     String(string::String),

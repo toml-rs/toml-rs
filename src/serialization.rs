@@ -23,6 +23,7 @@ use self::DecodeErrorKind::{ExpectedMapElement, NoEnumVariants, NilTooLong};
 /// # Example
 ///
 /// ```
+/// # #![feature(old_orphan_check)]
 /// extern crate "rustc-serialize" as rustc_serialize;
 /// extern crate toml;
 ///
@@ -30,7 +31,7 @@ use self::DecodeErrorKind::{ExpectedMapElement, NoEnumVariants, NilTooLong};
 /// use toml::{Encoder, Value};
 /// use rustc_serialize::Encodable;
 ///
-/// #[deriving(RustcEncodable)]
+/// #[derive(RustcEncodable)]
 /// struct MyStruct { foo: int, bar: String }
 /// let my_struct = MyStruct { foo: 4, bar: "hello!".to_string() };
 ///
@@ -80,7 +81,7 @@ pub enum Error {
 }
 
 /// Description for errors which can occur while decoding a type.
-#[deriving(PartialEq)]
+#[derive(PartialEq)]
 pub struct DecodeError {
     /// Field that this error applies to.
     pub field: Option<String>,
@@ -89,7 +90,7 @@ pub struct DecodeError {
 }
 
 /// Enumeration of possible errors which can occur while decoding a structure.
-#[deriving(PartialEq)]
+#[derive(PartialEq)]
 pub enum DecodeErrorKind {
     /// An error flagged by the application, e.g. value out of range
     ApplicationError(String),
@@ -107,7 +108,7 @@ pub enum DecodeErrorKind {
     NilTooLong
 }
 
-#[deriving(PartialEq, Show)]
+#[derive(PartialEq, Show)]
 enum EncoderState {
     Start,
     NextKey(String),
@@ -838,7 +839,7 @@ mod tests {
 
     #[test]
     fn smoke() {
-        #[deriving(RustcEncodable, RustcDecodable, PartialEq, Show)]
+        #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Foo { a: int }
 
         let v = Foo { a: 2 };
@@ -848,7 +849,7 @@ mod tests {
 
     #[test]
     fn smoke_hyphen() {
-        #[deriving(RustcEncodable, RustcDecodable, PartialEq, Show)]
+        #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Foo { a_b: int }
 
         let v = Foo { a_b: 2 };
@@ -862,9 +863,9 @@ mod tests {
 
     #[test]
     fn nested() {
-        #[deriving(RustcEncodable, RustcDecodable, PartialEq, Show)]
+        #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Foo { a: int, b: Bar }
-        #[deriving(RustcEncodable, RustcDecodable, PartialEq, Show)]
+        #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Bar { a: String }
 
         let v = Foo { a: 2, b: Bar { a: "test".to_string() } };
@@ -880,7 +881,7 @@ mod tests {
 
     #[test]
     fn application_decode_error() {
-        #[deriving(PartialEq, Show)]
+        #[derive(PartialEq, Show)]
         struct Range10(uint);
         impl<D: ::rustc_serialize::Decoder<E>, E> Decodable<D, E> for Range10 {
              fn decode(d: &mut D) -> Result<Range10, E> {
@@ -906,7 +907,7 @@ mod tests {
 
     #[test]
     fn array() {
-        #[deriving(RustcEncodable, RustcDecodable, PartialEq, Show)]
+        #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Foo { a: Vec<int> }
 
         let v = Foo { a: vec![1, 2, 3, 4] };
@@ -924,7 +925,7 @@ mod tests {
 
     #[test]
     fn tuple() {
-        #[deriving(RustcEncodable, RustcDecodable, PartialEq, Show)]
+        #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Foo { a: (int, int, int, int) }
 
         let v = Foo { a: (1, 2, 3, 4) };
@@ -942,12 +943,12 @@ mod tests {
 
     #[test]
     fn inner_structs_with_options() {
-        #[deriving(RustcEncodable, RustcDecodable, PartialEq, Show)]
+        #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Foo {
             a: Option<Box<Foo>>,
             b: Bar,
         }
-        #[deriving(RustcEncodable, RustcDecodable, PartialEq, Show)]
+        #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Bar {
             a: String,
             b: f64,
@@ -978,7 +979,7 @@ mod tests {
 
     #[test]
     fn hashmap() {
-        #[deriving(RustcEncodable, RustcDecodable, PartialEq, Show)]
+        #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Foo {
             map: BTreeMap<String, int>,
             set: HashSet<char>,
@@ -1011,7 +1012,7 @@ mod tests {
 
     #[test]
     fn tuple_struct() {
-        #[deriving(RustcEncodable, RustcDecodable, PartialEq, Show)]
+        #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Foo(int, String, f64);
 
         let v = Foo(1, "foo".to_string(), 4.5);
@@ -1028,9 +1029,9 @@ mod tests {
 
     #[test]
     fn table_array() {
-        #[deriving(RustcEncodable, RustcDecodable, PartialEq, Show)]
+        #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Foo { a: Vec<Bar>, }
-        #[deriving(RustcEncodable, RustcDecodable, PartialEq, Show)]
+        #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Bar { a: int }
 
         let v = Foo { a: vec![Bar { a: 1 }, Bar { a: 2 }] };
@@ -1048,7 +1049,7 @@ mod tests {
 
     #[test]
     fn type_errors() {
-        #[deriving(RustcEncodable, RustcDecodable, PartialEq, Show)]
+        #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Foo { bar: int }
 
         let mut d = Decoder::new(Table(map! {
@@ -1067,7 +1068,7 @@ mod tests {
 
     #[test]
     fn missing_errors() {
-        #[deriving(RustcEncodable, RustcDecodable, PartialEq, Show)]
+        #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Foo { bar: int }
 
         let mut d = Decoder::new(Table(map! {
@@ -1084,15 +1085,15 @@ mod tests {
 
     #[test]
     fn parse_enum() {
-        #[deriving(RustcEncodable, RustcDecodable, PartialEq, Show)]
+        #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Foo { a: E }
-        #[deriving(RustcEncodable, RustcDecodable, PartialEq, Show)]
+        #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         enum E {
             Bar(int),
             Baz(f64),
             Last(Foo2),
         }
-        #[deriving(RustcEncodable, RustcDecodable, PartialEq, Show)]
+        #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Foo2 {
             test: String,
         }
@@ -1121,7 +1122,7 @@ mod tests {
 
     #[test]
     fn unused_fields() {
-        #[deriving(RustcEncodable, RustcDecodable, PartialEq, Show)]
+        #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Foo { a: int }
 
         let v = Foo { a: 2 };
@@ -1138,9 +1139,9 @@ mod tests {
 
     #[test]
     fn unused_fields2() {
-        #[deriving(RustcEncodable, RustcDecodable, PartialEq, Show)]
+        #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Foo { a: Bar }
-        #[deriving(RustcEncodable, RustcDecodable, PartialEq, Show)]
+        #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Bar { a: int }
 
         let v = Foo { a: Bar { a: 2 } };
@@ -1161,9 +1162,9 @@ mod tests {
 
     #[test]
     fn unused_fields3() {
-        #[deriving(RustcEncodable, RustcDecodable, PartialEq, Show)]
+        #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Foo { a: Bar }
-        #[deriving(RustcEncodable, RustcDecodable, PartialEq, Show)]
+        #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Bar { a: int }
 
         let v = Foo { a: Bar { a: 2 } };
@@ -1179,7 +1180,7 @@ mod tests {
 
     #[test]
     fn unused_fields4() {
-        #[deriving(RustcEncodable, RustcDecodable, PartialEq, Show)]
+        #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Foo { a: BTreeMap<String, String> }
 
         let v = Foo { a: map! { a: "foo".to_string() } };
@@ -1195,7 +1196,7 @@ mod tests {
 
     #[test]
     fn unused_fields5() {
-        #[deriving(RustcEncodable, RustcDecodable, PartialEq, Show)]
+        #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Foo { a: Vec<String> }
 
         let v = Foo { a: vec!["a".to_string()] };
@@ -1209,7 +1210,7 @@ mod tests {
 
     #[test]
     fn unused_fields6() {
-        #[deriving(RustcEncodable, RustcDecodable, PartialEq, Show)]
+        #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Foo { a: Option<Vec<String>> }
 
         let v = Foo { a: Some(vec![]) };
@@ -1223,9 +1224,9 @@ mod tests {
 
     #[test]
     fn unused_fields7() {
-        #[deriving(RustcEncodable, RustcDecodable, PartialEq, Show)]
+        #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Foo { a: Vec<Bar> }
-        #[deriving(RustcEncodable, RustcDecodable, PartialEq, Show)]
+        #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Bar { a: int }
 
         let v = Foo { a: vec![Bar { a: 1 }] };
@@ -1246,9 +1247,9 @@ mod tests {
 
     #[test]
     fn empty_arrays() {
-        #[deriving(RustcEncodable, RustcDecodable, PartialEq, Show)]
+        #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Foo { a: Vec<Bar> }
-        #[deriving(RustcEncodable, RustcDecodable, PartialEq, Show)]
+        #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Bar;
 
         let v = Foo { a: vec![] };
@@ -1258,9 +1259,9 @@ mod tests {
 
     #[test]
     fn empty_arrays2() {
-        #[deriving(RustcEncodable, RustcDecodable, PartialEq, Show)]
+        #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Foo { a: Option<Vec<Bar>> }
-        #[deriving(RustcEncodable, RustcDecodable, PartialEq, Show)]
+        #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Bar;
 
         let v = Foo { a: None };

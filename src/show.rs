@@ -1,7 +1,7 @@
 use std::fmt;
 
 use Table as TomlTable;
-use Value::{mod, String, Integer, Float, Boolean, Datetime, Array, Table};
+use Value::{self, String, Integer, Float, Boolean, Datetime, Array, Table};
 
 struct Printer<'a, 'b:'a> {
     output: &'a mut fmt::Formatter<'b>,

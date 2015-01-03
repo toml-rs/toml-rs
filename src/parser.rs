@@ -5,7 +5,7 @@ use std::num::FromStrRadix;
 use std::str;
 
 use Table as TomlTable;
-use Value::{mod, Array, Table, Float, Integer, Boolean, Datetime};
+use Value::{self, Array, Table, Float, Integer, Boolean, Datetime};
 
 /// Parser for converting a string to a TOML `Value` instance.
 ///
@@ -27,7 +27,7 @@ pub struct Parser<'a> {
 ///
 /// The data in this structure can be used to trace back to the original cause
 /// of the error in order to provide diagnostics about parse errors.
-#[deriving(Show)]
+#[derive(Show)]
 pub struct ParserError {
     /// The low byte at which this error is pointing at.
     pub lo: uint,
