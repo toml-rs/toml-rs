@@ -38,7 +38,6 @@
 
 #![feature(macro_rules)]
 #![feature(associated_types)]
-#![feature(old_orphan_check)]
 #![deny(missing_docs)]
 #![cfg_attr(test, deny(warnings))]
 
