@@ -120,7 +120,7 @@ enum EncoderState {
 ///
 /// This function expects the type given to represent a TOML table in some form.
 /// If encoding encounters an error, then this function will fail the task.
-pub fn encode<T: rustc_serialize::Encodable<Encoder, Error>>(t: &T) -> Value {
+pub fn encode<T: rustc_serialize::Encodable>(t: &T) -> Value {
     let mut e = Encoder::new();
     t.encode(&mut e).unwrap();
     Table(e.toml)
@@ -130,7 +130,7 @@ pub fn encode<T: rustc_serialize::Encodable<Encoder, Error>>(t: &T) -> Value {
 ///
 /// This function expects the type given to represent a TOML table in some form.
 /// If encoding encounters an error, then this function will fail the task.
-pub fn encode_str<T: rustc_serialize::Encodable<Encoder, Error>>(t: &T) -> String {
+pub fn encode_str<T: rustc_serialize::Encodable>(t: &T) -> String {
     format!("{}", encode(t))
 }
 
@@ -160,7 +160,9 @@ impl Encoder {
     }
 }
 
-impl rustc_serialize::Encoder<Error> for Encoder {
+impl rustc_serialize::Encoder for Encoder {
+    type Error = Error;
+
     fn emit_nil(&mut self) -> Result<(), Error> { Ok(()) }
     fn emit_uint(&mut self, v: uint) -> Result<(), Error> {
         self.emit_i64(v as i64)
@@ -369,7 +371,7 @@ impl rustc_serialize::Encoder<Error> for Encoder {
 /// into the type specified. If decoding fails, `None` will be returned. If a
 /// finer-grained error is desired, then it is recommended to use `Decodable`
 /// directly.
-pub fn decode<T: rustc_serialize::Decodable<Decoder, DecodeError>>(toml: Value)
+pub fn decode<T: rustc_serialize::Decodable>(toml: Value)
     -> Option<T>
 {
     rustc_serialize::Decodable::decode(&mut Decoder::new(toml)).ok()
@@ -381,7 +383,7 @@ pub fn decode<T: rustc_serialize::Decodable<Decoder, DecodeError>>(toml: Value)
 /// the TOML value into the desired type. If any error occurs `None` is return.
 /// If more fine-grained errors are desired, these steps should be driven
 /// manually.
-pub fn decode_str<T: rustc_serialize::Decodable<Decoder, DecodeError>>(s: &str)
+pub fn decode_str<T: rustc_serialize::Decodable>(s: &str)
     -> Option<T>
 {
     Parser::new(s).parse().and_then(|t| decode(Table(t)))
@@ -426,7 +428,8 @@ impl Decoder {
     }
 }
 
-impl rustc_serialize::Decoder<DecodeError> for Decoder {
+impl rustc_serialize::Decoder for Decoder {
+    type Error = DecodeError;
     fn read_nil(&mut self) -> Result<(), DecodeError> {
         match self.toml {
             Some(Value::String(ref s)) if s.len() == 0 => {}
@@ -814,7 +817,7 @@ impl StdError for Error {
 #[cfg(test)]
 mod tests {
     use std::collections::{BTreeMap, HashSet};
-    use rustc_serialize::{Encodable, Decodable};
+    use rustc_serialize::{self, Encodable, Decodable};
 
     use super::{Encoder, Decoder, DecodeError};
     use Value;
@@ -883,8 +886,8 @@ mod tests {
     fn application_decode_error() {
         #[derive(PartialEq, Show)]
         struct Range10(uint);
-        impl<D: ::rustc_serialize::Decoder<E>, E> Decodable<D, E> for Range10 {
-             fn decode(d: &mut D) -> Result<Range10, E> {
+        impl Decodable for Range10 {
+             fn decode<D: rustc_serialize::Decoder>(d: &mut D) -> Result<Range10, D::Error> {
                  let x: uint = try!(Decodable::decode(d));
                  if x > 10 {
                      Err(d.error("Value out of range!"))
