@@ -36,8 +36,6 @@
 //! [2]: https://github.com/BurntSushi/toml-test
 //!
 
-#![feature(macro_rules)]
-#![feature(associated_types)]
 #![deny(missing_docs)]
 #![cfg_attr(test, deny(warnings))]
 
