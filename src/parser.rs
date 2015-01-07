@@ -52,9 +52,9 @@ impl<'a> Parser<'a> {
     ///
     /// let mut parser = toml::Parser::new(toml);
     /// match parser.parse() {
-    ///     Some(value) => println!("found toml: {}", value),
+    ///     Some(value) => println!("found toml: {:?}", value),
     ///     None => {
-    ///         println!("parse errors: {}", parser.errors);
+    ///         println!("parse errors: {:?}", parser.errors);
     ///     }
     /// }
     /// ```
@@ -651,7 +651,7 @@ impl<'a> Parser<'a> {
                     }
                     Array(ref mut array) => {
                         match array.as_mut_slice().last_mut() {
-                            Some(&Table(ref mut table)) => cur = table,
+                            Some(&mut Table(ref mut table)) => cur = table,
                             _ => {
                                 self.errors.push(ParserError {
                                     lo: key_lo,
@@ -699,7 +699,7 @@ impl<'a> Parser<'a> {
             added = true;
         }
         match into.get_mut(&key) {
-            Some(&Table(ref mut table)) => {
+            Some(&mut Table(ref mut table)) => {
                 let any_tables = table.values().any(|v| v.as_table().is_some());
                 if !any_tables && !added {
                     self.errors.push(ParserError {

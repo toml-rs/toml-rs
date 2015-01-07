@@ -46,7 +46,7 @@ fn to_json(toml: Value) -> Json {
 fn run(toml: &str, json: &str) {
     let mut p = Parser::new(toml);
     let table = p.parse();
-    assert!(p.errors.len() == 0, "had_errors: {}",
+    assert!(p.errors.len() == 0, "had_errors: {:?}",
             p.errors.iter().map(|e| {
                 (e.desc.clone(), toml.slice(e.lo - 5, e.hi + 5))
             }).collect::<Vec<(String, &str)>>());
