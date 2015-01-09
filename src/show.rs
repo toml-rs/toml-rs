@@ -1,6 +1,7 @@
 use std::fmt;
 
 use Table as TomlTable;
+use Array as TomlArray;
 use Value::{self, String, Integer, Float, Boolean, Datetime, Array, Table};
 
 struct Printer<'a, 'b:'a> {
@@ -8,7 +9,7 @@ struct Printer<'a, 'b:'a> {
     stack: Vec<&'a str>,
 }
 
-impl fmt::Show for Value {
+impl fmt::String for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             String(ref s) => {
@@ -39,7 +40,10 @@ impl fmt::Show for Value {
                 let mut p = Printer { output: f, stack: Vec::new() };
                 p.print(t)
             }
-            Array(ref a) => write!(f, "{}", a),
+            Array(ref a) => {
+                let mut p = Printer { output: f, stack: Vec::new() };
+                p.print_array(a)
+            },
         }
     }
 }
@@ -89,6 +93,20 @@ impl<'a, 'b> Printer<'a, 'b> {
         }
         Ok(())
     }
+
+    fn print_array(&mut self, array: &'a TomlArray) -> fmt::Result {
+        try!(self.output.write_str("["));
+        let mut first = true;
+        for item in array.iter() {
+            if first {
+                first = false;
+            } else {
+                try!(self.output.write_str(", "));
+            }
+            try!((&item as &fmt::String).fmt(self.output));
+        }
+        self.output.write_str("]")
+    }
 }
 
 #[cfg(test)]
@@ -98,7 +116,7 @@ mod tests {
     use Value::{String, Integer, Float, Boolean, Datetime, Array, Table};
     use std::collections::BTreeMap;
 
-    macro_rules! map( ($($k:expr: $v:expr),*) => ({
+    macro_rules! map( ($($k:expr,  $v:expr),*) => ({
         let mut _m = BTreeMap::new();
         $(_m.insert($k.to_string(), $v);)*
         _m
@@ -128,12 +146,12 @@ mod tests {
     fn table() {
         assert_eq!(Table(map! { }).to_string().as_slice(),
                    "");
-        assert_eq!(Table(map! { "test": Integer(2) }).to_string().as_slice(),
+        assert_eq!(Table(map! { "test", Integer(2) }).to_string().as_slice(),
                    "test = 2\n");
         assert_eq!(Table(map! {
-                        "test": Integer(2),
-                        "test2": Table(map! {
-                            "test": String("wut".to_string())
+                        "test", Integer(2),
+                        "test2", Table(map! {
+                            "test", String("wut".to_string())
                         })
                    }).to_string().as_slice(),
                    "test = 2\n\
@@ -141,9 +159,9 @@ mod tests {
                     [test2]\n\
                     test = \"wut\"\n");
         assert_eq!(Table(map! {
-                        "test": Integer(2),
-                        "test2": Table(map! {
-                            "test": String("wut".to_string())
+                        "test", Integer(2),
+                        "test2", Table(map! {
+                            "test", String("wut".to_string())
                         })
                    }).to_string().as_slice(),
                    "test = 2\n\
@@ -151,9 +169,9 @@ mod tests {
                     [test2]\n\
                     test = \"wut\"\n");
         assert_eq!(Table(map! {
-                        "test": Integer(2),
-                        "test2": Array(vec![Table(map! {
-                            "test": String("wut".to_string())
+                        "test", Integer(2),
+                        "test2", Array(vec![Table(map! {
+                            "test", String("wut".to_string())
                         })])
                    }).to_string().as_slice(),
                    "test = 2\n\

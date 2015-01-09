@@ -15,7 +15,7 @@
 //! "#;
 //!
 //! let value = toml::Parser::new(toml).parse().unwrap();
-//! println!("{}", value);
+//! println!("{:?}", value);
 //! ```
 //!
 //! # Conversions
@@ -37,6 +37,8 @@
 //!
 
 #![deny(missing_docs)]
+#![allow(staged_experimental)]
+#![allow(staged_unstable)]
 #![cfg_attr(test, deny(warnings))]
 
 extern crate "rustc-serialize" as rustc_serialize;
@@ -61,7 +63,7 @@ mod show;
 mod serialization;
 #[cfg(test)]mod test;
 /// Representation of a TOML value.
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Show)]
 #[allow(missing_docs)]
 pub enum Value {
     String(string::String),
@@ -157,6 +159,7 @@ impl Value {
     /// Note: arrays have zero-based indexes.
     ///
     /// ```
+    /// # #![allow(staged_unstable)]
     /// let toml = r#"
     ///      [test]
     ///      foo = "bar"

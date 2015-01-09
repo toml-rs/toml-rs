@@ -24,6 +24,8 @@ use self::DecodeErrorKind::{ExpectedMapElement, NoEnumVariants, NilTooLong};
 ///
 /// ```
 /// # #![feature(old_orphan_check)]
+/// # #![allow(staged_unstable)]
+/// # #![allow(staged_experimental)]
 /// extern crate "rustc-serialize" as rustc_serialize;
 /// extern crate toml;
 ///
@@ -108,7 +110,7 @@ pub enum DecodeErrorKind {
     NilTooLong
 }
 
-#[derive(PartialEq, Show)]
+#[derive(PartialEq)]
 enum EncoderState {
     Start,
     NextKey(String),
@@ -164,7 +166,7 @@ impl rustc_serialize::Encoder for Encoder {
     type Error = Error;
 
     fn emit_nil(&mut self) -> Result<(), Error> { Ok(()) }
-    fn emit_uint(&mut self, v: uint) -> Result<(), Error> {
+    fn emit_usize(&mut self, v: uint) -> Result<(), Error> {
         self.emit_i64(v as i64)
     }
     fn emit_u8(&mut self, v: u8) -> Result<(), Error> {
@@ -179,7 +181,7 @@ impl rustc_serialize::Encoder for Encoder {
     fn emit_u64(&mut self, v: u64) -> Result<(), Error> {
         self.emit_i64(v as i64)
     }
-    fn emit_int(&mut self, v: int) -> Result<(), Error> {
+    fn emit_isize(&mut self, v: int) -> Result<(), Error> {
         self.emit_i64(v as i64)
     }
     fn emit_i8(&mut self, v: i8) -> Result<(), Error> {
@@ -439,7 +441,7 @@ impl rustc_serialize::Decoder for Decoder {
         self.toml.take();
         Ok(())
     }
-    fn read_uint(&mut self) -> Result<uint, DecodeError> {
+    fn read_usize(&mut self) -> Result<uint, DecodeError> {
         self.read_i64().map(|i| i as uint)
     }
     fn read_u64(&mut self) -> Result<u64, DecodeError> {
@@ -454,7 +456,7 @@ impl rustc_serialize::Decoder for Decoder {
     fn read_u8(&mut self) -> Result<u8, DecodeError> {
         self.read_i64().map(|i| i as u8)
     }
-    fn read_int(&mut self) -> Result<int, DecodeError> {
+    fn read_isize(&mut self) -> Result<int, DecodeError> {
         self.read_i64().map(|i| i as int)
     }
     fn read_i64(&mut self) -> Result<i64, DecodeError> {
@@ -793,7 +795,7 @@ impl StdError for DecodeError {
             NilTooLong => "nonzero length string representing nil",
         }
     }
-    fn detail(&self) -> Option<String> { Some(self.to_string()) }
+    fn detail(&self) -> Option<String> { Some(format!("{:?}", self)) }
 }
 
 impl fmt::Show for Error {
@@ -811,7 +813,7 @@ impl fmt::Show for Error {
 
 impl StdError for Error {
     fn description(&self) -> &str { "TOML encoding error" }
-    fn detail(&self) -> Option<String> { Some(self.to_string()) }
+    fn detail(&self) -> Option<String> { Some(format!("{:?}", self)) }
 }
 
 #[cfg(test)]
@@ -834,7 +836,7 @@ mod tests {
         Decodable::decode(&mut d).unwrap()
     }) );
 
-    macro_rules! map( ($($k:ident: $v:expr),*) => ({
+    macro_rules! map( ($($k:ident, $v:expr),*) => ({
         let mut _m = BTreeMap::new();
         $(_m.insert(stringify!($k).to_string(), $v);)*
         _m
@@ -846,7 +848,7 @@ mod tests {
         struct Foo { a: int }
 
         let v = Foo { a: 2 };
-        assert_eq!(encode!(v), map! { a: Integer(2) });
+        assert_eq!(encode!(v), map! { a, Integer(2) });
         assert_eq!(v, decode!(Table(encode!(v))));
     }
 
@@ -856,7 +858,7 @@ mod tests {
         struct Foo { a_b: int }
 
         let v = Foo { a_b: 2 };
-        assert_eq!(encode!(v), map! { a_b: Integer(2) });
+        assert_eq!(encode!(v), map! { a_b, Integer(2) });
         assert_eq!(v, decode!(Table(encode!(v))));
 
         let mut m = BTreeMap::new();
@@ -874,9 +876,9 @@ mod tests {
         let v = Foo { a: 2, b: Bar { a: "test".to_string() } };
         assert_eq!(encode!(v),
                    map! {
-                       a: Integer(2),
-                       b: Table(map! {
-                           a: Value::String("test".to_string())
+                       a, Integer(2),
+                       b, Table(map! {
+                           a, Value::String("test".to_string())
                        })
                    });
         assert_eq!(v, decode!(Table(encode!(v))));
@@ -916,7 +918,7 @@ mod tests {
         let v = Foo { a: vec![1, 2, 3, 4] };
         assert_eq!(encode!(v),
                    map! {
-                       a: Array(vec![
+                       a, Array(vec![
                             Integer(1),
                             Integer(2),
                             Integer(3),
@@ -934,7 +936,7 @@ mod tests {
         let v = Foo { a: (1, 2, 3, 4) };
         assert_eq!(encode!(v),
                    map! {
-                       a: Array(vec![
+                       a, Array(vec![
                             Integer(1),
                             Integer(2),
                             Integer(3),
@@ -958,23 +960,23 @@ mod tests {
         }
 
         let v = Foo {
-            a: Some(box Foo {
+            a: Some(Box::new(Foo {
                 a: None,
                 b: Bar { a: "foo".to_string(), b: 4.5 },
-            }),
+            })),
             b: Bar { a: "bar".to_string(), b: 1.0 },
         };
         assert_eq!(encode!(v),
                    map! {
-                       a: Table(map! {
-                           b: Table(map! {
-                               a: Value::String("foo".to_string()),
-                               b: Float(4.5)
+                       a, Table(map! {
+                           b, Table(map! {
+                               a, Value::String("foo".to_string()),
+                               b, Float(4.5)
                            })
                        }),
-                       b: Table(map! {
-                           a: Value::String("bar".to_string()),
-                           b: Float(1.0)
+                       b, Table(map! {
+                           a, Value::String("bar".to_string()),
+                           b, Float(1.0)
                        })
                    });
         assert_eq!(v, decode!(Table(encode!(v))));
@@ -1003,11 +1005,11 @@ mod tests {
         };
         assert_eq!(encode!(v),
             map! {
-                map: Table(map! {
-                    foo: Integer(10),
-                    bar: Integer(4)
+                map, Table(map! {
+                    foo, Integer(10),
+                    bar, Integer(4)
                 }),
-                set: Array(vec![Value::String("a".to_string())])
+                set, Array(vec![Value::String("a".to_string())])
             }
         );
         assert_eq!(v, decode!(Table(encode!(v))));
@@ -1022,9 +1024,9 @@ mod tests {
         assert_eq!(
             encode!(v),
             map! {
-                _field0: Integer(1),
-                _field1: Value::String("foo".to_string()),
-                _field2: Float(4.5)
+                _field0, Integer(1),
+                _field1, Value::String("foo".to_string()),
+                _field2, Float(4.5)
             }
         );
         assert_eq!(v, decode!(Table(encode!(v))));
@@ -1041,9 +1043,9 @@ mod tests {
         assert_eq!(
             encode!(v),
             map! {
-                a: Array(vec![
-                    Table(map!{ a: Integer(1) }),
-                    Table(map!{ a: Integer(2) }),
+                a, Array(vec![
+                    Table(map!{ a, Integer(1) }),
+                    Table(map!{ a, Integer(2) }),
                 ])
             }
         );
@@ -1056,13 +1058,13 @@ mod tests {
         struct Foo { bar: int }
 
         let mut d = Decoder::new(Table(map! {
-            bar: Float(1.0)
+            bar, Float(1.0)
         }));
         let a: Result<Foo, DecodeError> = Decodable::decode(&mut d);
         match a {
             Ok(..) => panic!("should not have decoded"),
             Err(e) => {
-                assert_eq!(e.to_string().as_slice(),
+                assert_eq!(format!("{:?}", e).as_slice(),
                            "expected a value of type `integer`, but \
                             found a value of type `float` for the key `bar`");
             }
@@ -1080,7 +1082,7 @@ mod tests {
         match a {
             Ok(..) => panic!("should not have decoded"),
             Err(e) => {
-                assert_eq!(e.to_string().as_slice(),
+                assert_eq!(format!("{:?}", e).as_slice(),
                            "expected a value of type `integer` for the key `bar`");
             }
         }
@@ -1104,21 +1106,21 @@ mod tests {
         let v = Foo { a: E::Bar(10) };
         assert_eq!(
             encode!(v),
-            map! { a: Integer(10) }
+            map! { a, Integer(10) }
         );
         assert_eq!(v, decode!(Table(encode!(v))));
 
         let v = Foo { a: E::Baz(10.2) };
         assert_eq!(
             encode!(v),
-            map! { a: Float(10.2) }
+            map! { a, Float(10.2) }
         );
         assert_eq!(v, decode!(Table(encode!(v))));
 
         let v = Foo { a: E::Last(Foo2 { test: "test".to_string() }) };
         assert_eq!(
             encode!(v),
-            map! { a: Table(map! { test: Value::String("test".to_string()) }) }
+            map! { a, Table(map! { test, Value::String("test".to_string()) }) }
         );
         assert_eq!(v, decode!(Table(encode!(v))));
     }
@@ -1130,13 +1132,13 @@ mod tests {
 
         let v = Foo { a: 2 };
         let mut d = Decoder::new(Table(map! {
-            a: Integer(2),
-            b: Integer(5)
+            a, Integer(2),
+            b, Integer(5)
         }));
         assert_eq!(v, Decodable::decode(&mut d).unwrap());
 
         assert_eq!(d.toml, Some(Table(map! {
-            b: Integer(5)
+            b, Integer(5)
         })));
     }
 
@@ -1149,16 +1151,16 @@ mod tests {
 
         let v = Foo { a: Bar { a: 2 } };
         let mut d = Decoder::new(Table(map! {
-            a: Table(map! {
-                a: Integer(2),
-                b: Integer(5)
+            a, Table(map! {
+                a, Integer(2),
+                b, Integer(5)
             })
         }));
         assert_eq!(v, Decodable::decode(&mut d).unwrap());
 
         assert_eq!(d.toml, Some(Table(map! {
-            a: Table(map! {
-                b: Integer(5)
+            a, Table(map! {
+                b, Integer(5)
             })
         })));
     }
@@ -1172,8 +1174,8 @@ mod tests {
 
         let v = Foo { a: Bar { a: 2 } };
         let mut d = Decoder::new(Table(map! {
-            a: Table(map! {
-                a: Integer(2)
+            a, Table(map! {
+                a, Integer(2)
             })
         }));
         assert_eq!(v, Decodable::decode(&mut d).unwrap());
@@ -1186,10 +1188,10 @@ mod tests {
         #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Foo { a: BTreeMap<String, String> }
 
-        let v = Foo { a: map! { a: "foo".to_string() } };
+        let v = Foo { a: map! { a, "foo".to_string() } };
         let mut d = Decoder::new(Table(map! {
-            a: Table(map! {
-                a: Value::String("foo".to_string())
+            a, Table(map! {
+                a, Value::String("foo".to_string())
             })
         }));
         assert_eq!(v, Decodable::decode(&mut d).unwrap());
@@ -1204,7 +1206,7 @@ mod tests {
 
         let v = Foo { a: vec!["a".to_string()] };
         let mut d = Decoder::new(Table(map! {
-            a: Array(vec![Value::String("a".to_string())])
+            a, Array(vec![Value::String("a".to_string())])
         }));
         assert_eq!(v, Decodable::decode(&mut d).unwrap());
 
@@ -1218,7 +1220,7 @@ mod tests {
 
         let v = Foo { a: Some(vec![]) };
         let mut d = Decoder::new(Table(map! {
-            a: Array(vec![])
+            a, Array(vec![])
         }));
         assert_eq!(v, Decodable::decode(&mut d).unwrap());
 
@@ -1234,16 +1236,16 @@ mod tests {
 
         let v = Foo { a: vec![Bar { a: 1 }] };
         let mut d = Decoder::new(Table(map! {
-            a: Array(vec![Table(map! {
-                a: Integer(1),
-                b: Integer(2)
+            a, Array(vec![Table(map! {
+                a, Integer(1),
+                b, Integer(2)
             })])
         }));
         assert_eq!(v, Decodable::decode(&mut d).unwrap());
 
         assert_eq!(d.toml, Some(Table(map! {
-            a: Array(vec![Table(map! {
-                b: Integer(2)
+            a, Array(vec![Table(map! {
+                b, Integer(2)
             })])
         })));
     }
@@ -1273,7 +1275,7 @@ mod tests {
 
         let v = Foo { a: Some(vec![]) };
         let mut d = Decoder::new(Table(map! {
-            a: Array(vec![])
+            a, Array(vec![])
         }));
         assert_eq!(v, Decodable::decode(&mut d).unwrap());
     }
