@@ -166,7 +166,7 @@ impl rustc_serialize::Encoder for Encoder {
     type Error = Error;
 
     fn emit_nil(&mut self) -> Result<(), Error> { Ok(()) }
-    fn emit_uint(&mut self, v: uint) -> Result<(), Error> {
+    fn emit_usize(&mut self, v: uint) -> Result<(), Error> {
         self.emit_i64(v as i64)
     }
     fn emit_u8(&mut self, v: u8) -> Result<(), Error> {
@@ -181,7 +181,7 @@ impl rustc_serialize::Encoder for Encoder {
     fn emit_u64(&mut self, v: u64) -> Result<(), Error> {
         self.emit_i64(v as i64)
     }
-    fn emit_int(&mut self, v: int) -> Result<(), Error> {
+    fn emit_isize(&mut self, v: int) -> Result<(), Error> {
         self.emit_i64(v as i64)
     }
     fn emit_i8(&mut self, v: i8) -> Result<(), Error> {
@@ -441,7 +441,7 @@ impl rustc_serialize::Decoder for Decoder {
         self.toml.take();
         Ok(())
     }
-    fn read_uint(&mut self) -> Result<uint, DecodeError> {
+    fn read_usize(&mut self) -> Result<uint, DecodeError> {
         self.read_i64().map(|i| i as uint)
     }
     fn read_u64(&mut self) -> Result<u64, DecodeError> {
@@ -456,7 +456,7 @@ impl rustc_serialize::Decoder for Decoder {
     fn read_u8(&mut self) -> Result<u8, DecodeError> {
         self.read_i64().map(|i| i as u8)
     }
-    fn read_int(&mut self) -> Result<int, DecodeError> {
+    fn read_isize(&mut self) -> Result<int, DecodeError> {
         self.read_i64().map(|i| i as int)
     }
     fn read_i64(&mut self) -> Result<i64, DecodeError> {
