@@ -30,9 +30,9 @@ pub struct Parser<'a> {
 #[derive(Show)]
 pub struct ParserError {
     /// The low byte at which this error is pointing at.
-    pub lo: uint,
+    pub lo: usize,
     /// One byte beyond the last character at which this error is pointing at.
-    pub hi: uint,
+    pub hi: usize,
     /// A human-readable description explaining what the error is.
     pub desc: String,
 }
@@ -69,7 +69,7 @@ impl<'a> Parser<'a> {
     /// Converts a byte offset from an error message to a (line, column) pair
     ///
     /// All indexes are 0-based.
-    pub fn to_linecol(&self, offset: uint) -> (uint, uint) {
+    pub fn to_linecol(&self, offset: usize) -> (usize, usize) {
         let mut cur = 0;
         for (i, line) in self.input.lines().enumerate() {
             if cur + line.len() > offset {
@@ -80,7 +80,7 @@ impl<'a> Parser<'a> {
         return (self.input.lines().count(), 0)
     }
 
-    fn next_pos(&self) -> uint {
+    fn next_pos(&self) -> usize {
         self.cur.clone().next().map(|p| p.0).unwrap_or(self.input.len())
     }
 
@@ -271,7 +271,7 @@ impl<'a> Parser<'a> {
     }
 
     // Parses a single or multi-line string
-    fn string(&mut self, start: uint) -> Option<Value> {
+    fn string(&mut self, start: usize) -> Option<Value> {
         if !self.expect('"') { return None }
         let mut multiline = false;
         let mut ret = String::new();
@@ -331,7 +331,7 @@ impl<'a> Parser<'a> {
 
         return Some(Value::String(ret));
 
-        fn escape(me: &mut Parser, pos: uint, multiline: bool) -> Option<char> {
+        fn escape(me: &mut Parser, pos: usize, multiline: bool) -> Option<char> {
             match me.cur.next() {
                 Some((_, 'b')) => Some('\u{8}'),
                 Some((_, 't')) => Some('\u{9}'),
@@ -417,7 +417,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn literal_string(&mut self, start: uint) -> Option<Value> {
+    fn literal_string(&mut self, start: usize) -> Option<Value> {
         if !self.expect('\'') { return None }
         let mut multiline = false;
         let mut ret = String::new();
@@ -453,7 +453,7 @@ impl<'a> Parser<'a> {
         return Some(Value::String(ret));
     }
 
-    fn number_or_datetime(&mut self, start: uint) -> Option<Value> {
+    fn number_or_datetime(&mut self, start: usize) -> Option<Value> {
         let negative = self.eat('-');
         let mut is_float = false;
         loop {
@@ -488,15 +488,15 @@ impl<'a> Parser<'a> {
         return ret;
     }
 
-    fn boolean(&mut self, start: uint) -> Option<Value> {
+    fn boolean(&mut self, start: usize) -> Option<Value> {
         let rest = self.input.slice_from(start);
         if rest.starts_with("true") {
-            for _ in range(0u, 4u) {
+            for _ in 0..4 {
                 self.cur.next();
             }
             Some(Boolean(true))
         } else if rest.starts_with("false") {
-            for _ in range(0u, 5u) {
+            for _ in 0..5 {
                 self.cur.next();
             }
             Some(Boolean(false))
@@ -512,9 +512,9 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn datetime(&mut self, start: uint, end_so_far: uint) -> Option<Value> {
+    fn datetime(&mut self, start: usize, end_so_far: usize) -> Option<Value> {
         let mut date = self.input.slice(start, end_so_far).to_string();
-        for _ in range(0u, 15u) {
+        for _ in 0..15 {
             match self.cur.next() {
                 Some((_, ch)) => date.push(ch),
                 None => {
@@ -561,7 +561,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn array(&mut self, _start: uint) -> Option<Value> {
+    fn array(&mut self, _start: usize) -> Option<Value> {
         if !self.expect('[') { return None }
         let mut ret = Vec::new();
         fn consume(me: &mut Parser) {
@@ -612,7 +612,7 @@ impl<'a> Parser<'a> {
     }
 
     fn insert(&mut self, into: &mut TomlTable, key: String, value: Value,
-              key_lo: uint) {
+              key_lo: usize) {
         if into.contains_key(&key) {
             self.errors.push(ParserError {
                 lo: key_lo,
@@ -625,7 +625,7 @@ impl<'a> Parser<'a> {
     }
 
     fn recurse<'b>(&mut self, mut cur: &'b mut TomlTable, orig_key: &'b str,
-                   key_lo: uint) -> Option<(&'b mut TomlTable, &'b str)> {
+                   key_lo: usize) -> Option<(&'b mut TomlTable, &'b str)> {
         if orig_key.starts_with(".") || orig_key.ends_with(".") ||
            orig_key.contains("..") {
             self.errors.push(ParserError {
@@ -687,7 +687,7 @@ impl<'a> Parser<'a> {
     }
 
     fn insert_table(&mut self, into: &mut TomlTable, key: String, value: TomlTable,
-                    key_lo: uint) {
+                    key_lo: usize) {
         let (into, key) = match self.recurse(into, key.as_slice(), key_lo) {
             Some(pair) => pair,
             None => return,
@@ -730,7 +730,7 @@ impl<'a> Parser<'a> {
     }
 
     fn insert_array(&mut self, into: &mut TomlTable, key: String, value: Value,
-                   key_lo: uint) {
+                   key_lo: usize) {
         let (into, key) = match self.recurse(into, key.as_slice(), key_lo) {
             Some(pair) => pair,
             None => return,

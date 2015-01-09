@@ -23,9 +23,7 @@ use self::DecodeErrorKind::{ExpectedMapElement, NoEnumVariants, NilTooLong};
 /// # Example
 ///
 /// ```
-/// # #![feature(old_orphan_check)]
-/// # #![allow(staged_unstable)]
-/// # #![allow(staged_experimental)]
+/// # #![allow(unstable)]
 /// extern crate "rustc-serialize" as rustc_serialize;
 /// extern crate toml;
 ///
@@ -92,7 +90,7 @@ pub struct DecodeError {
 }
 
 /// Enumeration of possible errors which can occur while decoding a structure.
-#[derive(PartialEq)]
+#[derive(PartialEq, Show)]
 pub enum DecodeErrorKind {
     /// An error flagged by the application, e.g. value out of range
     ApplicationError(String),
@@ -101,9 +99,9 @@ pub enum DecodeErrorKind {
     /// A field was found, but it had the wrong type.
     ExpectedType(/* expected */ &'static str, /* found */ &'static str),
     /// The nth map key was expected, but none was found.
-    ExpectedMapKey(uint),
+    ExpectedMapKey(usize),
     /// The nth map element was expected, but none was found.
-    ExpectedMapElement(uint),
+    ExpectedMapElement(usize),
     /// An enum decoding was requested, but no variants were supplied
     NoEnumVariants,
     /// The unit type was being decoded, but a non-zero length string was found
@@ -166,7 +164,7 @@ impl rustc_serialize::Encoder for Encoder {
     type Error = Error;
 
     fn emit_nil(&mut self) -> Result<(), Error> { Ok(()) }
-    fn emit_usize(&mut self, v: uint) -> Result<(), Error> {
+    fn emit_usize(&mut self, v: usize) -> Result<(), Error> {
         self.emit_i64(v as i64)
     }
     fn emit_u8(&mut self, v: u8) -> Result<(), Error> {
@@ -181,7 +179,7 @@ impl rustc_serialize::Encoder for Encoder {
     fn emit_u64(&mut self, v: u64) -> Result<(), Error> {
         self.emit_i64(v as i64)
     }
-    fn emit_isize(&mut self, v: int) -> Result<(), Error> {
+    fn emit_isize(&mut self, v: isize) -> Result<(), Error> {
         self.emit_i64(v as i64)
     }
     fn emit_i8(&mut self, v: i8) -> Result<(), Error> {
@@ -215,20 +213,20 @@ impl rustc_serialize::Encoder for Encoder {
     {
         f(self)
     }
-    fn emit_enum_variant<F>(&mut self, _v_name: &str, _v_id: uint, _len: uint, f: F)
+    fn emit_enum_variant<F>(&mut self, _v_name: &str, _v_id: usize,
+                            _len: usize, f: F) -> Result<(), Error>
+        where F: FnOnce(&mut Encoder) -> Result<(), Error>
+    {
+        f(self)
+    }
+    fn emit_enum_variant_arg<F>(&mut self, _a_idx: usize, f: F)
         -> Result<(), Error>
         where F: FnOnce(&mut Encoder) -> Result<(), Error>
     {
         f(self)
     }
-    fn emit_enum_variant_arg<F>(&mut self, _a_idx: uint, f: F)
-        -> Result<(), Error>
-        where F: FnOnce(&mut Encoder) -> Result<(), Error>
-    {
-        f(self)
-    }
-    fn emit_enum_struct_variant<F>(&mut self, _v_name: &str, _v_id: uint,
-                                   _len: uint,
+    fn emit_enum_struct_variant<F>(&mut self, _v_name: &str, _v_id: usize,
+                                   _len: usize,
                                    _f: F)
         -> Result<(), Error>
         where F: FnOnce(&mut Encoder) -> Result<(), Error>
@@ -237,14 +235,14 @@ impl rustc_serialize::Encoder for Encoder {
     }
     fn emit_enum_struct_variant_field<F>(&mut self,
                                          _f_name: &str,
-                                         _f_idx: uint,
+                                         _f_idx: usize,
                                          _f: F)
         -> Result<(), Error>
         where F: FnOnce(&mut Encoder) -> Result<(), Error>
     {
         panic!()
     }
-    fn emit_struct<F>(&mut self, _name: &str, _len: uint, f: F)
+    fn emit_struct<F>(&mut self, _name: &str, _len: usize, f: F)
         -> Result<(), Error>
         where F: FnOnce(&mut Encoder) -> Result<(), Error>
     {
@@ -266,7 +264,7 @@ impl rustc_serialize::Encoder for Encoder {
             NextMapKey => Err(InvalidMapKeyLocation),
         }
     }
-    fn emit_struct_field<F>(&mut self, f_name: &str, _f_idx: uint, f: F)
+    fn emit_struct_field<F>(&mut self, f_name: &str, _f_idx: usize, f: F)
         -> Result<(), Error>
         where F: FnOnce(&mut Encoder) -> Result<(), Error>
     {
@@ -278,25 +276,25 @@ impl rustc_serialize::Encoder for Encoder {
         self.state = old;
         Ok(())
     }
-    fn emit_tuple<F>(&mut self, len: uint, f: F)
+    fn emit_tuple<F>(&mut self, len: usize, f: F)
         -> Result<(), Error>
         where F: FnOnce(&mut Encoder) -> Result<(), Error>
     {
         self.emit_seq(len, f)
     }
-    fn emit_tuple_arg<F>(&mut self, idx: uint, f: F)
+    fn emit_tuple_arg<F>(&mut self, idx: usize, f: F)
         -> Result<(), Error>
         where F: FnOnce(&mut Encoder) -> Result<(), Error>
     {
         self.emit_seq_elt(idx, f)
     }
-    fn emit_tuple_struct<F>(&mut self, _name: &str, _len: uint, _f: F)
+    fn emit_tuple_struct<F>(&mut self, _name: &str, _len: usize, _f: F)
         -> Result<(), Error>
         where F: FnOnce(&mut Encoder) -> Result<(), Error>
     {
         unimplemented!()
     }
-    fn emit_tuple_struct_arg<F>(&mut self, _f_idx: uint, _f: F)
+    fn emit_tuple_struct_arg<F>(&mut self, _f_idx: usize, _f: F)
         -> Result<(), Error>
         where F: FnOnce(&mut Encoder) -> Result<(), Error>
     {
@@ -322,7 +320,7 @@ impl rustc_serialize::Encoder for Encoder {
     {
         f(self)
     }
-    fn emit_seq<F>(&mut self, _len: uint, f: F)
+    fn emit_seq<F>(&mut self, _len: usize, f: F)
         -> Result<(), Error>
         where F: FnOnce(&mut Encoder) -> Result<(), Error>
     {
@@ -333,19 +331,19 @@ impl rustc_serialize::Encoder for Encoder {
             _ => unreachable!(),
         }
     }
-    fn emit_seq_elt<F>(&mut self, _idx: uint, f: F)
+    fn emit_seq_elt<F>(&mut self, _idx: usize, f: F)
         -> Result<(), Error>
         where F: FnOnce(&mut Encoder) -> Result<(), Error>
     {
         f(self)
     }
-    fn emit_map<F>(&mut self, len: uint, f: F)
+    fn emit_map<F>(&mut self, len: usize, f: F)
         -> Result<(), Error>
         where F: FnOnce(&mut Encoder) -> Result<(), Error>
     {
         self.emit_struct("foo", len, f)
     }
-    fn emit_map_elt_key<F>(&mut self, _idx: uint, mut f: F)
+    fn emit_map_elt_key<F>(&mut self, _idx: usize, mut f: F)
         -> Result<(), Error>
         where F: FnMut(&mut Encoder) -> Result<(), Error>
     {
@@ -359,7 +357,7 @@ impl rustc_serialize::Encoder for Encoder {
             _ => Err(InvalidMapKeyLocation),
         }
     }
-    fn emit_map_elt_val<F>(&mut self, _idx: uint, f: F)
+    fn emit_map_elt_val<F>(&mut self, _idx: usize, f: F)
         -> Result<(), Error>
         where F: FnOnce(&mut Encoder) -> Result<(), Error>
     {
@@ -441,8 +439,8 @@ impl rustc_serialize::Decoder for Decoder {
         self.toml.take();
         Ok(())
     }
-    fn read_usize(&mut self) -> Result<uint, DecodeError> {
-        self.read_i64().map(|i| i as uint)
+    fn read_usize(&mut self) -> Result<usize, DecodeError> {
+        self.read_i64().map(|i| i as usize)
     }
     fn read_u64(&mut self) -> Result<u64, DecodeError> {
         self.read_i64().map(|i| i as u64)
@@ -456,8 +454,8 @@ impl rustc_serialize::Decoder for Decoder {
     fn read_u8(&mut self) -> Result<u8, DecodeError> {
         self.read_i64().map(|i| i as u8)
     }
-    fn read_isize(&mut self) -> Result<int, DecodeError> {
-        self.read_i64().map(|i| i as int)
+    fn read_isize(&mut self) -> Result<isize, DecodeError> {
+        self.read_i64().map(|i| i as isize)
     }
     fn read_i64(&mut self) -> Result<i64, DecodeError> {
         match self.toml {
@@ -519,7 +517,7 @@ impl rustc_serialize::Decoder for Decoder {
 
     fn read_enum_variant<T, F>(&mut self, names: &[&str], mut f: F)
         -> Result<T, DecodeError>
-        where F: FnMut(&mut Decoder, uint) -> Result<T, DecodeError>
+        where F: FnMut(&mut Decoder, usize) -> Result<T, DecodeError>
     {
         let mut first_error = None;
         for i in range(0, names.len()) {
@@ -535,7 +533,7 @@ impl rustc_serialize::Decoder for Decoder {
         }
         Err(first_error.unwrap_or_else(|| self.err(NoEnumVariants)))
     }
-    fn read_enum_variant_arg<T, F>(&mut self, _a_idx: uint, f: F)
+    fn read_enum_variant_arg<T, F>(&mut self, _a_idx: usize, f: F)
         -> Result<T, DecodeError>
         where F: FnOnce(&mut Decoder) -> Result<T, DecodeError>
     {
@@ -544,13 +542,13 @@ impl rustc_serialize::Decoder for Decoder {
 
     fn read_enum_struct_variant<T, F>(&mut self, _names: &[&str], _f: F)
         -> Result<T, DecodeError>
-        where F: FnMut(&mut Decoder, uint) -> Result<T, DecodeError>
+        where F: FnMut(&mut Decoder, usize) -> Result<T, DecodeError>
     {
         panic!()
     }
     fn read_enum_struct_variant_field<T, F>(&mut self,
                                             _f_name: &str,
-                                            _f_idx: uint,
+                                            _f_idx: usize,
                                             _f: F)
         -> Result<T, DecodeError>
         where F: FnOnce(&mut Decoder) -> Result<T, DecodeError>
@@ -558,7 +556,7 @@ impl rustc_serialize::Decoder for Decoder {
         panic!()
     }
 
-    fn read_struct<T, F>(&mut self, _s_name: &str, _len: uint, f: F)
+    fn read_struct<T, F>(&mut self, _s_name: &str, _len: usize, f: F)
         -> Result<T, DecodeError>
         where F: FnOnce(&mut Decoder) -> Result<T, DecodeError>
     {
@@ -575,7 +573,7 @@ impl rustc_serialize::Decoder for Decoder {
             ref found => Err(self.mismatch("table", found)),
         }
     }
-    fn read_struct_field<T, F>(&mut self, f_name: &str, _f_idx: uint, f: F)
+    fn read_struct_field<T, F>(&mut self, f_name: &str, _f_idx: usize, f: F)
         -> Result<T, DecodeError>
         where F: FnOnce(&mut Decoder) -> Result<T, DecodeError>
     {
@@ -599,7 +597,7 @@ impl rustc_serialize::Decoder for Decoder {
         Ok(ret)
     }
 
-    fn read_tuple<T, F>(&mut self, tuple_len: uint, f: F)
+    fn read_tuple<T, F>(&mut self, tuple_len: usize, f: F)
         -> Result<T, DecodeError>
         where F: FnOnce(&mut Decoder) -> Result<T, DecodeError>
     {
@@ -610,20 +608,20 @@ impl rustc_serialize::Decoder for Decoder {
             f(d)
         })
     }
-    fn read_tuple_arg<T, F>(&mut self, a_idx: uint, f: F)
+    fn read_tuple_arg<T, F>(&mut self, a_idx: usize, f: F)
         -> Result<T, DecodeError>
         where F: FnOnce(&mut Decoder) -> Result<T, DecodeError>
     {
         self.read_seq_elt(a_idx, f)
     }
 
-    fn read_tuple_struct<T, F>(&mut self, _s_name: &str, _len: uint, _f: F)
+    fn read_tuple_struct<T, F>(&mut self, _s_name: &str, _len: usize, _f: F)
         -> Result<T, DecodeError>
         where F: FnOnce(&mut Decoder) -> Result<T, DecodeError>
     {
         panic!()
     }
-    fn read_tuple_struct_arg<T, F>(&mut self, _a_idx: uint, _f: F)
+    fn read_tuple_struct_arg<T, F>(&mut self, _a_idx: usize, _f: F)
         -> Result<T, DecodeError>
         where F: FnOnce(&mut Decoder) -> Result<T, DecodeError>
     {
@@ -643,7 +641,7 @@ impl rustc_serialize::Decoder for Decoder {
 
     fn read_seq<T, F>(&mut self, f: F)
         -> Result<T, DecodeError>
-        where F: FnOnce(&mut Decoder,uint) -> Result<T, DecodeError>
+        where F: FnOnce(&mut Decoder, usize) -> Result<T, DecodeError>
     {
         let len = match self.toml {
             Some(Array(ref arr)) => arr.len(),
@@ -661,7 +659,7 @@ impl rustc_serialize::Decoder for Decoder {
         self.toml.take();
         Ok(ret)
     }
-    fn read_seq_elt<T, F>(&mut self, idx: uint, f: F)
+    fn read_seq_elt<T, F>(&mut self, idx: usize, f: F)
         -> Result<T, DecodeError>
         where F: FnOnce(&mut Decoder) -> Result<T, DecodeError>
     {
@@ -683,7 +681,7 @@ impl rustc_serialize::Decoder for Decoder {
 
     fn read_map<T, F>(&mut self, f: F)
         -> Result<T, DecodeError>
-        where F: FnOnce(&mut Decoder, uint) -> Result<T, DecodeError>
+        where F: FnOnce(&mut Decoder, usize) -> Result<T, DecodeError>
     {
         let len = match self.toml {
             Some(Table(ref table)) => table.len(),
@@ -693,7 +691,7 @@ impl rustc_serialize::Decoder for Decoder {
         self.toml.take();
         Ok(ret)
     }
-    fn read_map_elt_key<T, F>(&mut self, idx: uint, f: F)
+    fn read_map_elt_key<T, F>(&mut self, idx: usize, f: F)
         -> Result<T, DecodeError>
         where F: FnOnce(&mut Decoder) -> Result<T, DecodeError>
     {
@@ -710,7 +708,7 @@ impl rustc_serialize::Decoder for Decoder {
             ref found => Err(self.mismatch("table", found)),
         }
     }
-    fn read_map_elt_val<T, F>(&mut self, idx: uint, f: F)
+    fn read_map_elt_val<T, F>(&mut self, idx: usize, f: F)
         -> Result<T, DecodeError>
         where F: FnOnce(&mut Decoder) -> Result<T, DecodeError>
     {
@@ -737,6 +735,12 @@ impl rustc_serialize::Decoder for Decoder {
 }
 
 impl fmt::Show for DecodeError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::String::fmt(self, f)
+    }
+}
+
+impl fmt::String for DecodeError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         try!(match self.kind {
             ApplicationError(ref err) => {
@@ -800,6 +804,12 @@ impl StdError for DecodeError {
 
 impl fmt::Show for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt::String::fmt(self, f)
+    }
+}
+
+impl fmt::String for Error {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             NeedsKey => write!(f, "need a key to encode"),
             NoValue => write!(f, "not value to emit for a previous key"),
@@ -845,7 +855,7 @@ mod tests {
     #[test]
     fn smoke() {
         #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
-        struct Foo { a: int }
+        struct Foo { a: isize }
 
         let v = Foo { a: 2 };
         assert_eq!(encode!(v), map! { a, Integer(2) });
@@ -855,7 +865,7 @@ mod tests {
     #[test]
     fn smoke_hyphen() {
         #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
-        struct Foo { a_b: int }
+        struct Foo { a_b: isize }
 
         let v = Foo { a_b: 2 };
         assert_eq!(encode!(v), map! { a_b, Integer(2) });
@@ -869,7 +879,7 @@ mod tests {
     #[test]
     fn nested() {
         #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
-        struct Foo { a: int, b: Bar }
+        struct Foo { a: isize, b: Bar }
         #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Bar { a: String }
 
@@ -887,10 +897,10 @@ mod tests {
     #[test]
     fn application_decode_error() {
         #[derive(PartialEq, Show)]
-        struct Range10(uint);
+        struct Range10(usize);
         impl Decodable for Range10 {
              fn decode<D: rustc_serialize::Decoder>(d: &mut D) -> Result<Range10, D::Error> {
-                 let x: uint = try!(Decodable::decode(d));
+                 let x: usize = try!(Decodable::decode(d));
                  if x > 10 {
                      Err(d.error("Value out of range!"))
                  } else {
@@ -899,7 +909,7 @@ mod tests {
              }
         }
         let mut d_good = Decoder::new(Integer(5));
-        let mut d_bad1 = Decoder::new(Value::String("not an int".to_string()));
+        let mut d_bad1 = Decoder::new(Value::String("not an isize".to_string()));
         let mut d_bad2 = Decoder::new(Integer(11));
 
         assert_eq!(Ok(Range10(5)), Decodable::decode(&mut d_good));
@@ -913,7 +923,7 @@ mod tests {
     #[test]
     fn array() {
         #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
-        struct Foo { a: Vec<int> }
+        struct Foo { a: Vec<isize> }
 
         let v = Foo { a: vec![1, 2, 3, 4] };
         assert_eq!(encode!(v),
@@ -931,7 +941,7 @@ mod tests {
     #[test]
     fn tuple() {
         #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
-        struct Foo { a: (int, int, int, int) }
+        struct Foo { a: (isize, isize, isize, isize) }
 
         let v = Foo { a: (1, 2, 3, 4) };
         assert_eq!(encode!(v),
@@ -986,7 +996,7 @@ mod tests {
     fn hashmap() {
         #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Foo {
-            map: BTreeMap<String, int>,
+            map: BTreeMap<String, isize>,
             set: HashSet<char>,
         }
 
@@ -1018,7 +1028,7 @@ mod tests {
     #[test]
     fn tuple_struct() {
         #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
-        struct Foo(int, String, f64);
+        struct Foo(isize, String, f64);
 
         let v = Foo(1, "foo".to_string(), 4.5);
         assert_eq!(
@@ -1037,7 +1047,7 @@ mod tests {
         #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Foo { a: Vec<Bar>, }
         #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
-        struct Bar { a: int }
+        struct Bar { a: isize }
 
         let v = Foo { a: vec![Bar { a: 1 }, Bar { a: 2 }] };
         assert_eq!(
@@ -1055,7 +1065,7 @@ mod tests {
     #[test]
     fn type_errors() {
         #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
-        struct Foo { bar: int }
+        struct Foo { bar: isize }
 
         let mut d = Decoder::new(Table(map! {
             bar, Float(1.0)
@@ -1074,7 +1084,7 @@ mod tests {
     #[test]
     fn missing_errors() {
         #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
-        struct Foo { bar: int }
+        struct Foo { bar: isize }
 
         let mut d = Decoder::new(Table(map! {
         }));
@@ -1094,7 +1104,7 @@ mod tests {
         struct Foo { a: E }
         #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         enum E {
-            Bar(int),
+            Bar(isize),
             Baz(f64),
             Last(Foo2),
         }
@@ -1128,7 +1138,7 @@ mod tests {
     #[test]
     fn unused_fields() {
         #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
-        struct Foo { a: int }
+        struct Foo { a: isize }
 
         let v = Foo { a: 2 };
         let mut d = Decoder::new(Table(map! {
@@ -1147,7 +1157,7 @@ mod tests {
         #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Foo { a: Bar }
         #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
-        struct Bar { a: int }
+        struct Bar { a: isize }
 
         let v = Foo { a: Bar { a: 2 } };
         let mut d = Decoder::new(Table(map! {
@@ -1170,7 +1180,7 @@ mod tests {
         #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Foo { a: Bar }
         #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
-        struct Bar { a: int }
+        struct Bar { a: isize }
 
         let v = Foo { a: Bar { a: 2 } };
         let mut d = Decoder::new(Table(map! {
@@ -1232,7 +1242,7 @@ mod tests {
         #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
         struct Foo { a: Vec<Bar> }
         #[derive(RustcEncodable, RustcDecodable, PartialEq, Show)]
-        struct Bar { a: int }
+        struct Bar { a: isize }
 
         let v = Foo { a: vec![Bar { a: 1 }] };
         let mut d = Decoder::new(Table(map! {

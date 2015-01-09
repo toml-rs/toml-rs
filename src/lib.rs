@@ -37,9 +37,8 @@
 //!
 
 #![deny(missing_docs)]
-#![allow(staged_experimental)]
-#![allow(staged_unstable)]
 #![cfg_attr(test, deny(warnings))]
+#![allow(unstable)]
 
 extern crate "rustc-serialize" as rustc_serialize;
 
@@ -159,7 +158,7 @@ impl Value {
     /// Note: arrays have zero-based indexes.
     ///
     /// ```
-    /// # #![allow(staged_unstable)]
+    /// # #![allow(unstable)]
     /// let toml = r#"
     ///      [test]
     ///      foo = "bar"
@@ -192,7 +191,7 @@ impl Value {
                     }
                 },
                 &Value::Array(ref v) => {
-                    match key.parse::<uint>() {
+                    match key.parse::<usize>() {
                         Some(idx) if idx < v.len() => cur_value = &v[idx],
                         _ => return None
                     }
