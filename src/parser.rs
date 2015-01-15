@@ -87,10 +87,15 @@ impl<'a> Parser<'a> {
     // Returns true and consumes the next character if it matches `ch`,
     // otherwise do nothing and return false
     fn eat(&mut self, ch: char) -> bool {
-        match self.cur.clone().next() {
+        match self.peek(0) {
             Some((_, c)) if c == ch => { self.cur.next(); true }
             Some(_) | None => false,
         }
+    }
+
+    // Peeks ahead `n` characters
+    fn peek(&self, n: usize) -> Option<(usize, char)> {
+        self.cur.clone().skip(n).next()
     }
 
     fn expect(&mut self, ch: char) -> bool {
@@ -109,25 +114,37 @@ impl<'a> Parser<'a> {
         false
     }
 
-    // Consumes whitespace ('\t' and ' ') until another character (or EOF) is reached
-    fn ws(&mut self) {
+    // Consumes whitespace ('\t' and ' ') until another character (or EOF) is
+    // reached. Returns if any whitespace was consumed
+    fn ws(&mut self) -> bool {
+        let mut ret = false;
         loop {
-            match self.cur.clone().next() {
+            match self.peek(0) {
                 Some((_, '\t')) |
-                Some((_, ' ')) => { self.cur.next(); }
+                Some((_, ' ')) => { self.cur.next(); ret = true; }
                 _ => break,
             }
         }
+        ret
     }
 
     // Consumes the rest of the line after a comment character
-    fn comment(&mut self) {
-        match self.cur.clone().next() {
-            Some((_, '#')) => {}
-            _ => return,
-        }
+    fn comment(&mut self) -> bool {
+        if !self.eat('#') { return false }
         for (_, ch) in self.cur {
             if ch == '\n' { break }
+        }
+        true
+    }
+
+    // Consumes a newline if one is next
+    fn newline(&mut self) -> bool {
+        match self.peek(0) {
+            Some((_, '\n')) => { self.cur.next(); true }
+            Some((_, '\r')) if self.peek(1).map(|c| c.1) == Some('\n') => {
+                self.cur.next(); self.cur.next(); true
+            }
+            _ => false
         }
     }
 
@@ -143,10 +160,9 @@ impl<'a> Parser<'a> {
         let mut ret = BTreeMap::new();
         loop {
             self.ws();
-            match self.cur.clone().next() {
+            if self.newline() { continue }
+            match self.peek(0) {
                 Some((_, '#')) => { self.comment(); }
-                Some((_, '\n')) |
-                Some((_, '\r')) => { self.cur.next(); }
                 Some((start, '[')) => {
                     self.cur.next();
                     let array = self.eat('[');
@@ -201,10 +217,9 @@ impl<'a> Parser<'a> {
     fn values(&mut self, into: &mut TomlTable) -> bool {
         loop {
             self.ws();
+            if self.newline() { continue }
             match self.cur.clone().next() {
-                Some((_, '#')) => self.comment(),
-                Some((_, '\n')) |
-                Some((_, '\r')) => { self.cur.next(); }
+                Some((_, '#')) => { self.comment(); }
                 Some((_, '[')) => break,
                 Some((start, _)) => {
                     let mut key = String::new();
@@ -282,7 +297,7 @@ impl<'a> Parser<'a> {
         if self.eat('"') {
             if self.eat('"') {
                 multiline = true;
-                self.eat('\n');
+                self.newline();
             } else {
                 // empty
                 return Some(Value::String(ret))
@@ -290,6 +305,7 @@ impl<'a> Parser<'a> {
         }
 
         loop {
+            while self.newline() { ret.push('\n') }
             match self.cur.next() {
                 Some((_, '"')) => {
                     if multiline {
@@ -304,8 +320,6 @@ impl<'a> Parser<'a> {
                         None => {}
                     }
                 }
-                Some((_, '\n')) |
-                Some((_, '\r')) if multiline => ret.push('\n'),
                 Some((pos, ch)) if ch < '\u{1f}' => {
                     let mut escaped = String::new();
                     for c in ch.escape_default() {
@@ -333,6 +347,10 @@ impl<'a> Parser<'a> {
         return Some(Value::String(ret));
 
         fn escape(me: &mut Parser, pos: usize, multiline: bool) -> Option<char> {
+            if multiline && me.newline() {
+                while me.ws() || me.newline() { /* ... */ }
+                return None
+            }
             match me.cur.next() {
                 Some((_, 'b')) => Some('\u{8}'),
                 Some((_, 't')) => Some('\u{9}'),
@@ -381,17 +399,6 @@ impl<'a> Parser<'a> {
                     }
                     None
                 }
-                Some((_, '\n')) if multiline => {
-                    loop {
-                        match me.cur.clone().next() {
-                            Some((_, '\t')) |
-                            Some((_, ' ')) |
-                            Some((_, '\n')) => { me.cur.next(); }
-                            _ => break
-                        }
-                    }
-                    None
-                }
                 Some((pos, ch)) => {
                     let mut escaped = String::new();
                     for c in ch.escape_default() {
@@ -427,7 +434,7 @@ impl<'a> Parser<'a> {
         if self.eat('\'') {
             multiline = true;
             if !self.expect('\'') { return None }
-            self.eat('\n');
+            self.newline();
         }
 
         loop {
@@ -568,12 +575,7 @@ impl<'a> Parser<'a> {
         fn consume(me: &mut Parser) {
             loop {
                 me.ws();
-                match me.cur.clone().next() {
-                    Some((_, '#')) => { me.comment(); }
-                    Some((_, '\n')) |
-                    Some((_, '\r')) => { me.cur.next(); }
-                    _ => break,
-                }
+                if !me.newline() && !me.comment() { break }
             }
         }
         let mut type_str = None;
@@ -931,5 +933,35 @@ trimmed in raw strings.
                    Some("banana"));
         assert_eq!(table.lookup("fruit.1.variety.0.name").and_then(|k| k.as_str()),
                    Some("plantain"));
+    }
+
+    #[test]
+    fn stray_cr() {
+        assert!(Parser::new("\r").parse().is_none());
+        assert!(Parser::new("a = [ \r ]").parse().is_none());
+        assert!(Parser::new("a = \"\"\"\r\"\"\"").parse().is_none());
+        assert!(Parser::new("a = \"\"\"\\  \r  \"\"\"").parse().is_none());
+
+        let mut p = Parser::new("foo = '''\r'''");
+        let table = Table(p.parse().unwrap());
+        assert_eq!(table.lookup("foo").and_then(|k| k.as_str()), Some("\r"));
+    }
+
+    #[test]
+    fn many_blank() {
+        let mut p = Parser::new("foo = \"\"\"\n\n\n\"\"\"");
+        let table = Table(p.parse().unwrap());
+        assert_eq!(table.lookup("foo").and_then(|k| k.as_str()), Some("\n\n"));
+    }
+
+    #[test]
+    fn literal_eats_crlf() {
+        let mut p = Parser::new("
+            foo = \"\"\"\\\r\n\"\"\"
+            bar = \"\"\"\\\r\n   \r\n   \r\n   a\"\"\"
+        ");
+        let table = Table(p.parse().unwrap());
+        assert_eq!(table.lookup("foo").and_then(|k| k.as_str()), Some(""));
+        assert_eq!(table.lookup("bar").and_then(|k| k.as_str()), Some("a"));
     }
 }
