@@ -466,9 +466,22 @@ impl<'a> Parser<'a> {
     fn number_or_datetime(&mut self, mut start: usize) -> Option<Value> {
         let sign = if self.eat('+') { start += 1; true } else {self.eat('-')};
         let mut is_float = false;
+        if self.eat('0') {
+            match self.peek(0) {
+                Some((pos, c)) if '0' <= c && c <= '9' => {
+                    self.errors.push(ParserError {
+                        lo: start,
+                        hi: pos,
+                        desc: format!("leading zeroes are not allowed"),
+                    });
+                    return None
+                }
+                _ => {}
+            }
+        }
         loop {
             match self.cur.clone().next() {
-                Some((_, ch)) if ch.is_digit(10) => { self.cur.next(); }
+                Some((_, ch)) if '0' <= ch && ch <= '9' => { self.cur.next(); }
                 Some((_, '.')) if !is_float => {
                     is_float = true;
                     self.cur.next();
@@ -982,5 +995,17 @@ trimmed in raw strings.
     fn string_no_newline() {
         assert!(Parser::new("a = \"\n\"").parse().is_none());
         assert!(Parser::new("a = '\n'").parse().is_none());
+    }
+
+    #[test]
+    fn bad_leading_zeros() {
+        assert!(Parser::new("a = 00").parse().is_none());
+        assert!(Parser::new("a = -00").parse().is_none());
+        assert!(Parser::new("a = +00").parse().is_none());
+        assert!(Parser::new("a = 00.0").parse().is_none());
+        assert!(Parser::new("a = -00.0").parse().is_none());
+        assert!(Parser::new("a = +00.0").parse().is_none());
+        assert!(Parser::new("a = 9223372036854775808").parse().is_none());
+        assert!(Parser::new("a = -9223372036854775809").parse().is_none());
     }
 }
