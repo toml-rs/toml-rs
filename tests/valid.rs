@@ -166,3 +166,12 @@ test!(unicode_escape,
 test!(unicode_literal,
        include_str!("valid/unicode-literal.toml"),
        include_str!("valid/unicode-literal.json"));
+test!(hard_example,
+       include_str!("valid/hard_example.toml"),
+       include_str!("valid/hard_example.json"));
+test!(example2,
+       include_str!("valid/example2.toml"),
+       include_str!("valid/example2.json"));
+test!(example3,
+       include_str!("valid/example-v0.3.0.toml"),
+       include_str!("valid/example-v0.3.0.json"));
