@@ -254,7 +254,8 @@ impl<'a> Parser<'a> {
             Some((pos, 't')) |
             Some((pos, 'f')) => self.boolean(pos),
             Some((pos, '[')) => self.array(pos),
-            Some((pos, '-')) => self.number_or_datetime(pos),
+            Some((pos, '-')) |
+            Some((pos, '+')) => self.number_or_datetime(pos),
             Some((pos, ch)) if ch.is_digit(10) => self.number_or_datetime(pos),
             _ => {
                 let mut it = self.cur.clone();
@@ -453,8 +454,8 @@ impl<'a> Parser<'a> {
         return Some(Value::String(ret));
     }
 
-    fn number_or_datetime(&mut self, start: usize) -> Option<Value> {
-        let negative = self.eat('-');
+    fn number_or_datetime(&mut self, mut start: usize) -> Option<Value> {
+        let sign = if self.eat('+') { start += 1; true } else {self.eat('-')};
         let mut is_float = false;
         loop {
             match self.cur.clone().next() {
@@ -473,7 +474,7 @@ impl<'a> Parser<'a> {
             } else {
                 self.input.slice(start, end).parse().map(Float)
             }
-        } else if !negative && self.eat('-') {
+        } else if !sign && self.eat('-') {
             self.datetime(start, end + 1)
         } else {
             self.input.slice(start, end).parse().map(Integer)

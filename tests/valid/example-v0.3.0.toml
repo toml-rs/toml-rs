@@ -79,7 +79,7 @@ trimmed in raw strings.
 # Negative numbers are prefixed with a minus sign.
 
 [Integer]
-#key1 = +99
+key1 = +99
 key2 = 42
 key3 = 0
 key4 = -17
@@ -91,7 +91,7 @@ key4 = -17
 [Float.fractional]
 
 # fractional
-#key1 = +1.0
+key1 = +1.0
 key2 = 3.1415
 key3 = -0.01
 
