@@ -1,4 +1,6 @@
-use {Parser};
+extern crate toml;
+
+use toml::{Parser};
 
 fn run(toml: &str) {
     let mut p = Parser::new(toml);

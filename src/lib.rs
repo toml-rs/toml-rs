@@ -60,7 +60,7 @@ pub use serialization::DecodeErrorKind::{ExpectedType, NilTooLong};
 mod parser;
 mod show;
 mod serialization;
-#[cfg(test)]mod test;
+
 /// Representation of a TOML value.
 #[derive(PartialEq, Clone, Show)]
 #[allow(missing_docs)]

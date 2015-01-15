@@ -1,11 +1,12 @@
-extern crate serialize;
+extern crate "rustc-serialize" as rustc_serialize;
+extern crate toml;
 
 use std::num::strconv;
 use std::collections::BTreeMap;
-use self::serialize::json::{self, Json};
+use rustc_serialize::json::Json;
 
-use {Parser, Value};
-use Value::{Table, Integer, Float, Boolean, Datetime, Array};
+use toml::{Parser, Value};
+use toml::Value::{Table, Integer, Float, Boolean, Datetime, Array};
 
 fn to_json(toml: Value) -> Json {
     fn doit(s: &str, json: Json) -> Json {
@@ -53,7 +54,7 @@ fn run(toml: &str, json: &str) {
     assert!(table.is_some());
     let table = table.unwrap();
 
-    let json = json::from_str(json).unwrap();
+    let json = Json::from_str(json).unwrap();
     let toml_json = to_json(Table(table));
     assert!(json == toml_json,
             "expected\n{}\ngot\n{}\n",
