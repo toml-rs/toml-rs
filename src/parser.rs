@@ -305,7 +305,7 @@ impl<'a> Parser<'a> {
         }
 
         loop {
-            while self.newline() { ret.push('\n') }
+            while multiline && self.newline() { ret.push('\n') }
             match self.cur.next() {
                 Some((_, '"')) => {
                     if multiline {
@@ -321,15 +321,11 @@ impl<'a> Parser<'a> {
                     }
                 }
                 Some((pos, ch)) if ch < '\u{1f}' => {
-                    let mut escaped = String::new();
-                    for c in ch.escape_default() {
-                        escaped.push(c);
-                    }
                     self.errors.push(ParserError {
                         lo: pos,
                         hi: pos + 1,
                         desc: format!("control character `{}` must be escaped",
-                                      escaped)
+                                      ch.escape_default().collect::<String>())
                     });
                 }
                 Some((_, ch)) => ret.push(ch),
@@ -372,9 +368,7 @@ impl<'a> Parser<'a> {
                         Some(n) => {
                             match char::from_u32(n) {
                                 Some(c) => {
-                                    for _ in range(0, len) {
-                                        me.cur.next();
-                                    }
+                                    me.cur.by_ref().skip(len - 1).next();
                                     return Some(c)
                                 }
                                 None => {
@@ -400,16 +394,12 @@ impl<'a> Parser<'a> {
                     None
                 }
                 Some((pos, ch)) => {
-                    let mut escaped = String::new();
-                    for c in ch.escape_default() {
-                        escaped.push(c);
-                    }
                     let next_pos = me.next_pos();
                     me.errors.push(ParserError {
                         lo: pos,
                         hi: next_pos,
                         desc: format!("unknown string escape: `{}`",
-                                      escaped),
+                                      ch.escape_default().collect::<String>()),
                     });
                     None
                 }
@@ -432,12 +422,24 @@ impl<'a> Parser<'a> {
 
         // detect multiline literals
         if self.eat('\'') {
-            multiline = true;
-            if !self.expect('\'') { return None }
-            self.newline();
+            if self.eat('\'') {
+                multiline = true;
+                self.newline();
+            } else {
+                return Some(Value::String(ret)) // empty
+            }
         }
 
         loop {
+            if !multiline && self.newline() {
+                let next = self.next_pos();
+                self.errors.push(ParserError {
+                    lo: start,
+                    hi: next,
+                    desc: format!("literal strings cannot contain newlines"),
+                });
+                return None
+            }
             match self.cur.next() {
                 Some((_, '\'')) => {
                     if multiline {
@@ -945,6 +947,17 @@ trimmed in raw strings.
         let mut p = Parser::new("foo = '''\r'''");
         let table = Table(p.parse().unwrap());
         assert_eq!(table.lookup("foo").and_then(|k| k.as_str()), Some("\r"));
+
+        let mut p = Parser::new("foo = '\r'");
+        let table = Table(p.parse().unwrap());
+        assert_eq!(table.lookup("foo").and_then(|k| k.as_str()), Some("\r"));
+    }
+
+    #[test]
+    fn blank_literal_string() {
+        let mut p = Parser::new("foo = ''");
+        let table = Table(p.parse().unwrap());
+        assert_eq!(table.lookup("foo").and_then(|k| k.as_str()), Some(""));
     }
 
     #[test]
@@ -963,5 +976,11 @@ trimmed in raw strings.
         let table = Table(p.parse().unwrap());
         assert_eq!(table.lookup("foo").and_then(|k| k.as_str()), Some(""));
         assert_eq!(table.lookup("bar").and_then(|k| k.as_str()), Some("a"));
+    }
+
+    #[test]
+    fn string_no_newline() {
+        assert!(Parser::new("a = \"\n\"").parse().is_none());
+        assert!(Parser::new("a = '\n'").parse().is_none());
     }
 }
