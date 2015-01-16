@@ -212,50 +212,55 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn key_name(&mut self, start: usize) -> Option<String> {
+        if self.eat('"') {
+            return self.finish_string(start, false);
+        }
+        let mut ret = String::new();
+        loop {
+            match self.cur.clone().next() {
+                Some((_, ch)) => {
+                    match ch {
+                        'a' ... 'z' |
+                        'A' ... 'Z' |
+                        '0' ... '9' |
+                        '_' | '-' => { self.cur.next(); ret.push(ch) }
+                        _ => break,
+                    }
+                }
+                None => {}
+            }
+        }
+        Some(ret)
+    }
+
     // Parses the values into the given TomlTable. Returns true in case of success
     // and false in case of error.
     fn values(&mut self, into: &mut TomlTable) -> bool {
         loop {
             self.ws();
             if self.newline() { continue }
-            match self.cur.clone().next() {
-                Some((_, '#')) => { self.comment(); }
+            if self.comment() { continue }
+            match self.peek(0) {
                 Some((_, '[')) => break,
-                Some((start, _)) => {
-                    let mut key = String::new();
-                    let mut found_eq = false;
-                    for (pos, ch) in self.cur {
-                        match ch {
-                            ' ' | '\t' => break,
-                            '=' => { found_eq = true; break }
-                            '\n' => {
-                                self.errors.push(ParserError {
-                                    lo: start,
-                                    hi: pos + 1,
-                                    desc: format!("keys cannot be defined \
-                                                   across lines"),
-                                })
-                            }
-                            c => key.push(c),
-                        }
-                    }
-                    if !found_eq {
-                        self.ws();
-                        if !self.expect('=') { return false }
-                    }
-
-                    let value = match self.value() {
-                        Some(value) => value,
-                        None => return false,
-                    };
-                    self.insert(into, key, value, start);
-                    self.ws();
-                    self.comment();
-                    self.eat('\r');
-                    self.eat('\n');
-                }
+                Some(..) => {}
                 None => break,
             }
+            let key_lo = self.next_pos();
+            let key = match self.key_name(key_lo) {
+                Some(s) => s,
+                None => return false
+            };
+            self.ws();
+            if !self.expect('=') { return false }
+            let value = match self.value() {
+                Some(value) => value,
+                None => return false,
+            };
+            self.insert(into, key, value, key_lo);
+            self.ws();
+            self.comment();
+            self.newline();
         }
         return true
     }
@@ -290,7 +295,6 @@ impl<'a> Parser<'a> {
     fn string(&mut self, start: usize) -> Option<Value> {
         if !self.expect('"') { return None }
         let mut multiline = false;
-        let mut ret = String::new();
 
         // detect multiline literals, but be careful about empty ""
         // strings
@@ -300,10 +304,18 @@ impl<'a> Parser<'a> {
                 self.newline();
             } else {
                 // empty
-                return Some(Value::String(ret))
+                return Some(Value::String(String::new()))
             }
         }
 
+        self.finish_string(start, multiline).map(Value::String)
+    }
+
+    // Finish parsing a basic string after the opening quote has been seen
+    fn finish_string(&mut self,
+                     start: usize,
+                     multiline: bool) -> Option<String> {
+        let mut ret = String::new();
         loop {
             while multiline && self.newline() { ret.push('\n') }
             match self.cur.next() {
@@ -312,7 +324,7 @@ impl<'a> Parser<'a> {
                         if !self.eat('"') { ret.push_str("\""); continue }
                         if !self.eat('"') { ret.push_str("\"\""); continue }
                     }
-                    break
+                    return Some(ret)
                 }
                 Some((pos, '\\')) => {
                     match escape(self, pos, multiline) {
@@ -339,8 +351,6 @@ impl<'a> Parser<'a> {
                 }
             }
         }
-
-        return Some(Value::String(ret));
 
         fn escape(me: &mut Parser, pos: usize, multiline: bool) -> Option<char> {
             if multiline && me.newline() {
@@ -1064,5 +1074,41 @@ trimmed in raw strings.
         t!("2e10", 2e10);
         t!("2e+10", 2e10);
         t!("2e-10", 2e-10);
+    }
+
+    #[test]
+    fn bare_key_names() {
+        let mut p = Parser::new("
+            foo = 3
+            foo_3 = 3
+            foo_-2--3--r23f--4-f2-4 = 3
+            _ = 3
+            - = 3
+            8 = 8
+            \"a\" = 3
+            \"!\" = 3
+            \"a^b\" = 3
+            \"\\\"\" = 3
+        ");
+        let table = Table(p.parse().unwrap());
+        assert!(table.lookup("foo").is_some());
+        assert!(table.lookup("-").is_some());
+        assert!(table.lookup("_").is_some());
+        assert!(table.lookup("8").is_some());
+        assert!(table.lookup("foo_3").is_some());
+        assert!(table.lookup("foo_-2--3--r23f--4-f2-4").is_some());
+        assert!(table.lookup("a").is_some());
+        assert!(table.lookup("!").is_some());
+        assert!(table.lookup("\"").is_some());
+    }
+
+    #[test]
+    fn bad_keys() {
+        assert!(Parser::new("key\n=3").parse().is_none());
+        assert!(Parser::new("key=\n3").parse().is_none());
+        assert!(Parser::new("key|=3").parse().is_none());
+        assert!(Parser::new("\"\"|=3").parse().is_none());
+        assert!(Parser::new("\"\n\"|=3").parse().is_none());
+        assert!(Parser::new("\"\r\"|=3").parse().is_none());
     }
 }
