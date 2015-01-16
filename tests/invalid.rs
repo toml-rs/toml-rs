@@ -5,8 +5,8 @@ use toml::{Parser};
 fn run(toml: &str) {
     let mut p = Parser::new(toml);
     let table = p.parse();
-    assert!(p.errors.len() > 0);
     assert!(table.is_none());
+    assert!(p.errors.len() > 0);
 }
 
 macro_rules! test( ($name:ident, $toml:expr) => (

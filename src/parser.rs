@@ -158,80 +158,85 @@ impl<'a> Parser<'a> {
     /// to determine the cause of the parse failure.
     pub fn parse(&mut self) -> Option<TomlTable> {
         let mut ret = BTreeMap::new();
-        loop {
+        while self.peek(0).is_some() {
             self.ws();
             if self.newline() { continue }
-            match self.peek(0) {
-                Some((_, '#')) => { self.comment(); }
-                Some((start, '[')) => {
-                    self.cur.next();
-                    let array = self.eat('[');
+            if self.comment() { continue }
+            if self.eat('[') {
+                let array = self.eat('[');
+                let start = self.next_pos();
 
-                    // Parse the name of the section
-                    let mut section = String::new();
-                    for (pos, ch) in self.cur {
-                        if ch == ']' { break }
-                        if ch == '[' {
-                            self.errors.push(ParserError {
-                                lo: pos,
-                                hi: pos + 1,
-                                desc: format!("section names cannot contain \
-                                               a `[` character"),
-                            });
-                            continue
-                        }
-                        section.push(ch);
+                // Parse the name of the section
+                let mut keys = Vec::new();
+                loop {
+                    self.ws();
+                    match self.key_name() {
+                        Some(s) => keys.push(s),
+                        None => {}
                     }
-
-                    if section.len() == 0 {
-                        self.errors.push(ParserError {
-                            lo: start,
-                            hi: start + if array {3} else {1},
-                            desc: format!("section name must not be empty"),
-                        });
-                        continue
-                    } else if array && !self.expect(']') {
-                        return None
+                    self.ws();
+                    if self.eat(']') {
+                        if array && !self.expect(']') { return None }
+                        break
                     }
-
-                    // Build the section table
-                    let mut table = BTreeMap::new();
-                    if !self.values(&mut table) { return None }
-                    if array {
-                        self.insert_array(&mut ret, section, Table(table), start)
-                    } else {
-                        self.insert_table(&mut ret, section, table, start)
-                    }
+                    if !self.expect('.') { return None }
                 }
-                Some(_) => {
-                    if !self.values(&mut ret) { return None }
+                if keys.len() == 0 { return None }
+
+                // Build the section table
+                let mut table = BTreeMap::new();
+                if !self.values(&mut table) { return None }
+                if array {
+                    self.insert_array(&mut ret, &keys[], Table(table), start)
+                } else {
+                    self.insert_table(&mut ret, &keys[], table, start)
                 }
-                None if self.errors.len() == 0 => return Some(ret),
-                None => return None,
+            } else {
+                if !self.values(&mut ret) { return None }
             }
+        }
+        if self.errors.len() > 0 {
+            None
+        } else {
+            Some(ret)
         }
     }
 
-    fn key_name(&mut self, start: usize) -> Option<String> {
-        if self.eat('"') {
-            return self.finish_string(start, false);
-        }
-        let mut ret = String::new();
-        loop {
-            match self.cur.clone().next() {
-                Some((_, ch)) => {
-                    match ch {
-                        'a' ... 'z' |
-                        'A' ... 'Z' |
-                        '0' ... '9' |
-                        '_' | '-' => { self.cur.next(); ret.push(ch) }
-                        _ => break,
+    // Parse a single key name starting at `start`
+    fn key_name(&mut self) -> Option<String> {
+        let start = self.next_pos();
+        let key = if self.eat('"') {
+            self.finish_string(start, false)
+        } else {
+            let mut ret = String::new();
+            loop {
+                match self.cur.clone().next() {
+                    Some((_, ch)) => {
+                        match ch {
+                            'a' ... 'z' |
+                            'A' ... 'Z' |
+                            '0' ... '9' |
+                            '_' | '-' => { self.cur.next(); ret.push(ch) }
+                            _ => break,
+                        }
                     }
+                    None => {}
                 }
-                None => {}
             }
+            Some(ret)
+        };
+        match key {
+            Some(ref name) if name.len() == 0 => {
+                self.errors.push(ParserError {
+                    lo: start,
+                    hi: start,
+                    desc: format!("expected a key but found an empty string"),
+                });
+                None
+            }
+            Some(name) => Some(name),
+            None => None,
         }
-        Some(ret)
     }
 
     // Parses the values into the given TomlTable. Returns true in case of success
@@ -247,7 +252,7 @@ impl<'a> Parser<'a> {
                 None => break,
             }
             let key_lo = self.next_pos();
-            let key = match self.key_name(key_lo) {
+            let key = match self.key_name() {
                 Some(s) => s,
                 None => return false
             };
@@ -675,38 +680,25 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn recurse<'b>(&mut self, mut cur: &'b mut TomlTable, orig_key: &'b str,
+    fn recurse<'b>(&mut self, mut cur: &'b mut TomlTable, keys: &'b [String],
                    key_lo: usize) -> Option<(&'b mut TomlTable, &'b str)> {
-        if orig_key.starts_with(".") || orig_key.ends_with(".") ||
-           orig_key.contains("..") {
-            self.errors.push(ParserError {
-                lo: key_lo,
-                hi: key_lo + orig_key.len(),
-                desc: format!("tables cannot have empty names"),
-            });
-            return None
-        }
-        let key = match orig_key.rfind('.') {
-            Some(n) => orig_key.slice_to(n),
-            None => return Some((cur, orig_key)),
-        };
-        for part in key.as_slice().split('.') {
-            let part = part.to_string();
+        let key_hi = keys.iter().fold(0, |a, b| a + b.len());
+        for part in keys[..keys.len() - 1].iter() {
             let tmp = cur;
 
-            if tmp.contains_key(&part) {
-                match *tmp.get_mut(&part).unwrap() {
+            if tmp.contains_key(part) {
+                match *tmp.get_mut(part).unwrap() {
                     Table(ref mut table) => {
                         cur = table;
                         continue
                     }
                     Array(ref mut array) => {
-                        match array.as_mut_slice().last_mut() {
+                        match array.last_mut() {
                             Some(&mut Table(ref mut table)) => cur = table,
                             _ => {
                                 self.errors.push(ParserError {
                                     lo: key_lo,
-                                    hi: key_lo + key.len(),
+                                    hi: key_hi,
                                     desc: format!("array `{}` does not contain \
                                                    tables", part)
                                 });
@@ -718,7 +710,7 @@ impl<'a> Parser<'a> {
                     _ => {
                         self.errors.push(ParserError {
                             lo: key_lo,
-                            hi: key_lo + key.len(),
+                            hi: key_hi,
                             desc: format!("key `{}` was not previously a table",
                                           part)
                         });
@@ -729,17 +721,17 @@ impl<'a> Parser<'a> {
 
             // Initialize an empty table as part of this sub-key
             tmp.insert(part.clone(), Table(BTreeMap::new()));
-            match *tmp.get_mut(&part).unwrap() {
+            match *tmp.get_mut(part).unwrap() {
                 Table(ref mut inner) => cur = inner,
                 _ => unreachable!(),
             }
         }
-        return Some((cur, orig_key.slice_from(key.len() + 1)))
+        Some((cur, &keys.last().unwrap()[]))
     }
 
-    fn insert_table(&mut self, into: &mut TomlTable, key: String, value: TomlTable,
-                    key_lo: usize) {
-        let (into, key) = match self.recurse(into, key.as_slice(), key_lo) {
+    fn insert_table(&mut self, into: &mut TomlTable, keys: &[String],
+                    value: TomlTable, key_lo: usize) {
+        let (into, key) = match self.recurse(into, keys, key_lo) {
             Some(pair) => pair,
             None => return,
         };
@@ -780,9 +772,9 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn insert_array(&mut self, into: &mut TomlTable, key: String, value: Value,
-                   key_lo: usize) {
-        let (into, key) = match self.recurse(into, key.as_slice(), key_lo) {
+    fn insert_array(&mut self, into: &mut TomlTable,
+                    keys: &[String], value: Value, key_lo: usize) {
+        let (into, key) = match self.recurse(into, keys, key_lo) {
             Some(pair) => pair,
             None => return,
         };
@@ -1111,8 +1103,36 @@ trimmed in raw strings.
         assert!(Parser::new("key\n=3").parse().is_none());
         assert!(Parser::new("key=\n3").parse().is_none());
         assert!(Parser::new("key|=3").parse().is_none());
+        assert!(Parser::new("\"\"=3").parse().is_none());
+        assert!(Parser::new("=3").parse().is_none());
         assert!(Parser::new("\"\"|=3").parse().is_none());
         assert!(Parser::new("\"\n\"|=3").parse().is_none());
         assert!(Parser::new("\"\r\"|=3").parse().is_none());
+    }
+
+    #[test]
+    fn bad_table_names() {
+        assert!(Parser::new("[]").parse().is_none());
+        assert!(Parser::new("[.]").parse().is_none());
+        assert!(Parser::new("[\"\".\"\"]").parse().is_none());
+        assert!(Parser::new("[a.]").parse().is_none());
+        assert!(Parser::new("[\"\"]").parse().is_none());
+        assert!(Parser::new("[!]").parse().is_none());
+        assert!(Parser::new("[\"\n\"]").parse().is_none());
+        assert!(Parser::new("[a.b]\n[a.\"b\"]").parse().is_none());
+    }
+
+    #[test]
+    fn table_names() {
+        let mut p = Parser::new("
+            [a.\"b\"]
+            [\"f f\"]
+            [\"f.f\"]
+            [\"\\\"\"]
+        ");
+        let table = Table(p.parse().unwrap());
+        assert!(table.lookup("a.b").is_some());
+        assert!(table.lookup("f f").is_some());
+        assert!(table.lookup("\"").is_some());
     }
 }
