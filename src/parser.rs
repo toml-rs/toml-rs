@@ -463,43 +463,29 @@ impl<'a> Parser<'a> {
         return Some(Value::String(ret));
     }
 
-    fn number_or_datetime(&mut self, mut start: usize) -> Option<Value> {
-        let sign = if self.eat('+') { start += 1; true } else {self.eat('-')};
+    fn number_or_datetime(&mut self, start: usize) -> Option<Value> {
         let mut is_float = false;
-        if self.eat('0') {
-            match self.peek(0) {
-                Some((pos, c)) if '0' <= c && c <= '9' => {
-                    self.errors.push(ParserError {
-                        lo: start,
-                        hi: pos,
-                        desc: format!("leading zeroes are not allowed"),
-                    });
-                    return None
-                }
-                _ => {}
-            }
+        if !self.integer(start, false, true) { return None }
+        if self.eat('.') {
+            is_float = true;
+            if !self.integer(start, true, false) { return None }
         }
-        loop {
-            match self.cur.clone().next() {
-                Some((_, ch)) if '0' <= ch && ch <= '9' => { self.cur.next(); }
-                Some((_, '.')) if !is_float => {
-                    is_float = true;
-                    self.cur.next();
-                }
-                Some(_) | None => break,
-            }
+        if self.eat('e') || self.eat('E') {
+            is_float = true;
+            if !self.integer(start, false, true) { return None }
         }
         let end = self.next_pos();
-        let ret = if is_float {
-            if self.input.char_at_reverse(end) == '.' {
-                None
-            } else {
-                self.input.slice(start, end).parse().map(Float)
-            }
-        } else if !sign && self.eat('-') {
+        let input = self.input.slice(start, end);
+        let ret = if !is_float && !input.starts_with("+") &&
+                     !input.starts_with("-") && self.eat('-') {
             self.datetime(start, end + 1)
         } else {
-            self.input.slice(start, end).parse().map(Integer)
+            let input = input.trim_left_matches('+');
+            if is_float {
+                input.parse().map(Float)
+            } else {
+                input.parse().map(Integer)
+            }
         };
         if ret.is_none() {
             self.errors.push(ParserError {
@@ -509,6 +495,43 @@ impl<'a> Parser<'a> {
             });
         }
         return ret;
+    }
+
+    fn integer(&mut self, start: usize, allow_leading_zeros: bool,
+               allow_sign: bool) -> bool {
+        allow_sign && (self.eat('-') || self.eat('+'));
+        match self.cur.next() {
+            Some((_, '0')) if !allow_leading_zeros => {
+                match self.peek(0) {
+                    Some((pos, c)) if '0' <= c && c <= '9' => {
+                        self.errors.push(ParserError {
+                            lo: start,
+                            hi: pos,
+                            desc: format!("leading zeroes are not allowed"),
+                        });
+                        return false
+                    }
+                    _ => {}
+                }
+            }
+            Some((_, ch)) if '0' <= ch && ch <= '9' => {}
+            _ => {
+                let pos = self.next_pos();
+                self.errors.push(ParserError {
+                    lo: pos,
+                    hi: pos,
+                    desc: format!("expected start of a numeric literal"),
+                });
+                return false;
+            }
+        }
+        loop {
+            match self.cur.clone().next() {
+                Some((_, ch)) if '0' <= ch && ch <= '9' => { self.cur.next(); }
+                Some(_) | None => break,
+            }
+        }
+        true
     }
 
     fn boolean(&mut self, start: usize) -> Option<Value> {
@@ -1007,5 +1030,39 @@ trimmed in raw strings.
         assert!(Parser::new("a = +00.0").parse().is_none());
         assert!(Parser::new("a = 9223372036854775808").parse().is_none());
         assert!(Parser::new("a = -9223372036854775809").parse().is_none());
+    }
+
+    #[test]
+    fn bad_floats() {
+        assert!(Parser::new("a = 0.").parse().is_none());
+        assert!(Parser::new("a = 0.e").parse().is_none());
+        assert!(Parser::new("a = 0.E").parse().is_none());
+        assert!(Parser::new("a = 0.0E").parse().is_none());
+        assert!(Parser::new("a = 0.0e").parse().is_none());
+        assert!(Parser::new("a = 0.0e-").parse().is_none());
+        assert!(Parser::new("a = 0.0e+").parse().is_none());
+        assert!(Parser::new("a = 0.0e+00").parse().is_none());
+    }
+
+    #[test]
+    fn floats() {
+        macro_rules! t {
+            ($actual:expr, $expected:expr) => ({
+                let f = format!("foo = {}", $actual);
+                let mut p = Parser::new(&f[]);
+                let table = Table(p.parse().unwrap());
+                assert_eq!(table.lookup("foo").and_then(|k| k.as_float()),
+                           Some($expected));
+            })
+        }
+
+        t!("1.0", 1.0);
+        t!("1.0e0", 1.0);
+        t!("1.0e+0", 1.0);
+        t!("1.0e-0", 1.0);
+        t!("1.001e-0", 1.001);
+        t!("2e10", 2e10);
+        t!("2e+10", 2e10);
+        t!("2e-10", 2e-10);
     }
 }
