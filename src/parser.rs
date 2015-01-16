@@ -1089,6 +1089,8 @@ trimmed in raw strings.
             \"!\" = 3
             \"a^b\" = 3
             \"\\\"\" = 3
+            \"character encoding\" = \"value\"
+            \"ʎǝʞ\" = \"value\"
         ");
         let table = Table(p.parse().unwrap());
         assert!(table.lookup("foo").is_some());
@@ -1100,6 +1102,8 @@ trimmed in raw strings.
         assert!(table.lookup("a").is_some());
         assert!(table.lookup("!").is_some());
         assert!(table.lookup("\"").is_some());
+        assert!(table.lookup("character encoding").is_some());
+        assert!(table.lookup("ʎǝʞ").is_some());
     }
 
     #[test]
