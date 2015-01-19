@@ -220,7 +220,7 @@ impl<'a> Parser<'a> {
                             _ => break,
                         }
                     }
-                    None => {}
+                    None => break
                 }
             }
             Some(ret)
@@ -1134,5 +1134,10 @@ trimmed in raw strings.
         assert!(table.lookup("a.b").is_some());
         assert!(table.lookup("f f").is_some());
         assert!(table.lookup("\"").is_some());
+    }
+
+    #[test]
+    fn invalid_bare_numeral() {
+        assert!(Parser::new("4").parse().is_none());
     }
 }
