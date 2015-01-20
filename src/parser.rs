@@ -369,7 +369,6 @@ impl<'a> Parser<'a> {
                 Some((_, 'f')) => Some('\u{c}'),
                 Some((_, 'r')) => Some('\u{d}'),
                 Some((_, '"')) => Some('\u{22}'),
-                Some((_, '/')) => Some('\u{2f}'),
                 Some((_, '\\')) => Some('\u{5c}'),
                 Some((pos, c @ 'u')) |
                 Some((pos, c @ 'U')) => {
