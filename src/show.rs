@@ -8,7 +8,7 @@ struct Printer<'a, 'b:'a> {
     stack: Vec<&'a str>,
 }
 
-impl fmt::String for Value {
+impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             String(ref s) => {

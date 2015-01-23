@@ -1,6 +1,7 @@
 use std::char;
 use std::collections::BTreeMap;
 use std::error::Error;
+use std::fmt;
 use std::num::FromStrRadix;
 use std::str;
 
@@ -27,7 +28,7 @@ pub struct Parser<'a> {
 ///
 /// The data in this structure can be used to trace back to the original cause
 /// of the error in order to provide diagnostics about parse errors.
-#[derive(Show)]
+#[derive(Debug)]
 pub struct ParserError {
     /// The low byte at which this error is pointing at.
     pub lo: usize,
@@ -374,7 +375,7 @@ impl<'a> Parser<'a> {
                 Some((pos, c @ 'U')) => {
                     let len = if c == 'u' {4} else {8};
                     let num = if me.input.is_char_boundary(pos + 1 + len) {
-                        me.input.slice(pos + 1, pos + 1 + len)
+                        &me.input[pos + 1 .. pos + 1 + len]
                     } else {
                         "invalid"
                     };
@@ -489,7 +490,7 @@ impl<'a> Parser<'a> {
             if !self.integer(start, false, true) { return None }
         }
         let end = self.next_pos();
-        let input = self.input.slice(start, end);
+        let input = &self.input[start..end];
         let ret = if !is_float && !input.starts_with("+") &&
                      !input.starts_with("-") && self.eat('-') {
             self.datetime(start, end + 1)
@@ -549,7 +550,7 @@ impl<'a> Parser<'a> {
     }
 
     fn boolean(&mut self, start: usize) -> Option<Value> {
-        let rest = self.input.slice_from(start);
+        let rest = &self.input[start..];
         if rest.starts_with("true") {
             for _ in 0..4 {
                 self.cur.next();
@@ -573,7 +574,7 @@ impl<'a> Parser<'a> {
     }
 
     fn datetime(&mut self, start: usize, end_so_far: usize) -> Option<Value> {
-        let mut date = self.input.slice(start, end_so_far).to_string();
+        let mut date = self.input[start..end_so_far].to_string();
         for _ in 0..15 {
             match self.cur.next() {
                 Some((_, ch)) => date.push(ch),
@@ -809,7 +810,12 @@ impl<'a> Parser<'a> {
 
 impl Error for ParserError {
     fn description(&self) -> &str { "TOML parse error" }
-    fn detail(&self) -> Option<String> { Some(self.desc.clone()) }
+}
+
+impl fmt::Display for ParserError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.desc.fmt(f)
+    }
 }
 
 #[cfg(test)]
