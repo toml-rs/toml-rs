@@ -1,7 +1,6 @@
 extern crate "rustc-serialize" as rustc_serialize;
 extern crate toml;
 
-use std::num::strconv;
 use std::collections::BTreeMap;
 use rustc_serialize::json::Json;
 
@@ -11,27 +10,22 @@ use toml::Value::{Table, Integer, Float, Boolean, Datetime, Array};
 fn to_json(toml: Value) -> Json {
     fn doit(s: &str, json: Json) -> Json {
         let mut map = BTreeMap::new();
-        map.insert("type".to_string(), Json::String(s.to_string()));
-        map.insert("value".to_string(), json);
+        map.insert(format!("{}", "type"), Json::String(format!("{}", s)));
+        map.insert(format!("{}", "value"), json);
         Json::Object(map)
     }
     match toml {
         Value::String(s) => doit("string", Json::String(s)),
-        Integer(i) => doit("integer", Json::String(i.to_string())),
+        Integer(i) => doit("integer", Json::String(format!("{}", i))),
         Float(f) => doit("float", Json::String({
-            let (bytes, _) =
-                strconv::float_to_str_bytes_common(f, 10, true,
-                                                   strconv::SignFormat::SignNeg,
-                                                   strconv::SignificantDigits::DigMax(15),
-                                                   strconv::ExponentFormat::ExpNone,
-                                                   false);
-            let s = String::from_utf8(bytes).unwrap();
-            if s.as_slice().contains(".") {s} else {format!("{}.0", s)}
+            let s = format!("{:.15}", f);
+            let s = format!("{}", s.trim_right_matches('0'));
+            if s.ends_with(".") {format!("{}0", s)} else {s}
         })),
-        Boolean(b) => doit("bool", Json::String(b.to_string())),
+        Boolean(b) => doit("bool", Json::String(format!("{}", b))),
         Datetime(s) => doit("datetime", Json::String(s)),
         Array(arr) => {
-            let is_table = match arr.as_slice().first() {
+            let is_table = match arr.first() {
                 Some(&Table(..)) => true,
                 _ => false,
             };

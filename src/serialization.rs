@@ -203,10 +203,10 @@ impl rustc_serialize::Encoder for Encoder {
         self.emit_value(Float(v))
     }
     fn emit_char(&mut self, v: char) -> Result<(), Error> {
-        self.emit_str(v.to_string().as_slice())
+        self.emit_str(&*format!("{}", v))
     }
     fn emit_str(&mut self, v: &str) -> Result<(), Error> {
-        self.emit_value(Value::String(v.to_string()))
+        self.emit_value(Value::String(format!("{}", v)))
     }
     fn emit_enum<F>(&mut self, _name: &str, f: F)
         -> Result<(), Error>
@@ -269,7 +269,8 @@ impl rustc_serialize::Encoder for Encoder {
         -> Result<(), Error>
         where F: FnOnce(&mut Encoder) -> Result<(), Error>
     {
-        let old = mem::replace(&mut self.state, NextKey(f_name.to_string()));
+        let old = mem::replace(&mut self.state,
+                               NextKey(format!("{}", f_name)));
         try!(f(self));
         if self.state != Start {
             return Err(NoValue)
@@ -406,7 +407,7 @@ impl Decoder {
                 self.cur_field.clone()
             } else {
                 match self.cur_field {
-                    None => Some(field.to_string()),
+                    None => Some(format!("{}", field)),
                     Some(ref s) => Some(format!("{}.{}", s, field))
                 }
             }
@@ -491,7 +492,7 @@ impl rustc_serialize::Decoder for Decoder {
     fn read_char(&mut self) -> Result<char, DecodeError> {
         let ch = match self.toml {
             Some(Value::String(ref s)) if s.chars().count() == 1 =>
-                s.as_slice().char_at(0),
+                s.chars().next().unwrap(),
             ref found => return Err(self.mismatch("string", found)),
         };
         self.toml.take();
@@ -521,7 +522,7 @@ impl rustc_serialize::Decoder for Decoder {
         where F: FnMut(&mut Decoder, usize) -> Result<T, DecodeError>
     {
         let mut first_error = None;
-        for i in range(0, names.len()) {
+        for i in 0..names.len() {
             let mut d = self.sub_decoder(self.toml.clone(), "");
             match f(&mut d, i) {
                 Ok(t) => { self.toml = d.toml; return Ok(t) }
@@ -578,7 +579,7 @@ impl rustc_serialize::Decoder for Decoder {
         -> Result<T, DecodeError>
         where F: FnOnce(&mut Decoder) -> Result<T, DecodeError>
     {
-        let field = f_name.to_string();
+        let field = format!("{}", f_name);
         let toml = match self.toml {
             Some(Table(ref mut table)) => {
                 table.remove(&field)
@@ -700,8 +701,8 @@ impl rustc_serialize::Decoder for Decoder {
             Some(Table(ref table)) => {
                 match table.iter().skip(idx).next() {
                     Some((key, _)) => {
-                        f(&mut self.sub_decoder(Some(Value::String(key.to_string())),
-                                                key.as_slice()))
+                        let val = Value::String(format!("{}", key));
+                        f(&mut self.sub_decoder(Some(val), &**key))
                     }
                     None => Err(self.err(ExpectedMapKey(idx))),
                 }
@@ -730,7 +731,7 @@ impl rustc_serialize::Decoder for Decoder {
     fn error(&mut self, err: &str) -> DecodeError {
         DecodeError {
             field: self.cur_field.clone(),
-            kind: ApplicationError(err.to_string())
+            kind: ApplicationError(format!("{}", err))
         }
     }
 }
@@ -785,7 +786,7 @@ impl fmt::Display for DecodeError {
 impl StdError for DecodeError {
     fn description(&self) -> &str {
         match self.kind {
-            ApplicationError(ref s) => s.as_slice(),
+            ApplicationError(ref s) => &**s,
             ExpectedField(..) => "expected a field",
             ExpectedType(..) => "expected a type",
             ExpectedMapKey(..) => "expected a map key",

@@ -188,9 +188,9 @@ impl<'a> Parser<'a> {
                 let mut table = BTreeMap::new();
                 if !self.values(&mut table) { return None }
                 if array {
-                    self.insert_array(&mut ret, &keys[], Table(table), start)
+                    self.insert_array(&mut ret, &*keys, Table(table), start)
                 } else {
-                    self.insert_table(&mut ret, &keys[], table, start)
+                    self.insert_table(&mut ret, &*keys, table, start)
                 }
             } else {
                 if !self.values(&mut ret) { return None }
@@ -282,7 +282,7 @@ impl<'a> Parser<'a> {
             Some((pos, '[')) => self.array(pos),
             Some((pos, '-')) |
             Some((pos, '+')) => self.number_or_datetime(pos),
-            Some((pos, ch)) if ch.is_digit(10) => self.number_or_datetime(pos),
+            Some((pos, ch)) if is_digit(ch) => self.number_or_datetime(pos),
             _ => {
                 let mut it = self.cur.clone();
                 let lo = it.next().map(|p| p.0).unwrap_or(self.input.len());
@@ -574,7 +574,7 @@ impl<'a> Parser<'a> {
     }
 
     fn datetime(&mut self, start: usize, end_so_far: usize) -> Option<Value> {
-        let mut date = self.input[start..end_so_far].to_string();
+        let mut date = format!("{}", &self.input[start..end_so_far]);
         for _ in 0..15 {
             match self.cur.next() {
                 Some((_, ch)) => date.push(ch),
@@ -588,27 +588,27 @@ impl<'a> Parser<'a> {
                 }
             }
         }
-        let mut it = date.as_slice().chars();
+        let mut it = date.chars();
         let mut valid = true;
-        valid = valid && it.next().map(|c| c.is_digit(10)).unwrap_or(false);
-        valid = valid && it.next().map(|c| c.is_digit(10)).unwrap_or(false);
-        valid = valid && it.next().map(|c| c.is_digit(10)).unwrap_or(false);
-        valid = valid && it.next().map(|c| c.is_digit(10)).unwrap_or(false);
+        valid = valid && it.next().map(is_digit).unwrap_or(false);
+        valid = valid && it.next().map(is_digit).unwrap_or(false);
+        valid = valid && it.next().map(is_digit).unwrap_or(false);
+        valid = valid && it.next().map(is_digit).unwrap_or(false);
         valid = valid && it.next().map(|c| c == '-').unwrap_or(false);
-        valid = valid && it.next().map(|c| c.is_digit(10)).unwrap_or(false);
-        valid = valid && it.next().map(|c| c.is_digit(10)).unwrap_or(false);
+        valid = valid && it.next().map(is_digit).unwrap_or(false);
+        valid = valid && it.next().map(is_digit).unwrap_or(false);
         valid = valid && it.next().map(|c| c == '-').unwrap_or(false);
-        valid = valid && it.next().map(|c| c.is_digit(10)).unwrap_or(false);
-        valid = valid && it.next().map(|c| c.is_digit(10)).unwrap_or(false);
+        valid = valid && it.next().map(is_digit).unwrap_or(false);
+        valid = valid && it.next().map(is_digit).unwrap_or(false);
         valid = valid && it.next().map(|c| c == 'T').unwrap_or(false);
-        valid = valid && it.next().map(|c| c.is_digit(10)).unwrap_or(false);
-        valid = valid && it.next().map(|c| c.is_digit(10)).unwrap_or(false);
+        valid = valid && it.next().map(is_digit).unwrap_or(false);
+        valid = valid && it.next().map(is_digit).unwrap_or(false);
         valid = valid && it.next().map(|c| c == ':').unwrap_or(false);
-        valid = valid && it.next().map(|c| c.is_digit(10)).unwrap_or(false);
-        valid = valid && it.next().map(|c| c.is_digit(10)).unwrap_or(false);
+        valid = valid && it.next().map(is_digit).unwrap_or(false);
+        valid = valid && it.next().map(is_digit).unwrap_or(false);
         valid = valid && it.next().map(|c| c == ':').unwrap_or(false);
-        valid = valid && it.next().map(|c| c.is_digit(10)).unwrap_or(false);
-        valid = valid && it.next().map(|c| c.is_digit(10)).unwrap_or(false);
+        valid = valid && it.next().map(is_digit).unwrap_or(false);
+        valid = valid && it.next().map(is_digit).unwrap_or(false);
         valid = valid && it.next().map(|c| c == 'Z').unwrap_or(false);
         if valid {
             Some(Datetime(date.clone()))
@@ -726,7 +726,7 @@ impl<'a> Parser<'a> {
                 _ => unreachable!(),
             }
         }
-        Some((cur, &keys.last().unwrap()[]))
+        Some((cur, &**keys.last().unwrap()))
     }
 
     fn insert_table(&mut self, into: &mut TomlTable, keys: &[String],
@@ -735,7 +735,7 @@ impl<'a> Parser<'a> {
             Some(pair) => pair,
             None => return,
         };
-        let key = key.to_string();
+        let key = format!("{}", key);
         let mut added = false;
         if !into.contains_key(&key) {
             into.insert(key.clone(), Table(BTreeMap::new()));
@@ -778,13 +778,13 @@ impl<'a> Parser<'a> {
             Some(pair) => pair,
             None => return,
         };
-        let key = key.to_string();
+        let key = format!("{}", key);
         if !into.contains_key(&key) {
             into.insert(key.clone(), Array(Vec::new()));
         }
         match *into.get_mut(&key).unwrap() {
             Array(ref mut vec) => {
-                match vec.as_slice().first() {
+                match vec.first() {
                     Some(ref v) if !v.same_type(&value) => {
                         self.errors.push(ParserError {
                             lo: key_lo,
@@ -816,6 +816,10 @@ impl fmt::Display for ParserError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         self.desc.fmt(f)
     }
+}
+
+fn is_digit(c: char) -> bool {
+    match c { '0' ... '9' => true, _ => false }
 }
 
 #[cfg(test)]

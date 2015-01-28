@@ -38,7 +38,7 @@
 
 #![deny(missing_docs)]
 #![cfg_attr(test, deny(warnings))]
-#![allow(unstable)]
+#![cfg_attr(test, allow(unstable))]
 
 extern crate "rustc-serialize" as rustc_serialize;
 
@@ -111,7 +111,7 @@ impl Value {
 
     /// Extracts the string of this value if it is a string.
     pub fn as_str<'a>(&'a self) -> Option<&'a str> {
-        match *self { Value::String(ref s) => Some(s.as_slice()), _ => None }
+        match *self { Value::String(ref s) => Some(&**s), _ => None }
     }
 
     /// Extracts the integer value if it is an integer.
@@ -138,12 +138,12 @@ impl Value {
     /// 1979-05-27T07:32:00Z
     /// ```
     pub fn as_datetime<'a>(&'a self) -> Option<&'a str> {
-        match *self { Value::Datetime(ref s) => Some(s.as_slice()), _ => None }
+        match *self { Value::Datetime(ref s) => Some(&**s), _ => None }
     }
 
     /// Extracts the array value if it is an array.
     pub fn as_slice<'a>(&'a self) -> Option<&'a [Value]> {
-        match *self { Value::Array(ref s) => Some(s.as_slice()), _ => None }
+        match *self { Value::Array(ref s) => Some(&**s), _ => None }
     }
 
     /// Extracts the table value if it is a table.

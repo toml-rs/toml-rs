@@ -13,7 +13,7 @@ impl fmt::Display for Value {
         match *self {
             String(ref s) => {
                 try!(write!(f, "\""));
-                for ch in s.as_slice().chars() {
+                for ch in s.chars() {
                     match ch {
                         '\u{8}' => try!(write!(f, "\\b")),
                         '\u{9}' => try!(write!(f, "\\t")),
@@ -57,7 +57,7 @@ impl<'a, 'b> Printer<'a, 'b> {
             match *v {
                 Table(..) => continue,
                 Array(ref a) => {
-                    match a.as_slice().first() {
+                    match a.first() {
                         Some(&Table(..)) => continue,
                         _ => {}
                     }
@@ -69,18 +69,18 @@ impl<'a, 'b> Printer<'a, 'b> {
         for (k, v) in table.iter() {
             match *v {
                 Table(ref inner) => {
-                    self.stack.push(k.as_slice());
+                    self.stack.push(&**k);
                     try!(writeln!(self.output, "\n[{}]",
                                   self.stack.connect(".")));
                     try!(self.print(inner));
                     self.stack.pop();
                 }
                 Array(ref inner) => {
-                    match inner.as_slice().first() {
+                    match inner.first() {
                         Some(&Table(..)) => {}
                         _ => continue
                     }
-                    self.stack.push(k.as_slice());
+                    self.stack.push(&**k);
                     for inner in inner.iter() {
                         try!(writeln!(self.output, "\n[[{}]]",
                                       self.stack.connect(".")));
