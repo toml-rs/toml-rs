@@ -36,9 +36,9 @@
 //! [2]: https://github.com/BurntSushi/toml-test
 //!
 
+#![feature(collections, core)]
 #![deny(missing_docs)]
 #![cfg_attr(test, deny(warnings))]
-#![cfg_attr(test, allow(unstable))]
 
 extern crate "rustc-serialize" as rustc_serialize;
 
