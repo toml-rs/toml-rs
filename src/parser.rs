@@ -132,7 +132,7 @@ impl<'a> Parser<'a> {
     // Consumes the rest of the line after a comment character
     fn comment(&mut self) -> bool {
         if !self.eat('#') { return false }
-        for (_, ch) in self.cur {
+        for (_, ch) in self.cur.by_ref() {
             if ch == '\n' { break }
         }
         true
@@ -379,7 +379,7 @@ impl<'a> Parser<'a> {
                     } else {
                         "invalid"
                     };
-                    match FromStrRadix::from_str_radix(num, 16) {
+                    match FromStrRadix::from_str_radix(num, 16).ok() {
                         Some(n) => {
                             match char::from_u32(n) {
                                 Some(c) => {
@@ -497,9 +497,9 @@ impl<'a> Parser<'a> {
         } else {
             let input = input.trim_left_matches('+');
             if is_float {
-                input.parse().map(Float)
+                input.parse().ok().map(Float)
             } else {
-                input.parse().map(Integer)
+                input.parse().ok().map(Integer)
             }
         };
         if ret.is_none() {

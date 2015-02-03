@@ -191,7 +191,7 @@ impl Value {
                     }
                 },
                 &Value::Array(ref v) => {
-                    match key.parse::<usize>() {
+                    match key.parse::<usize>().ok() {
                         Some(idx) if idx < v.len() => cur_value = &v[idx],
                         _ => return None
                     }
@@ -205,8 +205,10 @@ impl Value {
 }
 
 impl FromStr for Value {
-    fn from_str(s: &str) -> Option<Value> {
-        Parser::new(s).parse().map(Value::Table)
+    type Err = Vec<ParserError>;
+    fn from_str(s: &str) -> Result<Value, Vec<ParserError>> {
+        let mut p = Parser::new(s);
+        p.parse().map(Value::Table).ok_or(p.errors)
     }
 }
 
