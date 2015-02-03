@@ -46,14 +46,20 @@ fn run(toml: &str, json: &str) {
                 (e.desc.clone(), toml.slice(e.lo - 5, e.hi + 5))
             }).collect::<Vec<(String, &str)>>());
     assert!(table.is_some());
-    let table = table.unwrap();
+    let toml = Table(table.unwrap());
+    let toml_string = format!("{}", toml);
 
     let json = Json::from_str(json).unwrap();
-    let toml_json = to_json(Table(table));
+    let toml_json = to_json(toml.clone());
     assert!(json == toml_json,
             "expected\n{}\ngot\n{}\n",
             json.pretty(),
             toml_json.pretty());
+
+    let table2 = Parser::new(&toml_string).parse().unwrap();
+    // floats are a little lossy
+    if table2.values().any(|v| v.as_float().is_some()) { return }
+    assert_eq!(toml, Table(table2));
 }
 
 macro_rules! test( ($name:ident, $toml:expr, $json:expr) => (

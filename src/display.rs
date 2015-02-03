@@ -8,25 +8,12 @@ struct Printer<'a, 'b:'a> {
     stack: Vec<&'a str>,
 }
 
+struct Key<'a>(&'a [&'a str]);
+
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
-            String(ref s) => {
-                try!(write!(f, "\""));
-                for ch in s.chars() {
-                    match ch {
-                        '\u{8}' => try!(write!(f, "\\b")),
-                        '\u{9}' => try!(write!(f, "\\t")),
-                        '\u{a}' => try!(write!(f, "\\n")),
-                        '\u{c}' => try!(write!(f, "\\f")),
-                        '\u{d}' => try!(write!(f, "\\r")),
-                        '\u{22}' => try!(write!(f, "\\\"")),
-                        '\u{5c}' => try!(write!(f, "\\\\")),
-                        ch => try!(write!(f, "{}", ch)),
-                    }
-                }
-                write!(f, "\"")
-            }
+            String(ref s) => write_str(f, s),
             Integer(i) => write!(f, "{}", i),
             Float(fp) => {
                 try!(write!(f, "{}", fp));
@@ -51,6 +38,23 @@ impl fmt::Display for Value {
     }
 }
 
+fn write_str(f: &mut fmt::Formatter, s: &str) -> fmt::Result {
+    try!(write!(f, "\""));
+    for ch in s.chars() {
+        match ch {
+            '\u{8}' => try!(write!(f, "\\b")),
+            '\u{9}' => try!(write!(f, "\\t")),
+            '\u{a}' => try!(write!(f, "\\n")),
+            '\u{c}' => try!(write!(f, "\\f")),
+            '\u{d}' => try!(write!(f, "\\r")),
+            '\u{22}' => try!(write!(f, "\\\"")),
+            '\u{5c}' => try!(write!(f, "\\\\")),
+            ch => try!(write!(f, "{}", ch)),
+        }
+    }
+    write!(f, "\"")
+}
+
 impl<'a, 'b> Printer<'a, 'b> {
     fn print(&mut self, table: &'a TomlTable) -> fmt::Result {
         for (k, v) in table.iter() {
@@ -64,14 +68,13 @@ impl<'a, 'b> Printer<'a, 'b> {
                 }
                 _ => {}
             }
-            try!(writeln!(self.output, "{} = {}", k, v));
+            try!(writeln!(self.output, "{} = {}", Key(&[k]), v));
         }
         for (k, v) in table.iter() {
             match *v {
                 Table(ref inner) => {
-                    self.stack.push(&**k);
-                    try!(writeln!(self.output, "\n[{}]",
-                                  self.stack.connect(".")));
+                    self.stack.push(k);
+                    try!(writeln!(self.output, "\n[{}]", Key(&self.stack)));
                     try!(self.print(inner));
                     self.stack.pop();
                 }
@@ -80,10 +83,9 @@ impl<'a, 'b> Printer<'a, 'b> {
                         Some(&Table(..)) => {}
                         _ => continue
                     }
-                    self.stack.push(&**k);
+                    self.stack.push(k);
                     for inner in inner.iter() {
-                        try!(writeln!(self.output, "\n[[{}]]",
-                                      self.stack.connect(".")));
+                        try!(writeln!(self.output, "\n[[{}]]", Key(&self.stack)));
                         match *inner {
                             Table(ref inner) => try!(self.print(inner)),
                             _ => panic!("non-heterogeneous toml array"),
@@ -92,6 +94,29 @@ impl<'a, 'b> Printer<'a, 'b> {
                     self.stack.pop();
                 }
                 _ => {},
+            }
+        }
+        Ok(())
+    }
+}
+
+impl<'a> fmt::Display for Key<'a> {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        for (i, part) in self.0.iter().enumerate() {
+            if i != 0 { try!(write!(f, ".")); }
+            let ok = part.chars().all(|c| {
+                match c {
+                    'a' ... 'z' |
+                    'A' ... 'Z' |
+                    '0' ... '9' |
+                    '-' | '_' => true,
+                    _ => false,
+                }
+            });
+            if ok {
+                try!(write!(f, "{}", part));
+            } else {
+                try!(write_str(f, part));
             }
         }
         Ok(())
@@ -167,5 +192,11 @@ mod tests {
                     \n\
                     [[test2]]\n\
                     test = \"wut\"\n");
+        assert_eq!(Table(map! {
+                        "foo.bar" => Integer(2),
+                        "foo\"bar" => Integer(2)
+                   }).to_string().as_slice(),
+                   "\"foo\\\"bar\" = 2\n\
+                    \"foo.bar\" = 2\n");
     }
 }
