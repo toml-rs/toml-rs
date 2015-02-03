@@ -58,7 +58,7 @@ pub use serialization::DecodeErrorKind::{ExpectedMapElement, ExpectedMapKey, NoE
 pub use serialization::DecodeErrorKind::{ExpectedType, NilTooLong};
 
 mod parser;
-mod show;
+mod display;
 mod serialization;
 
 /// Representation of a TOML value.
