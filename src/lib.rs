@@ -25,7 +25,7 @@
 //! capabilities:
 //!
 //! * `String` => `toml::Value` - via `Parser`
-//! * `toml::Value` => `String` - via `Show`
+//! * `toml::Value` => `String` - via `Display`
 //! * `toml::Value` => rust object - via `Decoder`
 //! * rust object => `toml::Value` - via `Encoder`
 //!
@@ -62,7 +62,7 @@ mod show;
 mod serialization;
 
 /// Representation of a TOML value.
-#[derive(PartialEq, Clone, Show)]
+#[derive(PartialEq, Clone, Debug)]
 #[allow(missing_docs)]
 pub enum Value {
     String(string::String),
