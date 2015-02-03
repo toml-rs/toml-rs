@@ -8,8 +8,8 @@ A TOML decoder and encoder for Rust.
 
 ```toml
 # Cargo.toml
-[dependencies.toml]
-git = "https://github.com/alexcrichton/toml-rs"
+[dependencies]
+toml = "0.1"
 ```
 
 # License
