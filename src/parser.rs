@@ -257,8 +257,7 @@ impl<'a> Parser<'a> {
                 Some(s) => s,
                 None => return false
             };
-            self.ws();
-            if !self.expect('=') { return false }
+            if !self.keyval_sep() { return false }
             let value = match self.value() {
                 Some(value) => value,
                 None => return false,
@@ -271,6 +270,13 @@ impl<'a> Parser<'a> {
         return true
     }
 
+    fn keyval_sep(&mut self) -> bool {
+        self.ws();
+        if !self.expect('=') { return false }
+        self.ws();
+        true
+    }
+
     // Parses a value
     fn value(&mut self) -> Option<Value> {
         self.ws();
@@ -280,6 +286,7 @@ impl<'a> Parser<'a> {
             Some((pos, 't')) |
             Some((pos, 'f')) => self.boolean(pos),
             Some((pos, '[')) => self.array(pos),
+            Some((pos, '{')) => self.inline_table(pos),
             Some((pos, '-')) |
             Some((pos, '+')) => self.number_or_datetime(pos),
             Some((pos, ch)) if is_digit(ch) => self.number_or_datetime(pos),
@@ -665,6 +672,26 @@ impl<'a> Parser<'a> {
         consume(self);
         if !self.expect(']') { return None }
         return Some(Array(ret))
+    }
+
+    fn inline_table(&mut self, _start: usize) -> Option<Value> {
+        if !self.expect('{') { return None }
+        self.ws();
+        let mut ret = BTreeMap::new();
+        if self.eat('}') { return Some(Table(ret)) }
+        loop {
+            let lo = self.next_pos();
+            let key = match self.key_name() { Some(s) => s, None => return None };
+            if !self.keyval_sep() { return None }
+            let value = match self.value() { Some(v) => v, None => return None };
+            self.insert(&mut ret, key, value, lo);
+
+            self.ws();
+            if self.eat('}') { break }
+            if !self.expect(',') { return None }
+            self.ws();
+        }
+        return Some(Table(ret))
     }
 
     fn insert(&mut self, into: &mut TomlTable, key: String, value: Value,
@@ -1148,5 +1175,22 @@ trimmed in raw strings.
     #[test]
     fn invalid_bare_numeral() {
         assert!(Parser::new("4").parse().is_none());
+    }
+
+    #[test]
+    fn inline_tables() {
+        assert!(Parser::new("a = {}").parse().is_some());
+        assert!(Parser::new("a = {b=1}").parse().is_some());
+        assert!(Parser::new("a = {   b   =   1    }").parse().is_some());
+        assert!(Parser::new("a = {a=1,b=2}").parse().is_some());
+        assert!(Parser::new("a = {a=1,b=2,c={}}").parse().is_some());
+        assert!(Parser::new("a = {a=1,}").parse().is_none());
+        assert!(Parser::new("a = {,}").parse().is_none());
+        assert!(Parser::new("a = {a=1,a=1}").parse().is_none());
+        assert!(Parser::new("a = {\n}").parse().is_none());
+        assert!(Parser::new("a = {").parse().is_none());
+        assert!(Parser::new("a = {a=[\n]}").parse().is_some());
+        assert!(Parser::new("a = {\"a\"=[\n]}").parse().is_some());
+        assert!(Parser::new("a = [\n{},\n{},\n]").parse().is_some());
     }
 }
