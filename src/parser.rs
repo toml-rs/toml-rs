@@ -8,6 +8,10 @@ use std::str;
 use Table as TomlTable;
 use Value::{self, Array, Table, Float, Integer, Boolean, Datetime};
 
+macro_rules! try {
+    ($e:expr) => (match $e { Some(s) => s, None => return None })
+}
+
 /// Parser for converting a string to a TOML `Value` instance.
 ///
 /// This parser contains the string slice that is being parsed, and exports the
@@ -487,21 +491,31 @@ impl<'a> Parser<'a> {
 
     fn number_or_datetime(&mut self, start: usize) -> Option<Value> {
         let mut is_float = false;
-        if !self.integer(start, false, true) { return None }
-        if self.eat('.') {
+        let prefix = try!(self.integer(start, false, true));
+        let decimal = if self.eat('.') {
             is_float = true;
-            if !self.integer(start, true, false) { return None }
-        }
-        if self.eat('e') || self.eat('E') {
+            Some(try!(self.integer(start, true, false)))
+        } else {
+            None
+        };
+        let exponent = if self.eat('e') || self.eat('E') {
             is_float = true;
-            if !self.integer(start, false, true) { return None }
-        }
+            Some(try!(self.integer(start, false, true)))
+        } else {
+            None
+        };
         let end = self.next_pos();
         let input = &self.input[start..end];
         let ret = if !is_float && !input.starts_with("+") &&
                      !input.starts_with("-") && self.eat('-') {
             self.datetime(start, end + 1)
         } else {
+            let input = match (decimal, exponent) {
+                (None, None) => prefix,
+                (Some(ref d), None) => prefix + "." + d,
+                (None, Some(ref e)) => prefix + "E" + e,
+                (Some(ref d), Some(ref e)) => prefix + "." + d + "E" + e,
+            };
             let input = input.trim_left_matches('+');
             if is_float {
                 input.parse().ok().map(Float)
@@ -520,10 +534,15 @@ impl<'a> Parser<'a> {
     }
 
     fn integer(&mut self, start: usize, allow_leading_zeros: bool,
-               allow_sign: bool) -> bool {
-        allow_sign && (self.eat('-') || self.eat('+'));
+               allow_sign: bool) -> Option<String> {
+        let mut s = String::new();
+        if allow_sign {
+            if self.eat('-') { s.push('-'); }
+            else if self.eat('+') { s.push('+'); }
+        }
         match self.cur.next() {
             Some((_, '0')) if !allow_leading_zeros => {
+                s.push('0');
                 match self.peek(0) {
                     Some((pos, c)) if '0' <= c && c <= '9' => {
                         self.errors.push(ParserError {
@@ -531,12 +550,14 @@ impl<'a> Parser<'a> {
                             hi: pos,
                             desc: format!("leading zeroes are not allowed"),
                         });
-                        return false
+                        return None
                     }
                     _ => {}
                 }
             }
-            Some((_, ch)) if '0' <= ch && ch <= '9' => {}
+            Some((_, ch)) if '0' <= ch && ch <= '9' => {
+                s.push(ch);
+            }
             _ => {
                 let pos = self.next_pos();
                 self.errors.push(ParserError {
@@ -544,16 +565,35 @@ impl<'a> Parser<'a> {
                     hi: pos,
                     desc: format!("expected start of a numeric literal"),
                 });
-                return false;
+                return None;
             }
         }
+        let mut underscore = false;
         loop {
             match self.cur.clone().next() {
-                Some((_, ch)) if '0' <= ch && ch <= '9' => { self.cur.next(); }
+                Some((_, ch)) if '0' <= ch && ch <= '9' => {
+                    s.push(ch);
+                    self.cur.next();
+                    underscore = false;
+                }
+                Some((_, '_')) if !underscore => {
+                    self.cur.next();
+                    underscore = true;
+                }
                 Some(_) | None => break,
             }
         }
-        true
+        if underscore {
+            let pos = self.next_pos();
+            self.errors.push(ParserError {
+                lo: pos,
+                hi: pos,
+                desc: format!("numeral cannot end with an underscore"),
+            });
+            return None
+        } else {
+            Some(s)
+        }
     }
 
     fn boolean(&mut self, start: usize) -> Option<Value> {
@@ -647,10 +687,7 @@ impl<'a> Parser<'a> {
             // Attempt to parse a value, triggering an error if it's the wrong
             // type.
             let start = self.next_pos();
-            let value = match self.value() {
-                Some(v) => v,
-                None => return None,
-            };
+            let value = try!(self.value());
             let end = self.next_pos();
             let expected = type_str.unwrap_or(value.type_str());
             if value.type_str() != expected {
@@ -681,9 +718,9 @@ impl<'a> Parser<'a> {
         if self.eat('}') { return Some(Table(ret)) }
         loop {
             let lo = self.next_pos();
-            let key = match self.key_name() { Some(s) => s, None => return None };
+            let key = try!(self.key_name());
             if !self.keyval_sep() { return None }
-            let value = match self.value() { Some(v) => v, None => return None };
+            let value = try!(self.value());
             self.insert(&mut ret, key, value, lo);
 
             self.ws();
@@ -1102,6 +1139,9 @@ trimmed in raw strings.
         t!("2e10", 2e10);
         t!("2e+10", 2e10);
         t!("2e-10", 2e-10);
+        t!("2_0.0", 20.0);
+        t!("2_0.0_0e0_0", 20.0);
+        t!("2_0.1_0e1_0", 20.1e10);
     }
 
     #[test]
@@ -1192,5 +1232,32 @@ trimmed in raw strings.
         assert!(Parser::new("a = {a=[\n]}").parse().is_some());
         assert!(Parser::new("a = {\"a\"=[\n]}").parse().is_some());
         assert!(Parser::new("a = [\n{},\n{},\n]").parse().is_some());
+    }
+
+    #[test]
+    fn number_underscores() {
+        macro_rules! t {
+            ($actual:expr, $expected:expr) => ({
+                let f = format!("foo = {}", $actual);
+                let mut p = Parser::new(&f[]);
+                let table = Table(p.parse().unwrap());
+                assert_eq!(table.lookup("foo").and_then(|k| k.as_integer()),
+                           Some($expected));
+            })
+        }
+
+        t!("1_0", 10);
+        t!("1_0_0", 100);
+        t!("1_000", 1000);
+        t!("+1_000", 1000);
+        t!("-1_000", -1000);
+    }
+
+    #[test]
+    fn bad_underscores() {
+        assert!(Parser::new("foo = 0_").parse().is_none());
+        assert!(Parser::new("foo = 0__0").parse().is_none());
+        assert!(Parser::new("foo = __0").parse().is_none());
+        assert!(Parser::new("foo = 1_0_").parse().is_none());
     }
 }
