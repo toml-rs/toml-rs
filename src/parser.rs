@@ -1124,7 +1124,7 @@ trimmed in raw strings.
         macro_rules! t {
             ($actual:expr, $expected:expr) => ({
                 let f = format!("foo = {}", $actual);
-                let mut p = Parser::new(&f[]);
+                let mut p = Parser::new(&f);
                 let table = Table(p.parse().unwrap());
                 assert_eq!(table.lookup("foo").and_then(|k| k.as_float()),
                            Some($expected));
@@ -1239,7 +1239,7 @@ trimmed in raw strings.
         macro_rules! t {
             ($actual:expr, $expected:expr) => ({
                 let f = format!("foo = {}", $actual);
-                let mut p = Parser::new(&f[]);
+                let mut p = Parser::new(&f);
                 let table = Table(p.parse().unwrap());
                 assert_eq!(table.lookup("foo").and_then(|k| k.as_integer()),
                            Some($expected));
