@@ -35,6 +35,7 @@
 //! [1]: https://github.com/mojombo/toml
 //! [2]: https://github.com/BurntSushi/toml-test
 //!
+
 #![doc(html_root_url = "http://alexcrichton.com/toml-rs")]
 #![feature(collections, core)]
 #![deny(missing_docs)]
