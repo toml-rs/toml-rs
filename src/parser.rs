@@ -1,3 +1,4 @@
+use std::ascii::AsciiExt;
 use std::char;
 use std::collections::BTreeMap;
 use std::error::Error;
@@ -385,8 +386,9 @@ impl<'a> Parser<'a> {
                 Some((pos, c @ 'u')) |
                 Some((pos, c @ 'U')) => {
                     let len = if c == 'u' {4} else {8};
-                    let num = if me.input.is_char_boundary(pos + 1 + len) {
-                        &me.input[pos + 1 .. pos + 1 + len]
+                    let num = &me.input[pos+1..];
+                    let num = if num.len() >= len && num.is_ascii() {
+                        &num[..len]
                     } else {
                         "invalid"
                     };
@@ -614,7 +616,7 @@ impl<'a> Parser<'a> {
                 lo: start,
                 hi: next,
                 desc: format!("unexpected character: `{}`",
-                             rest.char_at(0)),
+                              rest.chars().next().unwrap()),
             });
             None
         }

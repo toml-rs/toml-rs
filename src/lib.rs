@@ -34,10 +34,9 @@
 //!
 //! [1]: https://github.com/mojombo/toml
 //! [2]: https://github.com/BurntSushi/toml-test
-//!
 
 #![doc(html_root_url = "http://alexcrichton.com/toml-rs")]
-#![feature(collections, core)]
+#![feature(core)]
 #![deny(missing_docs)]
 #![cfg_attr(test, deny(warnings))]
 
@@ -209,7 +208,10 @@ impl FromStr for Value {
     type Err = Vec<ParserError>;
     fn from_str(s: &str) -> Result<Value, Vec<ParserError>> {
         let mut p = Parser::new(s);
-        p.parse().map(Value::Table).ok_or(p.errors)
+        match p.parse().map(Value::Table) {
+            Some(n) => Ok(n),
+            None => Err(p.errors),
+        }
     }
 }
 

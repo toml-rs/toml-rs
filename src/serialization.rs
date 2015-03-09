@@ -1062,7 +1062,7 @@ mod tests {
         match a {
             Ok(..) => panic!("should not have decoded"),
             Err(e) => {
-                assert_eq!(format!("{}", e).as_slice(),
+                assert_eq!(format!("{}", e),
                            "expected a value of type `integer`, but \
                             found a value of type `float` for the key `bar`");
             }
@@ -1080,7 +1080,7 @@ mod tests {
         match a {
             Ok(..) => panic!("should not have decoded"),
             Err(e) => {
-                assert_eq!(format!("{}", e).as_slice(),
+                assert_eq!(format!("{}", e),
                            "expected a value of type `integer` for the key `bar`");
             }
         }
