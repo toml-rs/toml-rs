@@ -240,8 +240,8 @@ mod tests {
         let foo1 = value.lookup("values.1.foo").unwrap();
         assert_eq!(foo1.as_str().unwrap(), "qux");
 
-        let no_bar = value.lookup("test.bar");
-        assert!(no_bar.is_none());
+        assert!(value.lookup("test.bar").is_none());
+        assert!(value.lookup("test.foo.bar").is_none());
     }
 
     #[test]

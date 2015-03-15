@@ -893,6 +893,15 @@ mod tests {
     use Value::Table;
     use Parser;
 
+    macro_rules! bad {
+        ($s:expr, $msg:expr) => ({
+            let mut p = Parser::new($s);
+            assert!(p.parse().is_none());
+            assert!(p.errors.iter().any(|e| e.desc.contains($msg)),
+                    "errors: {:?}", p.errors);
+        })
+    }
+
     #[test]
     fn crlf() {
         let mut p = Parser::new("\
@@ -1261,5 +1270,68 @@ trimmed in raw strings.
         assert!(Parser::new("foo = 0__0").parse().is_none());
         assert!(Parser::new("foo = __0").parse().is_none());
         assert!(Parser::new("foo = 1_0_").parse().is_none());
+    }
+
+    #[test]
+    fn bad_unicode_codepoint() {
+        bad!("foo = \"\\uD800\"", "not a valid unicode codepoint");
+    }
+
+    #[test]
+    fn bad_strings() {
+        bad!("foo = \"\\uxx\"", "expected 4 hex digits");
+        bad!("foo = \"\\u\"", "expected 4 hex digits");
+        bad!("foo = \"\\", "unterminated");
+        bad!("foo = '", "unterminated");
+    }
+
+    #[test]
+    fn empty_string() {
+        let mut p = Parser::new("foo = \"\"");
+        let table = Table(p.parse().unwrap());
+        assert_eq!(table.lookup("foo").unwrap().as_str(), Some(""));
+    }
+
+    #[test]
+    fn booleans() {
+        let mut p = Parser::new("foo = true");
+        let table = Table(p.parse().unwrap());
+        assert_eq!(table.lookup("foo").unwrap().as_bool(), Some(true));
+
+        let mut p = Parser::new("foo = false");
+        let table = Table(p.parse().unwrap());
+        assert_eq!(table.lookup("foo").unwrap().as_bool(), Some(false));
+
+        assert!(Parser::new("foo = true2").parse().is_none());
+        assert!(Parser::new("foo = false2").parse().is_none());
+        assert!(Parser::new("foo = t1").parse().is_none());
+        assert!(Parser::new("foo = f2").parse().is_none());
+    }
+
+    #[test]
+    fn bad_nesting() {
+        bad!("
+            a = [2]
+            [[a]]
+            b = 5
+        ", "expected type `integer`, found type `table`");
+        bad!("
+            a = 1
+            [a.b]
+        ", "key `a` was not previously a table");
+        bad!("
+            a = []
+            [a.b]
+        ", "array `a` does not contain tables");
+        bad!("
+            a = []
+            [[a.b]]
+        ", "array `a` does not contain tables");
+        bad!("
+            [a]
+            b = { c = 2, d = {} }
+            [a.b]
+            c = 2
+        ", "duplicate key `c` in table");
     }
 }
