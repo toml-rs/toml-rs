@@ -65,11 +65,11 @@ mod serialization;
 #[derive(PartialEq, Clone, Debug)]
 #[allow(missing_docs)]
 pub enum Value {
-    String(string::String),
+    String(String),
     Integer(i64),
     Float(f64),
     Boolean(bool),
-    Datetime(string::String),
+    Datetime(String),
     Array(Array),
     Table(Table),
 }
@@ -204,6 +204,37 @@ impl Value {
     }
 }
 
+impl rustc_serialize::Encodable for Value {
+    fn encode<E>(&self, e: &mut E) -> Result<(), E::Error>
+        where E: rustc_serialize::Encoder
+    {
+        match *self {
+            Value::String(ref s) => e.emit_str(s),
+            Value::Integer(i) => e.emit_i64(i),
+            Value::Float(f) => e.emit_f64(f),
+            Value::Boolean(b) => e.emit_bool(b),
+            Value::Datetime(ref s) => e.emit_str(s),
+            Value::Array(ref a) => {
+                e.emit_seq(a.len(), |e| {
+                    for item in a {
+                        try!(item.encode(e));
+                    }
+                    Ok(())
+                })
+            }
+            Value::Table(ref t) => {
+                e.emit_map(t.len(), |e| {
+                    for (i, (key, value)) in t.iter().enumerate() {
+                        try!(e.emit_map_elt_key(i, |e| e.emit_str(key)));
+                        try!(e.emit_map_elt_val(i, |e| value.encode(e)));
+                    }
+                    Ok(())
+                })
+            }
+        }
+    }
+}
+
 impl FromStr for Value {
     type Err = Vec<ParserError>;
     fn from_str(s: &str) -> Result<Value, Vec<ParserError>> {
@@ -261,5 +292,23 @@ mod tests {
 
         let foo = value.lookup("values.str.foo");
         assert!(foo.is_none());
+    }
+
+    #[test]
+    fn round_trip() {
+        let toml = r#"
+              [test]
+              foo = "bar"
+
+              [[values]]
+              foo = "baz"
+
+              [[values]]
+              foo = "qux"
+        "#;
+
+        let value: Value = toml.parse().unwrap();
+        let val2 = ::encode_str(&value).parse().unwrap();
+        assert_eq!(value, val2);
     }
 }
