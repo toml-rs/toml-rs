@@ -23,8 +23,7 @@ use self::DecodeErrorKind::{ExpectedMapElement, NoEnumVariants, NilTooLong};
 /// # Example
 ///
 /// ```
-/// # #![allow(unstable)]
-/// extern crate "rustc-serialize" as rustc_serialize;
+/// extern crate rustc_serialize;
 /// extern crate toml;
 ///
 /// # fn main() {
@@ -32,7 +31,7 @@ use self::DecodeErrorKind::{ExpectedMapElement, NoEnumVariants, NilTooLong};
 /// use rustc_serialize::Encodable;
 ///
 /// #[derive(RustcEncodable)]
-/// struct MyStruct { foo: int, bar: String }
+/// struct MyStruct { foo: isize, bar: String }
 /// let my_struct = MyStruct { foo: 4, bar: "hello!".to_string() };
 ///
 /// let mut e = Encoder::new();

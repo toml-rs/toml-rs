@@ -1,4 +1,4 @@
-extern crate "rustc-serialize" as rustc_serialize;
+extern crate rustc_serialize;
 extern crate toml;
 
 use std::collections::BTreeMap;
