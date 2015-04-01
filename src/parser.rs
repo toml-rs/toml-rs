@@ -3,7 +3,6 @@ use std::char;
 use std::collections::BTreeMap;
 use std::error::Error;
 use std::fmt;
-use std::num::FromStrRadix;
 use std::str;
 
 use Table as TomlTable;
@@ -392,7 +391,7 @@ impl<'a> Parser<'a> {
                     } else {
                         "invalid"
                     };
-                    match FromStrRadix::from_str_radix(num, 16).ok() {
+                    match u32::from_str_radix(num, 16).ok() {
                         Some(n) => {
                             match char::from_u32(n) {
                                 Some(c) => {

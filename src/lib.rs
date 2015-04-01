@@ -36,7 +36,6 @@
 //! [2]: https://github.com/BurntSushi/toml-test
 
 #![doc(html_root_url = "http://alexcrichton.com/toml-rs")]
-#![feature(core)]
 #![deny(missing_docs)]
 #![cfg_attr(test, deny(warnings))]
 
