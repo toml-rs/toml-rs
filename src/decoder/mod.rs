@@ -5,6 +5,7 @@ use Value;
 use self::DecodeErrorKind::*;
 
 #[cfg(feature = "rustc-serialize")] mod rustc_serialize;
+#[cfg(feature = "serde")] mod serde;
 
 /// A structure to transform TOML values into Rust values.
 ///

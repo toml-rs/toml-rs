@@ -6,6 +6,7 @@ use std::mem;
 use {Value, Table};
 
 #[cfg(feature = "rustc-serialize")] mod rustc_serialize;
+#[cfg(feature = "serde")] mod serde;
 
 /// A structure to transform Rust values into TOML values.
 ///

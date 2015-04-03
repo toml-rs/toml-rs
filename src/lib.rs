@@ -40,6 +40,7 @@
 #![cfg_attr(test, deny(warnings))]
 
 #[cfg(feature = "rustc-serialize")] extern crate rustc_serialize;
+#[cfg(feature = "serde")] extern crate serde;
 
 use std::collections::BTreeMap;
 use std::str::FromStr;

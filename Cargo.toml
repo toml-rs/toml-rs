@@ -17,9 +17,11 @@ facilitate deserializing and serializing Rust structures.
 
 [dependencies]
 rustc-serialize = { optional = true, version = "0.3.0" }
+serde = { optional = true, git = "https://github.com/alexcrichton/rust-serde", branch = "tweak-some-impls" }
 
 [features]
 default = ["rustc-serialize"]
 
 [dev-dependencies]
 rustc-serialize = "0.3"
+serde_macros = { git = "https://github.com/alexcrichton/rust-serde", branch = "tweak-some-impls" }
