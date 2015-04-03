@@ -16,4 +16,10 @@ facilitate deserializing and serializing Rust structures.
 """
 
 [dependencies]
-rustc-serialize = "0.3.0"
+rustc-serialize = { optional = true, version = "0.3.0" }
+
+[features]
+default = ["rustc-serialize"]
+
+[dev-dependencies]
+rustc-serialize = "0.3"

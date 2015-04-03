@@ -39,26 +39,25 @@
 #![deny(missing_docs)]
 #![cfg_attr(test, deny(warnings))]
 
-extern crate rustc_serialize;
+#[cfg(feature = "rustc-serialize")] extern crate rustc_serialize;
 
 use std::collections::BTreeMap;
 use std::str::FromStr;
 use std::string;
 
 pub use parser::{Parser, ParserError};
-pub use serialization::{Encoder, encode, encode_str};
-pub use serialization::{Decoder, decode, decode_str};
-pub use serialization::Error;
-pub use serialization::Error::{NeedsKey, NoValue};
-pub use serialization::Error::{InvalidMapKeyLocation, InvalidMapKeyType};
-pub use serialization::{DecodeError, DecodeErrorKind};
-pub use serialization::DecodeErrorKind::{ApplicationError, ExpectedField};
-pub use serialization::DecodeErrorKind::{ExpectedMapElement, ExpectedMapKey, NoEnumVariants};
-pub use serialization::DecodeErrorKind::{ExpectedType, NilTooLong};
+
+#[cfg(any(feature = "rustc-serialize", feature = "serde"))]
+pub use self::encoder::{Encoder, Error, encode, encode_str};
+#[cfg(any(feature = "rustc-serialize", feature = "serde"))]
+pub use self::decoder::{Decoder, DecodeError, DecodeErrorKind, decode, decode_str};
 
 mod parser;
 mod display;
-mod serialization;
+#[cfg(any(feature = "rustc-serialize", feature = "serde"))]
+mod encoder;
+#[cfg(any(feature = "rustc-serialize", feature = "serde"))]
+mod decoder;
 
 /// Representation of a TOML value.
 #[derive(PartialEq, Clone, Debug)]
@@ -203,37 +202,6 @@ impl Value {
     }
 }
 
-impl rustc_serialize::Encodable for Value {
-    fn encode<E>(&self, e: &mut E) -> Result<(), E::Error>
-        where E: rustc_serialize::Encoder
-    {
-        match *self {
-            Value::String(ref s) => e.emit_str(s),
-            Value::Integer(i) => e.emit_i64(i),
-            Value::Float(f) => e.emit_f64(f),
-            Value::Boolean(b) => e.emit_bool(b),
-            Value::Datetime(ref s) => e.emit_str(s),
-            Value::Array(ref a) => {
-                e.emit_seq(a.len(), |e| {
-                    for item in a {
-                        try!(item.encode(e));
-                    }
-                    Ok(())
-                })
-            }
-            Value::Table(ref t) => {
-                e.emit_map(t.len(), |e| {
-                    for (i, (key, value)) in t.iter().enumerate() {
-                        try!(e.emit_map_elt_key(i, |e| e.emit_str(key)));
-                        try!(e.emit_map_elt_val(i, |e| value.encode(e)));
-                    }
-                    Ok(())
-                })
-            }
-        }
-    }
-}
-
 impl FromStr for Value {
     type Err = Vec<ParserError>;
     fn from_str(s: &str) -> Result<Value, Vec<ParserError>> {
@@ -291,23 +259,5 @@ mod tests {
 
         let foo = value.lookup("values.str.foo");
         assert!(foo.is_none());
-    }
-
-    #[test]
-    fn round_trip() {
-        let toml = r#"
-              [test]
-              foo = "bar"
-
-              [[values]]
-              foo = "baz"
-
-              [[values]]
-              foo = "qux"
-        "#;
-
-        let value: Value = toml.parse().unwrap();
-        let val2 = ::encode_str(&value).parse().unwrap();
-        assert_eq!(value, val2);
     }
 }
