@@ -15,7 +15,13 @@ fn se2toml(err: de::value::Error, ty: &'static str) -> DecodeError {
                 field: Some(s.to_string()),
                 kind: DecodeErrorKind::ExpectedField(Some(ty)),
             }
-        }
+        },
+        de::value::Error::UnknownFieldError(s) => {
+            DecodeError {
+                field: Some(s.to_string()),
+                kind: DecodeErrorKind::UnknownField,
+            }
+        },
     }
 }
 
@@ -89,6 +95,12 @@ impl de::Error for DecodeError {
         DecodeError {
             field: Some(name.to_string()),
             kind: DecodeErrorKind::ExpectedField(None),
+        }
+    }
+    fn unknown_field_error(name: &str) -> DecodeError {
+        DecodeError {
+            field: Some(name.to_string()),
+            kind: DecodeErrorKind::UnknownField,
         }
     }
 }

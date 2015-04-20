@@ -35,6 +35,8 @@ pub enum DecodeErrorKind {
     ApplicationError(String),
     /// A field was expected, but none was found.
     ExpectedField(/* type */ Option<&'static str>),
+    /// A field was found, but it was not an expected one.
+    UnknownField,
     /// A field was found, but it had the wrong type.
     ExpectedType(/* expected */ &'static str, /* found */ &'static str),
     /// The nth map key was expected, but none was found.
@@ -149,6 +151,7 @@ impl fmt::Display for DecodeError {
                     None => write!(f, "expected a value"),
                 }
             }
+            UnknownField => write!(f, "unknown field"),
             ExpectedType(expected, found) => {
                 fn humanize(s: &str) -> String {
                     if s == "section" {
@@ -194,6 +197,7 @@ impl error::Error for DecodeError {
         match self.kind {
             ApplicationError(ref s) => &**s,
             ExpectedField(..) => "expected a field",
+            UnknownField => "found an unknown field",
             ExpectedType(..) => "expected a type",
             ExpectedMapKey(..) => "expected a map key",
             ExpectedMapElement(..) => "expected a map element",
