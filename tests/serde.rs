@@ -214,14 +214,22 @@ fn hashmap() {
 fn tuple_struct() {
     #[derive(Serialize, Deserialize, PartialEq, Debug)]
     struct Foo(isize, String, f64);
+    #[derive(Serialize, Deserialize, PartialEq, Debug)]
+    struct Bar {
+        whee: Foo,
+    }
 
-    let v = Foo(1, "foo".to_string(), 4.5);
+    let v = Bar {
+        whee: Foo(1, "foo".to_string(), 4.5)
+    };
     assert_eq!(
         encode!(v),
         map! {
-            _field0, Integer(1),
-            _field1, Value::String("foo".to_string()),
-            _field2, Float(4.5)
+            whee, Value::Array(vec![
+                Integer(1),
+                Value::String("foo".to_string()),
+                Float(4.5),
+            ])
         }
     );
     assert_eq!(v, decode!(Table(encode!(v))));
@@ -256,6 +264,7 @@ fn type_errors() {
         bar, Float(1.0)
     }));
     let a: Result<Foo, DecodeError> = Deserialize::deserialize(&mut d);
+    // serde uses FromPrimitive, that's why this works
     match a {
         Ok(..) => panic!("should not have decoded"),
         Err(e) => {
@@ -278,7 +287,7 @@ fn missing_errors() {
         Ok(..) => panic!("should not have decoded"),
         Err(e) => {
             assert_eq!(format!("{}", e),
-                       "expected a value of type `integer` for the key `bar`");
+                       "expected a value for the key `bar`");
         }
     }
 }
@@ -299,6 +308,8 @@ fn parse_enum() {
     }
 
     let v = Foo { a: E::Bar(10) };
+    // technically serde is correct here. a single element tuple still is a tuple and therefor
+    // a sequence
     assert_eq!(
         encode!(v),
         map! { a, Integer(10) }
