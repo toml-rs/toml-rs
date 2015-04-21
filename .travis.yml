@@ -3,8 +3,10 @@ sudo: false
 script:
   - cargo build --verbose
   - cargo build --verbose --no-default-features
+  - cargo build --verbose --features serde --no-default-features
   - cargo test --verbose
   - cargo test --verbose --no-default-features
+  - cargo test --verbose --features serde --no-default-features
   - rustdoc --test README.md -L target
   - cargo doc --no-deps
 after_success: |

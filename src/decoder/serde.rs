@@ -3,7 +3,12 @@ use Value;
 use super::{Decoder, DecodeError, DecodeErrorKind};
 use std::collections::BTreeMap;
 
-struct MapVisitor<'a, I>(I, Option<Value>, &'a mut Option<Value>, Option<String>);
+struct MapVisitor<'a, I> {
+    iter: I,
+    toml: &'a mut Option<Value>,
+    key: Option<String>,
+    value: Option<Value>,
+}
 
 fn se2toml(err: de::value::Error, ty: &'static str) -> DecodeError {
     match err {
@@ -52,7 +57,12 @@ impl de::Deserializer for Decoder {
                 visitor.visit_seq(SeqDeserializer::new(iter, len, &mut self.toml))
             }
             Some(Value::Table(t)) => {
-                visitor.visit_map(MapVisitor(t.into_iter(), None, &mut self.toml, None))
+                visitor.visit_map(MapVisitor {
+                    iter: t.into_iter(),
+                    toml: &mut self.toml,
+                    key: None,
+                    value: None,
+                })
             }
             None => Err(de::Error::end_of_stream_error()),
         }
@@ -87,19 +97,17 @@ struct SeqDeserializer<'a, I> {
     toml: &'a mut Option<Value>,
 }
 
-impl<'a, I> SeqDeserializer<'a, I>
-    where I: Iterator<Item=Value>,
-{
-    pub fn new(iter: I, len: usize, toml: &'a mut Option<Value>) -> Self {
+impl<'a, I> SeqDeserializer<'a, I> where I: Iterator<Item=Value> {
+    fn new(iter: I, len: usize, toml: &'a mut Option<Value>) -> Self {
         SeqDeserializer {
             iter: iter,
             len: len,
             toml: toml,
         }
     }
-    fn remember(&mut self, v: Value) {
+
+    fn put_value_back(&mut self, v: Value) {
         *self.toml = self.toml.take().or(Some(Value::Array(Vec::new())));
-        // remember unknown field
         match self.toml.as_mut().unwrap() {
             &mut Value::Array(ref mut a) => {
                 a.push(v);
@@ -135,7 +143,7 @@ impl<'a, I> de::SeqVisitor for SeqDeserializer<'a, I>
                 let mut de = Decoder::new(value);
                 let v = try!(de::Deserialize::deserialize(&mut de));
                 if let Some(t) = de.toml {
-                    self.remember(t);
+                    self.put_value_back(t);
                 }
                 Ok(Some(v))
             }
@@ -178,12 +186,13 @@ impl de::Error for DecodeError {
 }
 
 impl<'a, I> MapVisitor<'a, I> {
-    fn remember(&mut self, v: Value) {
-        *self.2 = self.2.take().or(Some(Value::Table(BTreeMap::new())));
-        // remember unknown field
-        match self.2.as_mut().unwrap() {
+    fn put_value_back(&mut self, v: Value) {
+        *self.toml = self.toml.take().or_else(|| {
+            Some(Value::Table(BTreeMap::new()))
+        });
+        match self.toml.as_mut().unwrap() {
             &mut Value::Table(ref mut t) => {
-                t.insert(self.3.take().unwrap(), v);
+                t.insert(self.key.take().unwrap(), v);
             },
             _ => unreachable!(),
         }
@@ -198,36 +207,35 @@ impl<'a, I> de::MapVisitor for MapVisitor<'a, I>
     fn visit_key<K>(&mut self) -> Result<Option<K>, DecodeError>
         where K: de::Deserialize
     {
-        match self.0.next() {
-            Some((k, v)) => {
-                self.3 = Some(k.clone());
-                let dec = &mut Decoder::new(Value::String(k));
-                match de::Deserialize::deserialize(dec) {
-                    Err(DecodeError {kind: DecodeErrorKind::UnknownField, ..}) => {
-                        self.remember(v);
-                        self.visit_key()
-                    }
-                    Ok(val) => {
-                        self.1 = Some(v);
-                        Ok(Some(val))
-                    },
-                    Err(e) => Err(e),
+        while let Some((k, v)) = self.iter.next() {
+            self.key = Some(k.clone());
+            let mut dec = Decoder::new(Value::String(k));
+            match de::Deserialize::deserialize(&mut dec) {
+                Ok(val) => {
+                    self.value = Some(v);
+                    return Ok(Some(val))
                 }
-            }
-            None => Ok(None),
-        }
 
+                // If this was an unknown field, then we put the toml value
+                // back into the map and keep going.
+                Err(DecodeError {kind: DecodeErrorKind::UnknownField, ..}) => {
+                    self.put_value_back(v);
+                }
+                Err(e) => return Err(e),
+            }
+        }
+        Ok(None)
     }
 
     fn visit_value<V>(&mut self) -> Result<V, DecodeError>
         where V: de::Deserialize
     {
-        match self.1.take() {
+        match self.value.take() {
             Some(t) => {
                 let mut dec = Decoder::new(t);
                 let v = try!(de::Deserialize::deserialize(&mut dec));
                 if let Some(t) = dec.toml {
-                    self.remember(t);
+                    self.put_value_back(t);
                 }
                 Ok(v)
             },
@@ -239,13 +247,14 @@ impl<'a, I> de::MapVisitor for MapVisitor<'a, I>
         Ok(())
     }
 
-    fn missing_field<V>(&mut self, field_name: &'static str) -> Result<V, DecodeError>
-        where V: de::Deserialize,
-    {
-        println!("missing field: {}", field_name);
+    fn missing_field<V>(&mut self, field_name: &'static str)
+                        -> Result<V, DecodeError> where V: de::Deserialize {
         // See if the type can deserialize from a unit.
         match de::Deserialize::deserialize(&mut UnitDeserializer) {
-            Err(DecodeError {kind: DecodeErrorKind::SyntaxError, field}) => Err(DecodeError {
+            Err(DecodeError {
+                kind: DecodeErrorKind::SyntaxError,
+                field,
+            }) => Err(DecodeError {
                 field: field.or(Some(field_name.to_string())),
                 kind: DecodeErrorKind::ExpectedField(None),
             }),
