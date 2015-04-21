@@ -171,7 +171,7 @@ pub fn encode<T: ::rustc_serialize::Encodable>(t: &T) -> Value {
 #[cfg(all(not(feature = "rustc-serialize"), feature = "serde"))]
 pub fn encode<T: ::serde::Serialize>(t: &T) -> Value {
     let mut e = Encoder::new();
-    t.deserialize(&mut e).unwrap();
+    t.serialize(&mut e).unwrap();
     Value::Table(e.toml)
 }
 
