@@ -193,8 +193,8 @@ impl rustc_serialize::Encodable for Value {
                 })
             }
             Value::Table(ref t) => {
-                e.emit_map(t.len(), |e| {
-                    for (i, (key, value)) in t.iter().enumerate() {
+                e.emit_map(t.0.len(), |e| {
+                    for (i, (key, value)) in t.0.iter().enumerate() {
                         try!(e.emit_map_elt_key(i, |e| e.emit_str(key)));
                         try!(e.emit_map_elt_val(i, |e| value.encode(e)));
                     }
@@ -212,6 +212,7 @@ mod tests {
 
     use {Encoder, Decoder, DecodeError};
     use Value;
+    use Table as TomlTable;
     use Value::{Table, Integer, Array, Float};
 
     macro_rules! encode( ($t:expr) => ({
@@ -228,7 +229,7 @@ mod tests {
     macro_rules! map( ($($k:ident, $v:expr),*) => ({
         let mut _m = BTreeMap::new();
         $(_m.insert(stringify!($k).to_string(), $v);)*
-        _m
+        TomlTable::new(_m)
     }) );
 
     #[test]
@@ -577,7 +578,9 @@ mod tests {
         #[derive(RustcEncodable, RustcDecodable, PartialEq, Debug)]
         struct Foo { a: BTreeMap<String, String> }
 
-        let v = Foo { a: map! { a, "foo".to_string() } };
+        let mut v = Foo { a: BTreeMap::new() };
+        v.a.insert("a".to_string(), "foo".to_string());
+
         let mut d = Decoder::new(Table(map! {
             a, Table(map! {
                 a, Value::String("foo".to_string())

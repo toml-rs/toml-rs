@@ -162,7 +162,7 @@ impl<'a> Parser<'a> {
     /// If an error occurs, the `errors` field of this parser can be consulted
     /// to determine the cause of the parse failure.
     pub fn parse(&mut self) -> Option<TomlTable> {
-        let mut ret = BTreeMap::new();
+        let mut ret = TomlTable(BTreeMap::new(), false);
         while self.peek(0).is_some() {
             self.ws();
             if self.newline() { continue }
@@ -189,7 +189,7 @@ impl<'a> Parser<'a> {
                 if keys.len() == 0 { return None }
 
                 // Build the section table
-                let mut table = BTreeMap::new();
+                let mut table = TomlTable(BTreeMap::new(), false);
                 if !self.values(&mut table) { return None }
                 if array {
                     self.insert_array(&mut ret, &*keys, Table(table), start)
@@ -715,7 +715,7 @@ impl<'a> Parser<'a> {
     fn inline_table(&mut self, _start: usize) -> Option<Value> {
         if !self.expect('{') { return None }
         self.ws();
-        let mut ret = BTreeMap::new();
+        let mut ret = TomlTable(BTreeMap::new(), true);
         if self.eat('}') { return Some(Table(ret)) }
         loop {
             let lo = self.next_pos();
@@ -734,14 +734,14 @@ impl<'a> Parser<'a> {
 
     fn insert(&mut self, into: &mut TomlTable, key: String, value: Value,
               key_lo: usize) {
-        if into.contains_key(&key) {
+        if into.0.contains_key(&key) {
             self.errors.push(ParserError {
                 lo: key_lo,
                 hi: key_lo + key.len(),
                 desc: format!("duplicate key: `{}`", key),
             })
         } else {
-            into.insert(key, value);
+            into.0.insert(key, value);
         }
     }
 
@@ -751,8 +751,8 @@ impl<'a> Parser<'a> {
         for part in keys[..keys.len() - 1].iter() {
             let tmp = cur;
 
-            if tmp.contains_key(part) {
-                match *tmp.get_mut(part).unwrap() {
+            if tmp.0.contains_key(part) {
+                match *tmp.0.get_mut(part).unwrap() {
                     Table(ref mut table) => {
                         cur = table;
                         continue
@@ -785,8 +785,8 @@ impl<'a> Parser<'a> {
             }
 
             // Initialize an empty table as part of this sub-key
-            tmp.insert(part.clone(), Table(BTreeMap::new()));
-            match *tmp.get_mut(part).unwrap() {
+            tmp.0.insert(part.clone(), Table(TomlTable(BTreeMap::new(), false)));
+            match *tmp.0.get_mut(part).unwrap() {
                 Table(ref mut inner) => cur = inner,
                 _ => unreachable!(),
             }
@@ -802,22 +802,22 @@ impl<'a> Parser<'a> {
         };
         let key = format!("{}", key);
         let mut added = false;
-        if !into.contains_key(&key) {
-            into.insert(key.clone(), Table(BTreeMap::new()));
+        if !into.0.contains_key(&key) {
+            into.0.insert(key.clone(), Table(TomlTable(BTreeMap::new(), true)));
             added = true;
         }
-        match into.get_mut(&key) {
+        match into.0.get_mut(&key) {
             Some(&mut Table(ref mut table)) => {
-                let any_tables = table.values().any(|v| v.as_table().is_some());
-                if !any_tables && !added {
+                let any_tables = table.0.values().any(|v| v.as_table().is_some());
+                if !added && (!any_tables || table.1) {
                     self.errors.push(ParserError {
                         lo: key_lo,
                         hi: key_lo + key.len(),
                         desc: format!("redefinition of table `{}`", key),
                     });
                 }
-                for (k, v) in value.into_iter() {
-                    if table.insert(k.clone(), v).is_some() {
+                for (k, v) in value.0.into_iter() {
+                    if table.0.insert(k.clone(), v).is_some() {
                         self.errors.push(ParserError {
                             lo: key_lo,
                             hi: key_lo + key.len(),
@@ -844,10 +844,10 @@ impl<'a> Parser<'a> {
             None => return,
         };
         let key = format!("{}", key);
-        if !into.contains_key(&key) {
-            into.insert(key.clone(), Array(Vec::new()));
+        if !into.0.contains_key(&key) {
+            into.0.insert(key.clone(), Array(Vec::new()));
         }
-        match *into.get_mut(&key).unwrap() {
+        match *into.0.get_mut(&key).unwrap() {
             Array(ref mut vec) => {
                 match vec.first() {
                     Some(ref v) if !v.same_type(&value) => {
@@ -1332,5 +1332,18 @@ trimmed in raw strings.
             [a.b]
             c = 2
         ", "duplicate key `c` in table");
+    }
+
+    #[test]
+    fn bad_table_redefine() {
+        let mut p = Parser::new("
+            [a]
+            foo=\"bar\"
+            [a.b]
+            foo=\"bar\"
+            [a]
+            baz=\"bar\"
+        ");
+        assert!(p.parse().is_none());
     }
 }

@@ -31,7 +31,7 @@ use {Value, Table};
 /// let mut e = Encoder::new();
 /// my_struct.encode(&mut e).unwrap();
 ///
-/// assert_eq!(e.toml.get(&"foo".to_string()), Some(&Value::Integer(4)))
+/// assert_eq!(e.toml.0.get(&"foo".to_string()), Some(&Value::Integer(4)))
 /// # }
 /// ```
 pub struct Encoder {
@@ -73,12 +73,12 @@ enum State {
 impl Encoder {
     /// Constructs a new encoder which will emit to the given output stream.
     pub fn new() -> Encoder {
-        Encoder { state: State::Start, toml: BTreeMap::new() }
+        Encoder { state: State::Start, toml: Table(BTreeMap::new(), false) }
     }
 
     fn emit_value(&mut self, v: Value) -> Result<(), Error> {
         match mem::replace(&mut self.state, State::Start) {
-            State::NextKey(key) => { self.toml.insert(key, v); Ok(()) }
+            State::NextKey(key) => { self.toml.0.insert(key, v); Ok(()) }
             State::NextArray(mut vec) => {
                 // TODO: validate types
                 vec.push(v);
@@ -122,7 +122,7 @@ impl Encoder {
             State::NextKey(key) => {
                 let mut nested = Encoder::new();
                 try!(f(&mut nested));
-                self.toml.insert(key, Value::Table(nested.toml));
+                self.toml.0.insert(key, Value::Table(nested.toml));
                 Ok(())
             }
             State::NextArray(mut arr) => {

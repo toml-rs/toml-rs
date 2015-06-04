@@ -32,7 +32,7 @@ fn to_json(toml: Value) -> Json {
             let json = Json::Array(arr.into_iter().map(to_json).collect());
             if is_table {json} else {doit("array", json)}
         }
-        Table(table) => Json::Object(table.into_iter().map(|(k, v)| {
+        Table(table) => Json::Object(table.0.into_iter().map(|(k, v)| {
             (k, to_json(v))
         }).collect()),
     }
@@ -58,7 +58,7 @@ fn run(toml: &str, json: &str) {
 
     let table2 = Parser::new(&toml_string).parse().unwrap();
     // floats are a little lossy
-    if table2.values().any(|v| v.as_float().is_some()) { return }
+    if table2.0.values().any(|v| v.as_float().is_some()) { return }
     assert_eq!(toml, Table(table2));
 }
 

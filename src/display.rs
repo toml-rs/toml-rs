@@ -57,7 +57,7 @@ fn write_str(f: &mut fmt::Formatter, s: &str) -> fmt::Result {
 
 impl<'a, 'b> Printer<'a, 'b> {
     fn print(&mut self, table: &'a TomlTable) -> fmt::Result {
-        for (k, v) in table.iter() {
+        for (k, v) in table.0.iter() {
             match *v {
                 Table(..) => continue,
                 Array(ref a) => {
@@ -70,7 +70,7 @@ impl<'a, 'b> Printer<'a, 'b> {
             }
             try!(writeln!(self.output, "{} = {}", Key(&[k]), v));
         }
-        for (k, v) in table.iter() {
+        for (k, v) in table.0.iter() {
             match *v {
                 Table(ref inner) => {
                     self.stack.push(k);
@@ -127,13 +127,14 @@ impl<'a> fmt::Display for Key<'a> {
 #[allow(warnings)]
 mod tests {
     use Value;
+    use Table as TomlTable;
     use Value::{String, Integer, Float, Boolean, Datetime, Array, Table};
     use std::collections::BTreeMap;
 
     macro_rules! map( ($($k:expr => $v:expr),*) => ({
         let mut _m = BTreeMap::new();
         $(_m.insert($k.to_string(), $v);)*
-        _m
+        TomlTable::new(_m)
     }) );
 
     #[test]
