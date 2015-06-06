@@ -75,24 +75,8 @@ pub enum Value {
 /// Type representing a TOML array, payload of the Value::Array variant
 pub type Array = Vec<Value>;
 
-// The bool field flag is used during parsing and construction.
-// Is true if the given table was explicitly defined, false otherwise
-// e.g. in a toml document: `[a.b] foo = "bar"`, Table `a` would be false,
-// where table `b` (contained inside `a`) would be true.
 /// Type representing a TOML table, payload of the Value::Table variant
-#[derive(Debug, Clone)]
-pub struct Table (pub BTreeMap<string::String, Value>, bool);
-impl Table {
-    /// Creates new TOML table
-    pub fn new(map: BTreeMap<string::String, Value>) -> Table {
-        Table(map, false)
-    }
-}
-impl PartialEq for Table {
-    fn eq(&self, other: &Table) -> bool {
-        self.0.eq(&other.0)
-    }
-}
+pub type Table = BTreeMap<string::String, Value>;
 
 impl Value {
     /// Tests whether this and another value have the same type.
@@ -198,7 +182,7 @@ impl Value {
         let mut cur_value = self;
         for key in path.split('.') {
             match cur_value {
-                &Value::Table(Table(ref hm, _)) => {
+                &Value::Table(ref hm) => {
                     match hm.get(key) {
                         Some(v) => cur_value = v,
                         None => return None

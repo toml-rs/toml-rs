@@ -3,7 +3,7 @@ use std::mem;
 
 use super::{Decoder, DecodeError};
 use super::DecodeErrorKind::*;
-use {Value, Table};
+use Value;
 
 impl rustc_serialize::Decoder for Decoder {
     type Error = DecodeError;
@@ -141,7 +141,7 @@ impl rustc_serialize::Decoder for Decoder {
             Some(Value::Table(..)) => {
                 let ret = try!(f(self));
                 match self.toml {
-                    Some(Value::Table(Table(ref t, _,))) if t.len() == 0 => {}
+                    Some(Value::Table(ref t)) if t.len() == 0 => {}
                     _ => return Ok(ret)
                 }
                 self.toml.take();
@@ -156,7 +156,7 @@ impl rustc_serialize::Decoder for Decoder {
     {
         let field = format!("{}", f_name);
         let toml = match self.toml {
-            Some(Value::Table(Table(ref mut table, _))) => {
+            Some(Value::Table(ref mut table)) => {
                 table.remove(&field)
                     .or_else(|| table.remove(&f_name.replace("_", "-")))
             },
@@ -165,7 +165,7 @@ impl rustc_serialize::Decoder for Decoder {
         let mut d = self.sub_decoder(toml, f_name);
         let ret = try!(f(&mut d));
         if let Some(value) = d.toml {
-            if let Some(Value::Table(Table(ref mut table, _))) = self.toml {
+            if let Some(Value::Table(ref mut table)) = self.toml {
                 table.insert(field, value);
             }
         }
@@ -260,7 +260,7 @@ impl rustc_serialize::Decoder for Decoder {
         where F: FnOnce(&mut Decoder, usize) -> Result<T, DecodeError>
     {
         let len = match self.toml {
-            Some(Value::Table(Table(ref table, _))) => table.len(),
+            Some(Value::Table(ref table)) => table.len(),
             ref found => return Err(self.mismatch("table", found)),
         };
         let ret = try!(f(self, len));
@@ -273,7 +273,7 @@ impl rustc_serialize::Decoder for Decoder {
     {
         match self.toml {
             Some(Value::Table(ref table)) => {
-                match table.0.iter().skip(idx).next() {
+                match table.iter().skip(idx).next() {
                     Some((key, _)) => {
                         let val = Value::String(format!("{}", key));
                         f(&mut self.sub_decoder(Some(val), &**key))
@@ -290,7 +290,7 @@ impl rustc_serialize::Decoder for Decoder {
     {
         match self.toml {
             Some(Value::Table(ref table)) => {
-                match table.0.iter().skip(idx).next() {
+                match table.iter().skip(idx).next() {
                     Some((_, value)) => {
                         // XXX: this shouldn't clone
                         f(&mut self.sub_decoder(Some(value.clone()), ""))

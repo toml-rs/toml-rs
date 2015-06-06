@@ -5,11 +5,90 @@ use std::error::Error;
 use std::fmt;
 use std::str;
 
-use Table as TomlTable;
-use Value::{self, Array, Table, Float, Integer, Boolean, Datetime};
-
 macro_rules! try {
     ($e:expr) => (match $e { Some(s) => s, None => return None })
+}
+
+/* 
+ * We redefine Array, Table and Value, because we need to keep track of
+ * encountered table definitions, eg when parsing:
+ * [a]
+ * [a.b]
+ * [a]
+ * we have to error out on redefinition of [a].
+ * This bit of data is impossible to represent in the user-consumed table
+ * without breaking compatibility, so we use one AST structure during parsing
+ * and expose another (after running convert(...) on it) to the user.
+ */
+type Array = Vec<Value>;
+
+#[derive(PartialEq, Clone, Debug)]
+// If the bool flag is true, the table was explicitly defined
+// e.g. in a toml document: `[a.b] foo = "bar"`, Table `a` would be false,
+// where table `b` (contained inside `a`) would be true.
+struct TomlTable(BTreeMap<String, Value>, bool);
+impl TomlTable {
+    fn convert(self) -> super::Table {
+        self.0.into_iter().map(|(k,v)| (k,v.convert())).collect()
+    }
+}
+
+#[derive(PartialEq, Clone, Debug)]
+enum Value {
+    String(String),
+    Integer(i64),
+    Float(f64),
+    Boolean(bool),
+    Datetime(String),
+    Array(Array),
+    Table(TomlTable),
+}
+
+impl Value {
+    fn type_str(&self) -> &'static str {
+        match *self {
+            Value::String(..) => "string",
+            Value::Integer(..) => "integer",
+            Value::Float(..) => "float",
+            Value::Boolean(..) => "boolean",
+            Value::Datetime(..) => "datetime",
+            Value::Array(..) => "array",
+            Value::Table(..) => "table",
+        }
+    }
+    
+    fn as_table<'a>(&'a self) -> Option<&'a TomlTable> {
+        match *self { Value::Table(ref s) => Some(s), _ => None }
+    }
+
+    fn same_type(&self, other: &Value) -> bool {
+        match (self, other) {
+            (&Value::String(..), &Value::String(..)) |
+            (&Value::Integer(..), &Value::Integer(..)) |
+            (&Value::Float(..), &Value::Float(..)) |
+            (&Value::Boolean(..), &Value::Boolean(..)) |
+            (&Value::Datetime(..), &Value::Datetime(..)) |
+            (&Value::Array(..), &Value::Array(..)) |
+            (&Value::Table(..), &Value::Table(..)) => true,
+
+            _ => false,
+        }
+    }
+
+    fn convert(self) -> super::Value {
+        match self {
+            Value::String(x) => super::Value::String(x),
+            Value::Integer(x) => super::Value::Integer(x),
+            Value::Float(x) => super::Value::Float(x),
+            Value::Boolean(x) => super::Value::Boolean(x),
+            Value::Datetime(x) => super::Value::Datetime(x),
+            Value::Array(v) =>
+                super::Value::Array(
+                    v.into_iter().map(|x| x.convert()).collect()
+                ),
+            Value::Table(t) => super::Value::Table(t.convert())
+        }
+    }
 }
 
 /// Parser for converting a string to a TOML `Value` instance.
@@ -161,7 +240,7 @@ impl<'a> Parser<'a> {
     ///
     /// If an error occurs, the `errors` field of this parser can be consulted
     /// to determine the cause of the parse failure.
-    pub fn parse(&mut self) -> Option<TomlTable> {
+    pub fn parse(&mut self) -> Option<super::Table> {
         let mut ret = TomlTable(BTreeMap::new(), false);
         while self.peek(0).is_some() {
             self.ws();
@@ -192,7 +271,7 @@ impl<'a> Parser<'a> {
                 let mut table = TomlTable(BTreeMap::new(), false);
                 if !self.values(&mut table) { return None }
                 if array {
-                    self.insert_array(&mut ret, &*keys, Table(table), start)
+                    self.insert_array(&mut ret, &*keys, Value::Table(table), start)
                 } else {
                     self.insert_table(&mut ret, &*keys, table, start)
                 }
@@ -203,7 +282,7 @@ impl<'a> Parser<'a> {
         if self.errors.len() > 0 {
             None
         } else {
-            Some(ret)
+            Some(ret.convert())
         }
     }
 
@@ -519,9 +598,9 @@ impl<'a> Parser<'a> {
             };
             let input = input.trim_left_matches('+');
             if is_float {
-                input.parse().ok().map(Float)
+                input.parse().ok().map(Value::Float)
             } else {
-                input.parse().ok().map(Integer)
+                input.parse().ok().map(Value::Integer)
             }
         };
         if ret.is_none() {
@@ -603,12 +682,12 @@ impl<'a> Parser<'a> {
             for _ in 0..4 {
                 self.cur.next();
             }
-            Some(Boolean(true))
+            Some(Value::Boolean(true))
         } else if rest.starts_with("false") {
             for _ in 0..5 {
                 self.cur.next();
             }
-            Some(Boolean(false))
+            Some(Value::Boolean(false))
         } else {
             let next = self.next_pos();
             self.errors.push(ParserError {
@@ -659,7 +738,7 @@ impl<'a> Parser<'a> {
         valid = valid && it.next().map(is_digit).unwrap_or(false);
         valid = valid && it.next().map(|c| c == 'Z').unwrap_or(false);
         if valid {
-            Some(Datetime(date.clone()))
+            Some(Value::Datetime(date.clone()))
         } else {
             self.errors.push(ParserError {
                 lo: start,
@@ -683,7 +762,7 @@ impl<'a> Parser<'a> {
         loop {
             // Break out early if we see the closing bracket
             consume(self);
-            if self.eat(']') { return Some(Array(ret)) }
+            if self.eat(']') { return Some(Value::Array(ret)) }
 
             // Attempt to parse a value, triggering an error if it's the wrong
             // type.
@@ -709,14 +788,14 @@ impl<'a> Parser<'a> {
         }
         consume(self);
         if !self.expect(']') { return None }
-        return Some(Array(ret))
+        return Some(Value::Array(ret))
     }
 
     fn inline_table(&mut self, _start: usize) -> Option<Value> {
         if !self.expect('{') { return None }
         self.ws();
         let mut ret = TomlTable(BTreeMap::new(), true);
-        if self.eat('}') { return Some(Table(ret)) }
+        if self.eat('}') { return Some(Value::Table(ret)) }
         loop {
             let lo = self.next_pos();
             let key = try!(self.key_name());
@@ -729,7 +808,7 @@ impl<'a> Parser<'a> {
             if !self.expect(',') { return None }
             self.ws();
         }
-        return Some(Table(ret))
+        return Some(Value::Table(ret))
     }
 
     fn insert(&mut self, into: &mut TomlTable, key: String, value: Value,
@@ -753,13 +832,13 @@ impl<'a> Parser<'a> {
 
             if tmp.0.contains_key(part) {
                 match *tmp.0.get_mut(part).unwrap() {
-                    Table(ref mut table) => {
+                    Value::Table(ref mut table) => {
                         cur = table;
                         continue
                     }
-                    Array(ref mut array) => {
+                    Value::Array(ref mut array) => {
                         match array.last_mut() {
-                            Some(&mut Table(ref mut table)) => cur = table,
+                            Some(&mut Value::Table(ref mut table)) => cur = table,
                             _ => {
                                 self.errors.push(ParserError {
                                     lo: key_lo,
@@ -785,9 +864,9 @@ impl<'a> Parser<'a> {
             }
 
             // Initialize an empty table as part of this sub-key
-            tmp.0.insert(part.clone(), Table(TomlTable(BTreeMap::new(), false)));
+            tmp.0.insert(part.clone(), Value::Table(TomlTable(BTreeMap::new(), false)));
             match *tmp.0.get_mut(part).unwrap() {
-                Table(ref mut inner) => cur = inner,
+                Value::Table(ref mut inner) => cur = inner,
                 _ => unreachable!(),
             }
         }
@@ -803,11 +882,11 @@ impl<'a> Parser<'a> {
         let key = format!("{}", key);
         let mut added = false;
         if !into.0.contains_key(&key) {
-            into.0.insert(key.clone(), Table(TomlTable(BTreeMap::new(), true)));
+            into.0.insert(key.clone(), Value::Table(TomlTable(BTreeMap::new(), true)));
             added = true;
         }
         match into.0.get_mut(&key) {
-            Some(&mut Table(ref mut table)) => {
+            Some(&mut Value::Table(ref mut table)) => {
                 let any_tables = table.0.values().any(|v| v.as_table().is_some());
                 if !added && (!any_tables || table.1) {
                     self.errors.push(ParserError {
@@ -845,10 +924,10 @@ impl<'a> Parser<'a> {
         };
         let key = format!("{}", key);
         if !into.0.contains_key(&key) {
-            into.0.insert(key.clone(), Array(Vec::new()));
+            into.0.insert(key.clone(), Value::Array(Vec::new()));
         }
         match *into.0.get_mut(&key).unwrap() {
-            Array(ref mut vec) => {
+            Value::Array(ref mut vec) => {
                 match vec.first() {
                     Some(ref v) if !v.same_type(&value) => {
                         self.errors.push(ParserError {
