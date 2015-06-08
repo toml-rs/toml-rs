@@ -9,7 +9,7 @@ macro_rules! try {
     ($e:expr) => (match $e { Some(s) => s, None => return None })
 }
 
-/* 
+/*
  * We redefine Array, Table and Value, because we need to keep track of
  * encountered table definitions, eg when parsing:
  * [a]
@@ -56,7 +56,7 @@ impl Value {
             Value::Table(..) => "table",
         }
     }
-    
+
     fn as_table<'a>(&'a self) -> Option<&'a TomlTable> {
         match *self { Value::Table(ref s) => Some(s), _ => None }
     }
@@ -254,9 +254,8 @@ impl<'a> Parser<'a> {
                 let mut keys = Vec::new();
                 loop {
                     self.ws();
-                    match self.key_name() {
-                        Some(s) => keys.push(s),
-                        None => {}
+                    if let Some(s) = self.key_name() {
+                        keys.push(s);
                     }
                     self.ws();
                     if self.eat(']') {
@@ -293,18 +292,13 @@ impl<'a> Parser<'a> {
             self.finish_string(start, false)
         } else {
             let mut ret = String::new();
-            loop {
-                match self.cur.clone().next() {
-                    Some((_, ch)) => {
-                        match ch {
-                            'a' ... 'z' |
-                            'A' ... 'Z' |
-                            '0' ... '9' |
-                            '_' | '-' => { self.cur.next(); ret.push(ch) }
-                            _ => break,
-                        }
-                    }
-                    None => break
+            while let Some((_, ch)) = self.cur.clone().next() {
+                match ch {
+                    'a' ... 'z' |
+                    'A' ... 'Z' |
+                    '0' ... '9' |
+                    '_' | '-' => { self.cur.next(); ret.push(ch) }
+                    _ => break,
                 }
             }
             Some(ret)
@@ -423,9 +417,8 @@ impl<'a> Parser<'a> {
                     return Some(ret)
                 }
                 Some((pos, '\\')) => {
-                    match escape(self, pos, multiline) {
-                        Some(c) => ret.push(c),
-                        None => {}
+                    if let Some(c) = escape(self, pos, multiline) {
+                        ret.push(c);
                     }
                 }
                 Some((pos, ch)) if ch < '\u{1f}' => {
@@ -470,32 +463,26 @@ impl<'a> Parser<'a> {
                     } else {
                         "invalid"
                     };
-                    match u32::from_str_radix(num, 16).ok() {
-                        Some(n) => {
-                            match char::from_u32(n) {
-                                Some(c) => {
-                                    me.cur.by_ref().skip(len - 1).next();
-                                    return Some(c)
-                                }
-                                None => {
-                                    me.errors.push(ParserError {
-                                        lo: pos + 1,
-                                        hi: pos + 5,
-                                        desc: format!("codepoint `{:x}` is \
-                                                       not a valid unicode \
-                                                       codepoint", n),
-                                    })
-                                }
-                            }
-                        }
-                        None => {
+                    if let Some(n) = u32::from_str_radix(num, 16).ok() {
+                        if let Some(c) = char::from_u32(n) {
+                            me.cur.by_ref().skip(len - 1).next();
+                            return Some(c)
+                        } else {
                             me.errors.push(ParserError {
-                                lo: pos,
-                                hi: pos + 1,
-                                desc: format!("expected {} hex digits \
-                                               after a `{}` escape", len, c),
+                                lo: pos + 1,
+                                hi: pos + 5,
+                                desc: format!("codepoint `{:x}` is \
+                                               not a valid unicode \
+                                               codepoint", n),
                             })
                         }
+                    } else {
+                        me.errors.push(ParserError {
+                            lo: pos,
+                            hi: pos + 1,
+                            desc: format!("expected {} hex digits \
+                                           after a `{}` escape", len, c),
+                        })
                     }
                     None
                 }
@@ -832,10 +819,7 @@ impl<'a> Parser<'a> {
 
             if tmp.0.contains_key(part) {
                 match *tmp.0.get_mut(part).unwrap() {
-                    Value::Table(ref mut table) => {
-                        cur = table;
-                        continue
-                    }
+                    Value::Table(ref mut table) => cur = table,
                     Value::Array(ref mut array) => {
                         match array.last_mut() {
                             Some(&mut Value::Table(ref mut table)) => cur = table,
@@ -849,7 +833,6 @@ impl<'a> Parser<'a> {
                                 return None
                             }
                         }
-                        continue
                     }
                     _ => {
                         self.errors.push(ParserError {
@@ -861,6 +844,7 @@ impl<'a> Parser<'a> {
                         return None
                     }
                 }
+                continue
             }
 
             // Initialize an empty table as part of this sub-key
@@ -922,11 +906,10 @@ impl<'a> Parser<'a> {
             Some(pair) => pair,
             None => return,
         };
-        let key = format!("{}", key);
-        if !into.0.contains_key(&key) {
-            into.0.insert(key.clone(), Value::Array(Vec::new()));
+        if !into.0.contains_key(key) {
+            into.0.insert(key.to_owned(), Value::Array(Vec::new()));
         }
-        match *into.0.get_mut(&key).unwrap() {
+        match *into.0.get_mut(key).unwrap() {
             Value::Array(ref mut vec) => {
                 match vec.first() {
                     Some(ref v) if !v.same_type(&value) => {
