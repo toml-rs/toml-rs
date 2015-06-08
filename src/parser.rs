@@ -9,38 +9,31 @@ macro_rules! try {
     ($e:expr) => (match $e { Some(s) => s, None => return None })
 }
 
-/*
- * We redefine Array, Table and Value, because we need to keep track of
- * encountered table definitions, eg when parsing:
- * [a]
- * [a.b]
- * [a]
- * we have to error out on redefinition of [a].
- * This bit of data is impossible to represent in the user-consumed table
- * without breaking compatibility, so we use one AST structure during parsing
- * and expose another (after running convert(...) on it) to the user.
- */
-type Array = Vec<Value>;
-
-#[derive(PartialEq, Clone, Debug)]
-// If the bool flag is true, the table was explicitly defined
-// e.g. in a toml document: `[a.b] foo = "bar"`, Table `a` would be false,
-// where table `b` (contained inside `a`) would be true.
+// We redefine Array, Table and Value, because we need to keep track of
+// encountered table definitions, eg when parsing:
+//
+//      [a]
+//      [a.b]
+//      [a]
+//
+// we have to error out on redefinition of [a]. This bit of data is difficult to
+// track in a side table so we just have a "stripped down" AST to work with
+// which has the relevant metadata fields in it.
 struct TomlTable(BTreeMap<String, Value>, bool);
+
 impl TomlTable {
     fn convert(self) -> super::Table {
         self.0.into_iter().map(|(k,v)| (k,v.convert())).collect()
     }
 }
 
-#[derive(PartialEq, Clone, Debug)]
 enum Value {
     String(String),
     Integer(i64),
     Float(f64),
     Boolean(bool),
     Datetime(String),
-    Array(Array),
+    Array(Vec<Value>),
     Table(TomlTable),
 }
 
@@ -55,10 +48,6 @@ impl Value {
             Value::Array(..) => "array",
             Value::Table(..) => "table",
         }
-    }
-
-    fn as_table<'a>(&'a self) -> Option<&'a TomlTable> {
-        match *self { Value::Table(ref s) => Some(s), _ => None }
     }
 
     fn same_type(&self, other: &Value) -> bool {
@@ -267,7 +256,7 @@ impl<'a> Parser<'a> {
                 if keys.len() == 0 { return None }
 
                 // Build the section table
-                let mut table = TomlTable(BTreeMap::new(), false);
+                let mut table = TomlTable(BTreeMap::new(), true);
                 if !self.values(&mut table) { return None }
                 if array {
                     self.insert_array(&mut ret, &keys, Value::Table(table),
@@ -864,40 +853,33 @@ impl<'a> Parser<'a> {
             Some(pair) => pair,
             None => return,
         };
-        let key = format!("{}", key);
-        let mut added = false;
-        if !into.0.contains_key(&key) {
-            into.0.insert(key.clone(), Value::Table(TomlTable(BTreeMap::new(), true)));
-            added = true;
+        if !into.0.contains_key(key) {
+            into.0.insert(key.to_owned(), Value::Table(value));
+            return
         }
-        match into.0.get_mut(&key) {
-            Some(&mut Value::Table(ref mut table)) => {
-                let any_tables = table.0.values().any(|v| v.as_table().is_some());
-                if !added && (!any_tables || table.1) {
-                    self.errors.push(ParserError {
-                        lo: key_lo,
-                        hi: key_lo + key.len(),
-                        desc: format!("redefinition of table `{}`", key),
-                    });
-                }
-                for (k, v) in value.0.into_iter() {
-                    if table.0.insert(k.clone(), v).is_some() {
-                        self.errors.push(ParserError {
-                            lo: key_lo,
-                            hi: key_lo + key.len(),
-                            desc: format!("duplicate key `{}` in table", k),
-                        });
-                    }
-                }
-            }
-            Some(_) => {
+        if let Value::Table(ref mut table) = *into.0.get_mut(key).unwrap() {
+            if table.1 {
                 self.errors.push(ParserError {
                     lo: key_lo,
                     hi: key_lo + key.len(),
-                    desc: format!("duplicate key `{}` in table", key),
+                    desc: format!("redefinition of table `{}`", key),
                 });
             }
-            None => {}
+            for (k, v) in value.0 {
+                if table.0.insert(k.clone(), v).is_some() {
+                    self.errors.push(ParserError {
+                        lo: key_lo,
+                        hi: key_lo + key.len(),
+                        desc: format!("duplicate key `{}` in table", k),
+                    });
+                }
+            }
+        } else {
+            self.errors.push(ParserError {
+                lo: key_lo,
+                hi: key_lo + key.len(),
+                desc: format!("duplicate key `{}` in table", key),
+            });
         }
     }
 
