@@ -9,8 +9,8 @@ macro_rules! try {
     ($e:expr) => (match $e { Some(s) => s, None => return None })
 }
 
-// We redefine Array, Table and Value, because we need to keep track of
-// encountered table definitions, eg when parsing:
+// We redefine Value because we need to keep track of encountered table
+// definitions, eg when parsing:
 //
 //      [a]
 //      [a.b]
@@ -19,11 +19,14 @@ macro_rules! try {
 // we have to error out on redefinition of [a]. This bit of data is difficult to
 // track in a side table so we just have a "stripped down" AST to work with
 // which has the relevant metadata fields in it.
-struct TomlTable(BTreeMap<String, Value>, bool);
+struct TomlTable {
+    values: BTreeMap<String, Value>,
+    defined: bool,
+}
 
 impl TomlTable {
     fn convert(self) -> super::Table {
-        self.0.into_iter().map(|(k,v)| (k,v.convert())).collect()
+        self.values.into_iter().map(|(k,v)| (k, v.convert())).collect()
     }
 }
 
@@ -230,7 +233,7 @@ impl<'a> Parser<'a> {
     /// If an error occurs, the `errors` field of this parser can be consulted
     /// to determine the cause of the parse failure.
     pub fn parse(&mut self) -> Option<super::Table> {
-        let mut ret = TomlTable(BTreeMap::new(), false);
+        let mut ret = TomlTable { values: BTreeMap::new(), defined: false };
         while self.peek(0).is_some() {
             self.ws();
             if self.newline() { continue }
@@ -256,7 +259,10 @@ impl<'a> Parser<'a> {
                 if keys.len() == 0 { return None }
 
                 // Build the section table
-                let mut table = TomlTable(BTreeMap::new(), true);
+                let mut table = TomlTable {
+                    values: BTreeMap::new(),
+                    defined: true,
+                };
                 if !self.values(&mut table) { return None }
                 if array {
                     self.insert_array(&mut ret, &keys, Value::Table(table),
@@ -771,7 +777,7 @@ impl<'a> Parser<'a> {
     fn inline_table(&mut self, _start: usize) -> Option<Value> {
         if !self.expect('{') { return None }
         self.ws();
-        let mut ret = TomlTable(BTreeMap::new(), true);
+        let mut ret = TomlTable { values: BTreeMap::new(), defined: true };
         if self.eat('}') { return Some(Value::Table(ret)) }
         loop {
             let lo = self.next_pos();
@@ -790,14 +796,14 @@ impl<'a> Parser<'a> {
 
     fn insert(&mut self, into: &mut TomlTable, key: String, value: Value,
               key_lo: usize) {
-        if into.0.contains_key(&key) {
+        if into.values.contains_key(&key) {
             self.errors.push(ParserError {
                 lo: key_lo,
                 hi: key_lo + key.len(),
                 desc: format!("duplicate key: `{}`", key),
             })
         } else {
-            into.0.insert(key, value);
+            into.values.insert(key, value);
         }
     }
 
@@ -807,8 +813,8 @@ impl<'a> Parser<'a> {
         for part in keys[..keys.len() - 1].iter() {
             let tmp = cur;
 
-            if tmp.0.contains_key(part) {
-                match *tmp.0.get_mut(part).unwrap() {
+            if tmp.values.contains_key(part) {
+                match *tmp.values.get_mut(part).unwrap() {
                     Value::Table(ref mut table) => cur = table,
                     Value::Array(ref mut array) => {
                         match array.last_mut() {
@@ -838,8 +844,11 @@ impl<'a> Parser<'a> {
             }
 
             // Initialize an empty table as part of this sub-key
-            tmp.0.insert(part.clone(), Value::Table(TomlTable(BTreeMap::new(), false)));
-            match *tmp.0.get_mut(part).unwrap() {
+            tmp.values.insert(part.clone(), Value::Table(TomlTable {
+                values: BTreeMap::new(),
+                defined: false,
+            }));
+            match *tmp.values.get_mut(part).unwrap() {
                 Value::Table(ref mut inner) => cur = inner,
                 _ => unreachable!(),
             }
@@ -848,25 +857,25 @@ impl<'a> Parser<'a> {
     }
 
     fn insert_table(&mut self, into: &mut TomlTable, keys: &[String],
-                    value: TomlTable, key_lo: usize) {
+                    table: TomlTable, key_lo: usize) {
         let (into, key) = match self.recurse(into, keys, key_lo) {
             Some(pair) => pair,
             None => return,
         };
-        if !into.0.contains_key(key) {
-            into.0.insert(key.to_owned(), Value::Table(value));
+        if !into.values.contains_key(key) {
+            into.values.insert(key.to_owned(), Value::Table(table));
             return
         }
-        if let Value::Table(ref mut table) = *into.0.get_mut(key).unwrap() {
-            if table.1 {
+        if let Value::Table(ref mut into) = *into.values.get_mut(key).unwrap() {
+            if into.defined {
                 self.errors.push(ParserError {
                     lo: key_lo,
                     hi: key_lo + key.len(),
                     desc: format!("redefinition of table `{}`", key),
                 });
             }
-            for (k, v) in value.0 {
-                if table.0.insert(k.clone(), v).is_some() {
+            for (k, v) in table.values {
+                if into.values.insert(k.clone(), v).is_some() {
                     self.errors.push(ParserError {
                         lo: key_lo,
                         hi: key_lo + key.len(),
@@ -889,10 +898,10 @@ impl<'a> Parser<'a> {
             Some(pair) => pair,
             None => return,
         };
-        if !into.0.contains_key(key) {
-            into.0.insert(key.to_owned(), Value::Array(Vec::new()));
+        if !into.values.contains_key(key) {
+            into.values.insert(key.to_owned(), Value::Array(Vec::new()));
         }
-        match *into.0.get_mut(key).unwrap() {
+        match *into.values.get_mut(key).unwrap() {
             Value::Array(ref mut vec) => {
                 match vec.first() {
                     Some(ref v) if !v.same_type(&value) => {
