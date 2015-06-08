@@ -270,9 +270,10 @@ impl<'a> Parser<'a> {
                 let mut table = TomlTable(BTreeMap::new(), false);
                 if !self.values(&mut table) { return None }
                 if array {
-                    self.insert_array(&mut ret, &*keys, Value::Table(table), start)
+                    self.insert_array(&mut ret, &keys, Value::Table(table),
+                                      start)
                 } else {
-                    self.insert_table(&mut ret, &*keys, table, start)
+                    self.insert_table(&mut ret, &keys, table, start)
                 }
             } else {
                 if !self.values(&mut ret) { return None }
