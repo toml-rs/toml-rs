@@ -1381,14 +1381,29 @@ trimmed in raw strings.
 
     #[test]
     fn bad_table_redefine() {
-        let mut p = Parser::new("
+        bad!("
             [a]
             foo=\"bar\"
             [a.b]
             foo=\"bar\"
             [a]
-            baz=\"bar\"
-        ");
-        assert!(p.parse().is_none());
+        ", "redefinition of table `a`");
+        bad!("
+            [a]
+            foo=\"bar\"
+            b = { foo = \"bar\" }
+            [a]
+        ", "redefinition of table `a`");
+        bad!("
+            [a]
+            b = {}
+            [a.b]
+        ", "redefinition of table `b`");
+
+        bad!("
+            [a]
+            b = {}
+            [a]
+        ", "redefinition of table `a`");
     }
 }
