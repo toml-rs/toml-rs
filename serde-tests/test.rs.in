@@ -1,8 +1,3 @@
-#![cfg(feature = "serde")]
-#![feature(custom_derive, plugin)]
-#![plugin(serde_macros)]
-
-
 extern crate serde;
 extern crate toml;
 
@@ -308,8 +303,8 @@ fn parse_enum() {
     }
 
     let v = Foo { a: E::Bar(10) };
-    // technically serde is correct here. a single element tuple still is a tuple and therefor
-    // a sequence
+    // technically serde is correct here. a single element tuple still is a
+    // tuple and therefor a sequence
     assert_eq!(
         encode!(v),
         map! { a, Integer(10) }
