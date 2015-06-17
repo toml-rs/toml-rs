@@ -39,7 +39,12 @@
 #![deny(missing_docs)]
 #![cfg_attr(test, deny(warnings))]
 
+#![allow(dead_code)]
+#![allow(unused_variables)]
+#![allow(unused_imports)]
+
 #[cfg(feature = "rustc-serialize")] extern crate rustc_serialize;
+
 
 use std::collections::BTreeMap;
 use std::str::FromStr;
@@ -52,6 +57,7 @@ pub use self::encoder::{Encoder, Error, encode, encode_str};
 #[cfg(any(feature = "rustc-serialize", feature = "serde"))]
 pub use self::decoder::{Decoder, DecodeError, DecodeErrorKind, decode, decode_str};
 
+mod doc;
 mod parser;
 mod display;
 #[cfg(any(feature = "rustc-serialize", feature = "serde"))]

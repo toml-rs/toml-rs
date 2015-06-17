@@ -1,87 +1,22 @@
 use std::ascii::AsciiExt;
 use std::char;
-use std::collections::BTreeMap;
+use std::collections::hash_map::Entry;
+use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::fmt;
 use std::str;
+use std::cell::{RefCell};
+use std::rc::Rc;
+
+use doc::{ContainerData, Formatted, Key, KvpMap, RootTable};
+use doc::{IndirectChild, Container};
+use doc::Value as DocValue;
 
 macro_rules! try {
     ($e:expr) => (match $e { Some(s) => s, None => return None })
 }
 
-// We redefine Value because we need to keep track of encountered table
-// definitions, eg when parsing:
-//
-//      [a]
-//      [a.b]
-//      [a]
-//
-// we have to error out on redefinition of [a]. This bit of data is difficult to
-// track in a side table so we just have a "stripped down" AST to work with
-// which has the relevant metadata fields in it.
-struct TomlTable {
-    values: BTreeMap<String, Value>,
-    defined: bool,
-}
-
-impl TomlTable {
-    fn convert(self) -> super::Table {
-        self.values.into_iter().map(|(k,v)| (k, v.convert())).collect()
-    }
-}
-
-enum Value {
-    String(String),
-    Integer(i64),
-    Float(f64),
-    Boolean(bool),
-    Datetime(String),
-    Array(Vec<Value>),
-    Table(TomlTable),
-}
-
-impl Value {
-    fn type_str(&self) -> &'static str {
-        match *self {
-            Value::String(..) => "string",
-            Value::Integer(..) => "integer",
-            Value::Float(..) => "float",
-            Value::Boolean(..) => "boolean",
-            Value::Datetime(..) => "datetime",
-            Value::Array(..) => "array",
-            Value::Table(..) => "table",
-        }
-    }
-
-    fn same_type(&self, other: &Value) -> bool {
-        match (self, other) {
-            (&Value::String(..), &Value::String(..)) |
-            (&Value::Integer(..), &Value::Integer(..)) |
-            (&Value::Float(..), &Value::Float(..)) |
-            (&Value::Boolean(..), &Value::Boolean(..)) |
-            (&Value::Datetime(..), &Value::Datetime(..)) |
-            (&Value::Array(..), &Value::Array(..)) |
-            (&Value::Table(..), &Value::Table(..)) => true,
-
-            _ => false,
-        }
-    }
-
-    fn convert(self) -> super::Value {
-        match self {
-            Value::String(x) => super::Value::String(x),
-            Value::Integer(x) => super::Value::Integer(x),
-            Value::Float(x) => super::Value::Float(x),
-            Value::Boolean(x) => super::Value::Boolean(x),
-            Value::Datetime(x) => super::Value::Datetime(x),
-            Value::Array(v) =>
-                super::Value::Array(
-                    v.into_iter().map(|x| x.convert()).collect()
-                ),
-            Value::Table(t) => super::Value::Table(t.convert())
-        }
-    }
-}
+type Segment<'a> =(Option<&'a mut KvpMap>, Option<&'a mut HashMap<String,IndirectChild>>);
 
 /// Parser for converting a string to a TOML `Value` instance.
 ///
@@ -90,6 +25,7 @@ impl Value {
 pub struct Parser<'a> {
     input: &'a str,
     cur: str::CharIndices<'a>,
+    aux_text: &'a str,
 
     /// A list of all errors which have occurred during parsing.
     ///
@@ -139,6 +75,7 @@ impl<'a> Parser<'a> {
             input: s,
             cur: s.char_indices(),
             errors: Vec::new(),
+            aux_text: ""
         }
     }
 
@@ -224,6 +161,48 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn skip_aux(&mut self) {
+        let start = self.next_pos();
+        loop {
+            self.ws();
+            if self.newline() { continue }
+            if self.comment() { continue }
+            break;
+        }
+        self.aux_text = &self.input[start..self.next_pos()];
+    }
+
+    fn eat_aux(&mut self) -> &str {
+        self.skip_aux();
+        self.take_aux()
+    }
+
+    fn eat_to_newline(&mut self) -> &str {
+        let start = self.next_pos();
+        self.ws();
+        self.newline();
+        self.comment();
+        self.aux_text = &self.input[start..self.next_pos()];
+        self.take_aux()
+    }
+
+    fn eat_ws(&mut self) -> &str {
+        self.skip_ws();
+        self.take_aux()
+    }
+
+    fn skip_ws(&mut self) {
+        let start = self.next_pos();
+        self.ws();
+        self.aux_text = &self.input[start..self.next_pos()];
+    }
+
+    fn take_aux<'b>(&'b mut self) -> &'a str {
+        let temp = self.aux_text;
+        self.aux_text = "";
+        temp
+    }
+
     /// Executes the parser, parsing the string contained within.
     ///
     /// This function will return the `TomlTable` instance if parsing is
@@ -233,11 +212,9 @@ impl<'a> Parser<'a> {
     /// If an error occurs, the `errors` field of this parser can be consulted
     /// to determine the cause of the parse failure.
     pub fn parse(&mut self) -> Option<super::Table> {
-        let mut ret = TomlTable { values: BTreeMap::new(), defined: false };
+        let mut ret = RootTable::new();
         while self.peek(0).is_some() {
-            self.ws();
-            if self.newline() { continue }
-            if self.comment() { continue }
+            self.skip_aux();
             if self.eat('[') {
                 let array = self.eat('[');
                 let start = self.next_pos();
@@ -245,11 +222,10 @@ impl<'a> Parser<'a> {
                 // Parse the name of the section
                 let mut keys = Vec::new();
                 loop {
-                    self.ws();
+                    let key_lead_aux = self.eat_ws().to_string();
                     if let Some(s) = self.key_name() {
-                        keys.push(s);
+                        keys.push(Key::new(key_lead_aux, s, self.eat_ws()));
                     }
-                    self.ws();
                     if self.eat(']') {
                         if array && !self.expect(']') { return None }
                         break
@@ -259,19 +235,15 @@ impl<'a> Parser<'a> {
                 if keys.len() == 0 { return None }
 
                 // Build the section table
-                let mut table = TomlTable {
-                    values: BTreeMap::new(),
-                    defined: true,
-                };
-                if !self.values(&mut table) { return None }
+                let mut container = ContainerData::new();
+                if !self.values(&mut container.direct) { return None }
                 if array {
-                    self.insert_array(&mut ret, &keys, Value::Table(table),
-                                      start)
+                    self.insert_array(&mut ret, keys, container)
                 } else {
-                    self.insert_table(&mut ret, &keys, table, start)
+                    self.insert_table(&mut ret, keys, container)
                 }
             } else {
-                if !self.values(&mut ret) { return None }
+                if !self.values(&mut ret.values) { return None }
             }
         }
         if self.errors.len() > 0 {
@@ -315,11 +287,9 @@ impl<'a> Parser<'a> {
 
     // Parses the values into the given TomlTable. Returns true in case of success
     // and false in case of error.
-    fn values(&mut self, into: &mut TomlTable) -> bool {
+    fn values(&mut self, into: &mut KvpMap) -> bool {
         loop {
-            self.ws();
-            if self.newline() { continue }
-            if self.comment() { continue }
+            let pre_key = self.eat_aux().to_string();
             match self.peek(0) {
                 Some((_, '[')) => break,
                 Some(..) => {}
@@ -330,30 +300,22 @@ impl<'a> Parser<'a> {
                 Some(s) => s,
                 None => return false
             };
-            if !self.keyval_sep() { return false }
+            let key = Key::new(pre_key, key, self.eat_ws());
+            if !self.expect('=') { return false }
             let value = match self.value() {
                 Some(value) => value,
                 None => return false,
             };
             self.insert(into, key, value, key_lo);
-            self.ws();
-            self.comment();
-            self.newline();
+            into.set_last_value_trail(self.eat_to_newline());
         }
         return true
     }
 
-    fn keyval_sep(&mut self) -> bool {
-        self.ws();
-        if !self.expect('=') { return false }
-        self.ws();
-        true
-    }
-
     // Parses a value
-    fn value(&mut self) -> Option<Value> {
-        self.ws();
-        match self.cur.clone().next() {
+    fn value(&mut self) -> Option<Formatted<DocValue>> {
+        let leading_ws = self.eat_ws().to_string();
+        let value = match self.cur.clone().next() {
             Some((pos, '"')) => self.string(pos),
             Some((pos, '\'')) => self.literal_string(pos),
             Some((pos, 't')) |
@@ -374,11 +336,12 @@ impl<'a> Parser<'a> {
                 });
                 return None
             }
-        }
+        };
+        value.map(|v| Formatted::<DocValue>::new(leading_ws, v))
     }
 
     // Parses a single or multi-line string
-    fn string(&mut self, start: usize) -> Option<Value> {
+    fn string(&mut self, start: usize) -> Option<DocValue> {
         if !self.expect('"') { return None }
         let mut multiline = false;
 
@@ -390,11 +353,11 @@ impl<'a> Parser<'a> {
                 self.newline();
             } else {
                 // empty
-                return Some(Value::String(String::new()))
+                return Some(DocValue::String(String::new()))
             }
         }
 
-        self.finish_string(start, multiline).map(Value::String)
+        self.finish_string(start, multiline).map(DocValue::String)
     }
 
     // Finish parsing a basic string after the opening quote has been seen
@@ -504,7 +467,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn literal_string(&mut self, start: usize) -> Option<Value> {
+    fn literal_string(&mut self, start: usize) -> Option<DocValue> {
         if !self.expect('\'') { return None }
         let mut multiline = false;
         let mut ret = String::new();
@@ -515,7 +478,7 @@ impl<'a> Parser<'a> {
                 multiline = true;
                 self.newline();
             } else {
-                return Some(Value::String(ret)) // empty
+                return Some(DocValue::String(ret)) // empty
             }
         }
 
@@ -549,10 +512,10 @@ impl<'a> Parser<'a> {
             }
         }
 
-        return Some(Value::String(ret));
+        return Some(DocValue::String(ret));
     }
 
-    fn number_or_datetime(&mut self, start: usize) -> Option<Value> {
+    fn number_or_datetime(&mut self, start: usize) -> Option<DocValue> {
         let mut is_float = false;
         let prefix = try!(self.integer(start, false, true));
         let decimal = if self.eat('.') {
@@ -581,9 +544,9 @@ impl<'a> Parser<'a> {
             };
             let input = input.trim_left_matches('+');
             if is_float {
-                input.parse().ok().map(Value::Float)
+                input.parse().ok().map(DocValue::Float)
             } else {
-                input.parse().ok().map(Value::Integer)
+                input.parse().ok().map(DocValue::Integer)
             }
         };
         if ret.is_none() {
@@ -659,18 +622,18 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn boolean(&mut self, start: usize) -> Option<Value> {
+    fn boolean(&mut self, start: usize) -> Option<DocValue> {
         let rest = &self.input[start..];
         if rest.starts_with("true") {
             for _ in 0..4 {
                 self.cur.next();
             }
-            Some(Value::Boolean(true))
+            Some(DocValue::Boolean(true))
         } else if rest.starts_with("false") {
             for _ in 0..5 {
                 self.cur.next();
             }
-            Some(Value::Boolean(false))
+            Some(DocValue::Boolean(false))
         } else {
             let next = self.next_pos();
             self.errors.push(ParserError {
@@ -683,7 +646,8 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn datetime(&mut self, start: usize, end_so_far: usize) -> Option<Value> {
+    fn datetime(&mut self, start: usize, end_so_far: usize) 
+                -> Option<DocValue> {
         let mut date = format!("{}", &self.input[start..end_so_far]);
         for _ in 0..15 {
             match self.cur.next() {
@@ -721,7 +685,7 @@ impl<'a> Parser<'a> {
         valid = valid && it.next().map(is_digit).unwrap_or(false);
         valid = valid && it.next().map(|c| c == 'Z').unwrap_or(false);
         if valid {
-            Some(Value::Datetime(date.clone()))
+            Some(DocValue::Datetime(date.clone()))
         } else {
             self.errors.push(ParserError {
                 lo: start,
@@ -732,7 +696,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn array(&mut self, _start: usize) -> Option<Value> {
+    fn array(&mut self, _start: usize) -> Option<DocValue> {
         if !self.expect('[') { return None }
         let mut ret = Vec::new();
         fn consume(me: &mut Parser) {
@@ -745,23 +709,24 @@ impl<'a> Parser<'a> {
         loop {
             // Break out early if we see the closing bracket
             consume(self);
-            if self.eat(']') { return Some(Value::Array(ret)) }
+            if self.eat(']') { return Some(DocValue::Array(ret)) }
 
             // Attempt to parse a value, triggering an error if it's the wrong
             // type.
             let start = self.next_pos();
             let value = try!(self.value());
             let end = self.next_pos();
-            let expected = type_str.unwrap_or(value.type_str());
-            if value.type_str() != expected {
+            let expected = type_str.unwrap_or(value.value.type_str());
+            if value.value.type_str() != expected {
                 self.errors.push(ParserError {
                     lo: start,
                     hi: end,
                     desc: format!("expected type `{}`, found type `{}`",
-                                  expected, value.type_str()),
+                                  expected, value.value.type_str()),
                 });
             } else {
                 type_str = Some(expected);
+                // TODO: handle trailing aux
                 ret.push(value);
             }
 
@@ -771,158 +736,243 @@ impl<'a> Parser<'a> {
         }
         consume(self);
         if !self.expect(']') { return None }
-        return Some(Value::Array(ret))
+        return Some(DocValue::Array(ret))
     }
 
-    fn inline_table(&mut self, _start: usize) -> Option<Value> {
+    fn inline_table(&mut self, _start: usize) -> Option<DocValue> {
         if !self.expect('{') { return None }
         self.ws();
-        let mut ret = TomlTable { values: BTreeMap::new(), defined: true };
-        if self.eat('}') { return Some(Value::Table(ret)) }
+        let mut ret = KvpMap::new();
+        if self.eat('}') { return Some(DocValue::InlineTable(ret)) }
         loop {
             let lo = self.next_pos();
             let key = try!(self.key_name());
-            if !self.keyval_sep() { return None }
+            self.ws();
+            if !self.expect('=') { return None }
+            self.ws();
             let value = try!(self.value());
-            self.insert(&mut ret, key, value, lo);
+            self.insert(&mut ret, Key::new(String::new(), key, ""), value, lo);
 
             self.ws();
             if self.eat('}') { break }
             if !self.expect(',') { return None }
             self.ws();
         }
-        return Some(Value::Table(ret))
+        return Some(DocValue::InlineTable(ret))
     }
 
-    fn insert(&mut self, into: &mut TomlTable, key: String, value: Value,
-              key_lo: usize) {
-        if into.values.contains_key(&key) {
+    fn insert(&mut self, into: &mut KvpMap, key: Key,
+              value: Formatted<DocValue>, key_lo: usize) {
+        let key_text = key.key.clone();
+        if !into.insert(key, value) {
             self.errors.push(ParserError {
                 lo: key_lo,
-                hi: key_lo + key.len(),
-                desc: format!("duplicate key: `{}`", key),
+                hi: key_lo + key_text.len(),
+                desc: format!("duplicate key: `{}`", key_text),
             })
-        } else {
-            into.values.insert(key, value);
         }
     }
 
-    fn recurse<'b>(&mut self, mut cur: &'b mut TomlTable, keys: &'b [String],
-                   key_lo: usize) -> Option<(&'b mut TomlTable, &'b str)> {
-        let key_hi = keys.iter().fold(0, |a, b| a + b.len());
-        for part in keys[..keys.len() - 1].iter() {
-            let tmp = cur;
-
-            if tmp.values.contains_key(part) {
-                match *tmp.values.get_mut(part).unwrap() {
-                    Value::Table(ref mut table) => cur = table,
-                    Value::Array(ref mut array) => {
-                        match array.last_mut() {
-                            Some(&mut Value::Table(ref mut table)) => cur = table,
+    fn _insert_exec<F, U>(&mut self, cur: Segment, keys: Vec<Key>, idx: usize, f:F)
+        -> Option<U>
+        where F: FnOnce(&mut Parser, Segment, Vec<Key>) -> U {
+        if idx == keys.len() - 1 { Some(f(self, cur, keys)) }
+        else {
+            if let Some(values) = cur.0 {
+                match values.kvp_index.entry(keys[idx].key.clone()) {
+                    Entry::Occupied(mut entry) => {
+                        match &mut entry.get_mut().borrow_mut().value {
+                            &mut DocValue::InlineTable(ref mut c) => {
+                                let segment = (Some(c), None);
+                                return self._insert_exec(segment, keys, idx+1, f);
+                            }
+                            &mut DocValue::Array(ref mut vec) => {
+                                let has_tables = match vec.first() {
+                                    None => false,
+                                    Some(v) => v.value.is_table()
+                                };
+                                if !has_tables {
+                                    self.errors.push(ParserError {
+                                        lo: 0,
+                                        hi: 0,
+                                        desc: format!("array `{}` does not contain tables",
+                                                       &*keys[idx].key)
+                                    });
+                                    return None;
+                                }
+                                let idx_last = vec.len()-1;
+                                let c = vec[idx_last].value.as_table();
+                                return self._insert_exec((Some(c), None), keys, idx+1, f);
+                            }
                             _ => {
                                 self.errors.push(ParserError {
-                                    lo: key_lo,
-                                    hi: key_hi,
-                                    desc: format!("array `{}` does not contain \
-                                                   tables", part)
+                                    lo: 0,
+                                    hi: 0,
+                                    desc: format!("key `{}` was not previously a table",
+                                                   &*keys[idx].key)
                                 });
-                                return None
+                                return None;
                             }
                         }
                     }
-                    _ => {
-                        self.errors.push(ParserError {
-                            lo: key_lo,
-                            hi: key_hi,
-                            desc: format!("key `{}` was not previously a table",
-                                          part)
-                        });
-                        return None
-                    }
+                    Entry::Vacant(_) => { }
                 }
-                continue
             }
-
-            // Initialize an empty table as part of this sub-key
-            tmp.values.insert(part.clone(), Value::Table(TomlTable {
-                values: BTreeMap::new(),
-                defined: false,
-            }));
-            match *tmp.values.get_mut(part).unwrap() {
-                Value::Table(ref mut inner) => cur = inner,
-                _ => unreachable!(),
+            // TODO: fix error message
+            if cur.1.is_none() {
+                self.errors.push(ParserError {
+                    lo: 0,
+                    hi: 0,
+                    desc: format!("bad things happened")
+                });
+                return None;
+            }
+            match cur.1.unwrap().entry(keys[idx].key.clone()) {
+                Entry::Occupied(mut entry) => match *entry.get_mut() {
+                    IndirectChild::ImplicitTable(ref mut m)
+                        => self._insert_exec((None, Some(m)), keys, idx+1, f),
+                    IndirectChild::ExplicitTable(ref mut c) => {
+                        let c_data = &mut c.borrow_mut().data;
+                        let segment =
+                            (Some(&mut c_data.direct), Some(&mut c_data.indirect));
+                        self._insert_exec(segment, keys, idx+1, f)
+                    }
+                    IndirectChild::Array(ref mut vec) => {
+                        let mut c_data =
+                            &mut vec.last().as_mut().unwrap().borrow_mut().data;
+                        let segment =
+                            (Some(&mut c_data.direct), Some(&mut c_data.indirect));
+                        self._insert_exec(segment, keys, idx+1, f)
+                    }
+                },
+                Entry::Vacant(entry) => {
+                    let empty = HashMap::new();
+                    let map = entry.insert(IndirectChild::ImplicitTable(empty));
+                    self._insert_exec((None, Some(map.as_implicit())), keys, idx+1,f)
+                }
             }
         }
-        Some((cur, &**keys.last().unwrap()))
     }
 
-    fn insert_table(&mut self, into: &mut TomlTable, keys: &[String],
-                    table: TomlTable, key_lo: usize) {
-        let (into, key) = match self.recurse(into, keys, key_lo) {
-            Some(pair) => pair,
-            None => return,
-        };
-        if !into.values.contains_key(key) {
-            into.values.insert(key.to_owned(), Value::Table(table));
-            return
-        }
-        if let Value::Table(ref mut into) = *into.values.get_mut(key).unwrap() {
-            if into.defined {
-                self.errors.push(ParserError {
-                    lo: key_lo,
-                    hi: key_lo + key.len(),
-                    desc: format!("redefinition of table `{}`", key),
-                });
-            }
-            for (k, v) in table.values {
-                if into.values.insert(k.clone(), v).is_some() {
-                    self.errors.push(ParserError {
-                        lo: key_lo,
-                        hi: key_lo + key.len(),
-                        desc: format!("duplicate key `{}` in table", k),
+    fn insert_exec<F, U>(&mut self, r: &mut RootTable, keys: Vec<Key>, f:F)
+                         -> Option<U>
+                         where F: FnOnce(&mut Parser, Segment, Vec<Key>) -> U {
+        self._insert_exec((Some(&mut r.values), Some(&mut r.table_index)), keys, 0, f)
+    }
+
+    fn insert_table(&mut self, root: &mut RootTable, keys: Vec<Key>,
+                    table: ContainerData) {
+        let added = self.insert_exec(root, keys, |this, seg, keys| {
+            { let key = keys.last();
+            let key = key.as_ref().unwrap();
+            if let Some(map) = seg.0 {
+                if map.contains_key(&*key.key) {
+                    let is_table = map.kvp_index.get(&*key.key)
+                                   .unwrap().borrow().value.is_table();
+                    this.errors.push(ParserError {
+                        lo: 0,
+                        hi: 0,
+                        desc: if is_table { format!("redefinition of table `{}`", &*key.key) }
+                              else { format!("duplicate key `{}` in table", &*key.key) },
+                            
                     });
+                    return None;
+                }
+            }}
+            let key_text = keys.last().as_ref().unwrap().key.clone();
+            let container = Container::new_table(table, keys, String::new());
+            let container = Rc::new(RefCell::new(container));
+            match seg.1.unwrap().entry(key_text) {
+                Entry::Occupied(mut entry) => {
+                    let is_implicit = match entry.get() {
+                        &IndirectChild::ImplicitTable(_) => true,
+                        _ => false
+                    };
+                    if is_implicit {
+                       let old = entry.insert(IndirectChild::ExplicitTable(container.clone()));
+                       for (k,v) in old.to_implicit() {
+                            let key_copy = k.clone();
+                            if container.borrow_mut().data.indirect.insert(k, v).is_some() {
+                                this.errors.push(ParserError {
+                                    lo: 0,
+                                    hi: 0,
+                                    desc: format!("duplicate key `{}` in table", key_copy),
+                                });
+                                return None;
+                            }
+                       }
+                       Some(container)
+                    }
+                    else {
+                        let keys = &container.borrow().keys;
+                        this.errors.push(ParserError {
+                            lo: 0,
+                            hi: 0,
+                            desc: format!("redefinition of table `{}`",
+                                           &*keys.last().as_ref().unwrap().key),
+                        });
+                        None
+                    }
+                }
+                Entry::Vacant(entry) => {
+                    entry.insert(IndirectChild::ExplicitTable(container.clone()));
+                    Some(container)
                 }
             }
-        } else {
-            self.errors.push(ParserError {
-                lo: key_lo,
-                hi: key_lo + key.len(),
-                desc: format!("duplicate key `{}` in table", key),
-            });
+        });
+        if let Some(ptr) = added.and_then(|x| x) {
+            root.table_list.push(ptr);
         }
     }
 
-    fn insert_array(&mut self, into: &mut TomlTable,
-                    keys: &[String], value: Value, key_lo: usize) {
-        let (into, key) = match self.recurse(into, keys, key_lo) {
-            Some(pair) => pair,
-            None => return,
-        };
-        if !into.values.contains_key(key) {
-            into.values.insert(key.to_owned(), Value::Array(Vec::new()));
-        }
-        match *into.values.get_mut(key).unwrap() {
-            Value::Array(ref mut vec) => {
-                match vec.first() {
-                    Some(ref v) if !v.same_type(&value) => {
-                        self.errors.push(ParserError {
-                            lo: key_lo,
-                            hi: key_lo + key.len(),
-                            desc: format!("expected type `{}`, found type `{}`",
-                                          v.type_str(), value.type_str()),
-                        })
-                    }
-                    Some(..) | None => {}
+    fn insert_array(&mut self, root: &mut RootTable, keys: Vec<Key>,
+                    table: ContainerData) {
+        let added = self.insert_exec(root, keys, |this, seg, keys| {
+            { let key = keys.last();
+            let key = key.as_ref().unwrap();
+            if let Some(map) = seg.0 {
+                if map.contains_key(&*key.key) {
+                    this.errors.push(ParserError {
+                        lo: 0,
+                        hi: 0,
+                        desc: format!("duplicate key `{}` in table", &*key.key),
+                    });
+                    return None;
                 }
-                vec.push(value);
+            }}
+            let key_text = keys.last().as_ref().unwrap().key.clone();
+            let container = Container::new_array(table, keys, String::new());
+            let container = Rc::new(RefCell::new(container));
+            match seg.1.unwrap().entry(key_text) {
+                Entry::Occupied(mut entry) => {
+                    match *entry.get_mut() {
+                        IndirectChild::ExplicitTable(_)
+                        | IndirectChild::ImplicitTable(_) => {
+                            let keys = &container.borrow().keys;
+                            this.errors.push(ParserError {
+                                lo: 0,
+                                hi: 0,
+                                desc:
+                                    format!(
+                                        "redefinition of table `{}`",
+                                        &*keys.last().as_ref().unwrap().key),
+                            });
+                            None
+                        }
+                        IndirectChild::Array(ref mut vec) => {
+                            vec.push(container.clone());
+                            Some(container)
+                        }
+                    }
+                }
+                Entry::Vacant(entry) => {
+                    entry.insert(IndirectChild::Array(vec!(container.clone())));
+                    Some(container)
+                }
             }
-            _ => {
-                self.errors.push(ParserError {
-                    lo: key_lo,
-                    hi: key_lo + key.len(),
-                    desc: format!("key `{}` was previously not an array", key),
-                });
-            }
+        });
+        if let Some(ptr) = added.and_then(|x| x) {
+            root.table_list.push(ptr);
         }
     }
 }
@@ -1367,7 +1417,7 @@ trimmed in raw strings.
             a = [2]
             [[a]]
             b = 5
-        ", "expected type `integer`, found type `table`");
+        ", "duplicate key `a` in table");
         bad!("
             a = 1
             [a.b]
@@ -1385,7 +1435,7 @@ trimmed in raw strings.
             b = { c = 2, d = {} }
             [a.b]
             c = 2
-        ", "duplicate key `c` in table");
+        ", "redefinition of table `b`");
     }
 
     #[test]
