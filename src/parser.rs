@@ -7,6 +7,7 @@ use std::fmt;
 use std::str;
 use std::cell::{RefCell};
 use std::rc::Rc;
+use std::mem;
 
 use doc::{ContainerData, Formatted, Key, KvpMap, RootTable};
 use doc::{IndirectChild, Container};
@@ -95,6 +96,10 @@ impl<'a> Parser<'a> {
 
     fn next_pos(&self) -> usize {
         self.cur.clone().next().map(|p| p.0).unwrap_or(self.input.len())
+    }
+
+    fn is_at_end(&self) -> bool {
+        self.cur.clone().next().is_none()
     }
 
     // Returns true and consumes the next character if it matches `ch`,
@@ -212,9 +217,15 @@ impl<'a> Parser<'a> {
     /// If an error occurs, the `errors` field of this parser can be consulted
     /// to determine the cause of the parse failure.
     pub fn parse(&mut self) -> Option<super::Table> {
+        self.parse_doc().map(|x| x.convert())
+    }
+
+    /// TODO: write something here
+    pub fn parse_doc(&mut self) -> Option<super::doc::RootTable> {
         let mut ret = RootTable::new();
+        ret.lead = self.eat_aux().to_string();
         while self.peek(0).is_some() {
-            self.skip_aux();
+            let container_aux = self.eat_aux().to_string();
             if self.eat('[') {
                 let array = self.eat('[');
                 let start = self.next_pos();
@@ -236,20 +247,25 @@ impl<'a> Parser<'a> {
 
                 // Build the section table
                 let mut container = ContainerData::new();
-                if !self.values(&mut container.direct) { return None }
+                let container_trail = match self.values(&mut container.direct) {
+                    Some(str_buf) => str_buf,
+                    None => return None
+                };
                 if array {
-                    self.insert_array(&mut ret, keys, container)
+                    self.insert_array(&mut ret, keys, container, 
+                                      container_aux, container_trail)
                 } else {
-                    self.insert_table(&mut ret, keys, container)
+                    self.insert_table(&mut ret, keys, container,
+                                      container_aux, container_trail)
                 }
             } else {
-                if !self.values(&mut ret.values) { return None }
+                if !self.values(&mut ret.values).is_some() { return None }
             }
         }
         if self.errors.len() > 0 {
             None
         } else {
-            Some(ret.convert())
+            Some(ret)
         }
     }
 
@@ -287,29 +303,28 @@ impl<'a> Parser<'a> {
 
     // Parses the values into the given TomlTable. Returns true in case of success
     // and false in case of error.
-    fn values(&mut self, into: &mut KvpMap) -> bool {
+    fn values(&mut self, into: &mut KvpMap) -> Option<String> {
         loop {
             let pre_key = self.eat_aux().to_string();
             match self.peek(0) {
-                Some((_, '[')) => break,
+                Some((_, '[')) => return Some(pre_key),
                 Some(..) => {}
-                None => break,
+                None => return Some(pre_key),
             }
             let key_lo = self.next_pos();
             let key = match self.key_name() {
                 Some(s) => s,
-                None => return false
+                None => return None
             };
             let key = Key::new(pre_key, key, self.eat_ws());
-            if !self.expect('=') { return false }
+            if !self.expect('=') { return None }
             let value = match self.value() {
                 Some(value) => value,
-                None => return false,
+                None => return None,
             };
             self.insert(into, key, value, key_lo);
             into.set_last_value_trail(self.eat_to_newline());
         }
-        return true
     }
 
     // Parses a value
@@ -861,7 +876,7 @@ impl<'a> Parser<'a> {
     }
 
     fn insert_table(&mut self, root: &mut RootTable, keys: Vec<Key>,
-                    table: ContainerData) {
+                    table: ContainerData, lead: String, trail: String) {
         let added = self.insert_exec(root, keys, |this, seg, keys| {
             { let key = keys.last();
             let key = key.as_ref().unwrap();
@@ -880,7 +895,7 @@ impl<'a> Parser<'a> {
                 }
             }}
             let key_text = keys.last().as_ref().unwrap().key.clone();
-            let container = Container::new_table(table, keys, String::new());
+            let container = Container::new_table(table, keys, lead, trail);
             let container = Rc::new(RefCell::new(container));
             match seg.1.unwrap().entry(key_text) {
                 Entry::Occupied(mut entry) => {
@@ -926,7 +941,7 @@ impl<'a> Parser<'a> {
     }
 
     fn insert_array(&mut self, root: &mut RootTable, keys: Vec<Key>,
-                    table: ContainerData) {
+                    table: ContainerData, lead: String, trail: String) {
         let added = self.insert_exec(root, keys, |this, seg, keys| {
             { let key = keys.last();
             let key = key.as_ref().unwrap();
@@ -941,7 +956,7 @@ impl<'a> Parser<'a> {
                 }
             }}
             let key_text = keys.last().as_ref().unwrap().key.clone();
-            let container = Container::new_array(table, keys, String::new());
+            let container = Container::new_array(table, keys, lead, trail);
             let container = Rc::new(RefCell::new(container));
             match seg.1.unwrap().entry(key_text) {
                 Entry::Occupied(mut entry) => {

@@ -19,8 +19,7 @@ pub struct RootTable {
     pub values: KvpMap,
     pub table_list: Vec<Rc<RefCell<Container>>>,
     pub table_index: IndirectChildrenMap,
-    lead: String,
-    trail: String
+    pub lead: String,
 } impl RootTable {
     pub fn new() -> RootTable {
         RootTable {
@@ -28,14 +27,18 @@ pub struct RootTable {
             table_list: Vec::new(),
             table_index: HashMap::new(),
             lead: String::new(),
-            trail: String::new(),
         }
     }
     pub fn convert(self) -> Table {
         self.values.convert().into_iter().chain(convert_indirect_map(&self.table_index)).collect()
     }
-    pub fn set_trail(&mut self, t: &str) {
-        self.trail = t.to_string()
+
+    pub fn print(&self, buf: &mut String) {
+        buf.push_str(&*self.lead);
+        self.values.print(buf);
+        for table in self.table_list.iter() {
+            table.borrow().print(buf);
+        }
     }
 }
 
@@ -76,6 +79,10 @@ pub struct KvpMap {
 
     fn convert(&self) -> Vec<(String, super::Value)> {
         self.kvp_list.iter().map(|&(ref k, ref v)| (k.key.clone(), v.borrow().value.as_value())).collect()
+    }
+
+    fn print(&self, buf: &mut String) {
+
     }
 }
 
@@ -179,38 +186,49 @@ pub struct Container {
     pub data: ContainerData,
     pub keys: Vec<Key>,
     kind: ContainerKind,
-    lead: String,
-    trail: String
+    pub lead: String,
+    pub trail: String
 } impl Container {
 
-    pub fn new_array(data: ContainerData, ks: Vec<Key>, s: String) -> Container{
-        Container::new(ContainerKind::Array, data, ks, s)
+    pub fn new_array(data: ContainerData, ks: Vec<Key>, lead: String,
+                     trail: String) -> Container {
+        Container::new(ContainerKind::Array, data, ks, lead, trail)
     }
 
-    pub fn new_table(data: ContainerData, ks: Vec<Key>, s: String) -> Container{
-        Container::new(ContainerKind::Table, data, ks, s)
+    pub fn new_table(data: ContainerData, ks: Vec<Key>, lead: String,
+                     trail: String) -> Container {
+        Container::new(ContainerKind::Table, data, ks, lead, trail)
     }
 
-    fn new(kind: ContainerKind, data: ContainerData, ks: Vec<Key>, s: String)
-           -> Container {
+    fn new(kind: ContainerKind, data: ContainerData, ks: Vec<Key>, lead: String,
+           trail: String) -> Container {
         Container {
             data: data,
             keys: ks,
             kind: kind,
-            lead: s,
-            trail: String::new()
+            lead: lead,
+            trail: trail
         }
     }
 
     fn print(&self, buf: &mut String) {
         buf.push_str(&*self.lead);
         if self.keys.len() > 0 {
+            match self.kind {
+                ContainerKind::Table => buf.push_str("["),
+                ContainerKind::Array => buf.push_str("[["),
+            }
             for (i, key) in self.keys.iter().enumerate() {
                 key.print(buf);
                 if i < self.keys.len() - 1 { buf.push('.') }
             }
+            match self.kind {
+                ContainerKind::Table => buf.push_str("]"),
+                ContainerKind::Array => buf.push_str("]]"),
+            }
         }
         self.data.print(buf);
+        buf.push_str(&*self.trail);
     }
 
     fn convert(&self) -> super::Value {
@@ -269,4 +287,27 @@ impl Display for Key {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         unimplemented!()
     }
+}
+
+#[cfg(test)]
+mod test {
+    use Parser;
+
+    macro_rules! round_trip {
+        ($text: expr) => ({
+            let mut p = Parser::new($text);
+            let table = p.parse_doc().unwrap();
+            let mut buf = String::new();
+            table.print(&mut buf);
+            if $text != buf {
+                panic!(format!("expected:\n{}\nactual:\n{}\n", $text, buf));
+            }
+        })
+    }
+
+    #[test]
+    fn empty() { round_trip!("  #asd \n ") }
+    #[test]
+    fn single_table() { round_trip!("  #asd\t  \n [a]\n \t \n\n  #asdasdad\n ") }
+
 }
