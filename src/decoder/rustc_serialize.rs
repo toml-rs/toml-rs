@@ -96,15 +96,31 @@ impl rustc_serialize::Decoder for Decoder {
         -> Result<T, DecodeError>
         where F: FnMut(&mut Decoder, usize) -> Result<T, DecodeError>
     {
-        let mut first_error = None;
+        // When decoding enums, this crate takes the strategy of trying to
+        // decode the current TOML as all of the possible variants, returning
+        // success on the first one that succeeds.
+        //
+        // Note that fidelity of the errors returned here is a little nebulous,
+        // but we try to return the error that had the relevant field as the
+        // longest field. This way we hopefully match an error against what was
+        // most likely being written down without losing too much info.
+        let mut first_error = None::<DecodeError>;
         for i in 0..names.len() {
             let mut d = self.sub_decoder(self.toml.clone(), "");
             match f(&mut d, i) {
-                Ok(t) => { self.toml = d.toml; return Ok(t) }
+                Ok(t) => {
+                    self.toml = d.toml;
+                    return Ok(t)
+                }
                 Err(e) => {
-                    if first_error.is_none() {
-                        first_error = Some(e);
+                    if let Some(ref first) = first_error {
+                        let my_len = e.field.as_ref().map(|s| s.len());
+                        let first_len = first.field.as_ref().map(|s| s.len());
+                        if my_len <= first_len {
+                            continue
+                        }
                     }
+                    first_error = Some(e);
                 }
             }
         }
@@ -158,7 +174,7 @@ impl rustc_serialize::Decoder for Decoder {
         let toml = match self.toml {
             Some(Value::Table(ref mut table)) => {
                 table.remove(&field)
-                    .or_else(|| table.remove(&f_name.replace("_", "-")))
+                     .or_else(|| table.remove(&f_name.replace("_", "-")))
             },
             ref found => return Err(self.mismatch("table", found)),
         };
@@ -275,8 +291,8 @@ impl rustc_serialize::Decoder for Decoder {
             Some(Value::Table(ref table)) => {
                 match table.iter().skip(idx).next() {
                     Some((key, _)) => {
-                        let val = Value::String(format!("{}", key));
-                        f(&mut self.sub_decoder(Some(val), &**key))
+                        let val = Value::String(key.to_string());
+                        f(&mut self.sub_decoder(Some(val), key))
                     }
                     None => Err(self.err(ExpectedMapKey(idx))),
                 }
@@ -291,9 +307,9 @@ impl rustc_serialize::Decoder for Decoder {
         match self.toml {
             Some(Value::Table(ref table)) => {
                 match table.iter().skip(idx).next() {
-                    Some((_, value)) => {
+                    Some((key, value)) => {
                         // XXX: this shouldn't clone
-                        f(&mut self.sub_decoder(Some(value.clone()), ""))
+                        f(&mut self.sub_decoder(Some(value.clone()), key))
                     }
                     None => Err(self.err(ExpectedMapElement(idx))),
                 }
@@ -307,5 +323,46 @@ impl rustc_serialize::Decoder for Decoder {
             field: self.cur_field.clone(),
             kind: ApplicationError(format!("{}", err))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use rustc_serialize::Decodable;
+    use std::collections::HashMap;
+
+    use {Parser, Decoder, Value};
+
+    #[test]
+    fn bad_enum_chooses_longest_error() {
+        #[derive(RustcDecodable)]
+        #[allow(dead_code)]
+        struct Foo {
+            wut: HashMap<String, Bar>,
+        }
+
+        #[derive(RustcDecodable)]
+        enum Bar {
+            Simple(String),
+            Detailed(Baz),
+        }
+
+        #[derive(RustcDecodable, Debug)]
+        struct Baz {
+            features: Vec<String>,
+        }
+
+        let s = r#"
+            [wut]
+            a = { features = "" }
+        "#;
+        let v = Parser::new(s).parse().unwrap();
+        let mut d = Decoder::new(Value::Table(v));
+        let err = match Foo::decode(&mut d) {
+            Ok(_) => panic!("expected error"),
+            Err(e) => e,
+        };
+        assert_eq!(err.field.as_ref().unwrap(), "wut.a.features");
+
     }
 }
