@@ -26,6 +26,7 @@ type Segment<'a> =(Option<&'a mut KvpMap>, Option<&'a mut HashMap<String,Indirec
 pub struct Parser<'a> {
     input: &'a str,
     cur: str::CharIndices<'a>,
+    aux_range: Option<(usize, usize)>,
     aux_text: &'a str,
 
     /// A list of all errors which have occurred during parsing.
@@ -76,6 +77,7 @@ impl<'a> Parser<'a> {
             input: s,
             cur: s.char_indices(),
             errors: Vec::new(),
+            aux_range: None,
             aux_text: ""
         }
     }
@@ -167,14 +169,16 @@ impl<'a> Parser<'a> {
     }
 
     fn skip_aux(&mut self) {
-        let start = self.next_pos();
-        loop {
-            self.ws();
-            if self.newline() { continue }
-            if self.comment() { continue }
-            break;
-        }
-        self.aux_text = &self.input[start..self.next_pos()];
+        self.aux_range = Some(self.aux_range.unwrap_or_else(|| {
+            let start = self.next_pos();
+            loop {
+                self.ws();
+                if self.newline() { continue }
+                if self.comment() { continue }
+                break;
+            }
+            (start, self.next_pos())
+        }));
     }
 
     fn eat_aux(&mut self) -> &str {
@@ -187,25 +191,18 @@ impl<'a> Parser<'a> {
         self.ws();
         self.newline();
         self.comment();
-        self.aux_text = &self.input[start..self.next_pos()];
-        self.take_aux()
+        &self.input[start..self.next_pos()]
     }
 
     fn eat_ws(&mut self) -> &str {
-        self.skip_ws();
-        self.take_aux()
-    }
-
-    fn skip_ws(&mut self) {
         let start = self.next_pos();
         self.ws();
-        self.aux_text = &self.input[start..self.next_pos()];
+        &self.input[start..self.next_pos()]
     }
 
     fn take_aux<'b>(&'b mut self) -> &'a str {
-        let temp = self.aux_text;
-        self.aux_text = "";
-        temp
+        self.aux_range.take().map(|(start, end)| &self.input[start..end])
+                      .unwrap_or("")
     }
 
     /// Executes the parser, parsing the string contained within.
@@ -223,10 +220,10 @@ impl<'a> Parser<'a> {
     /// TODO: write something here
     pub fn parse_doc(&mut self) -> Option<super::doc::RootTable> {
         let mut ret = RootTable::new();
-        ret.lead = self.eat_aux().to_string();
         while self.peek(0).is_some() {
-            let container_aux = self.eat_aux().to_string();
+            self.skip_aux();
             if self.eat('[') {
+                let container_aux = self.take_aux();
                 let array = self.eat('[');
                 let start = self.next_pos();
 
@@ -247,33 +244,34 @@ impl<'a> Parser<'a> {
 
                 // Build the section table
                 let mut container = ContainerData::new();
-                let container_trail = match self.values(&mut container.direct) {
-                    Some(str_buf) => str_buf,
-                    None => return None
-                };
+                if !self.values(&mut container.direct) { return None };
                 if array {
                     self.insert_array(&mut ret, keys, container, 
-                                      container_aux, container_trail)
+                                      container_aux.to_string())
                 } else {
                     self.insert_table(&mut ret, keys, container,
-                                      container_aux, container_trail)
+                                      container_aux.to_string())
                 }
             } else {
-                if !self.values(&mut ret.values).is_some() { return None }
+                if !self.values(&mut ret.values) { return None }
             }
         }
         if self.errors.len() > 0 {
             None
         } else {
+            ret.trail = self.take_aux().to_string();
             Some(ret)
         }
     }
 
     // Parse a single key name starting at `start`
-    fn key_name(&mut self) -> Option<String> {
+    fn key_name(&mut self) -> Option<(String, Option<String>)> {
         let start = self.next_pos();
+        let raw;
         let key = if self.eat('"') {
-            self.finish_string(start, false)
+            let escaped = self.finish_string(start, false);
+            raw = Some(&self.input[start..self.next_pos()]);
+            escaped
         } else {
             let mut ret = String::new();
             while let Some((_, ch)) = self.cur.clone().next() {
@@ -285,6 +283,7 @@ impl<'a> Parser<'a> {
                     _ => break,
                 }
             }
+            raw = None;
             Some(ret)
         };
         match key {
@@ -296,31 +295,31 @@ impl<'a> Parser<'a> {
                 });
                 None
             }
-            Some(name) => Some(name),
+            Some(name) => Some((name, raw.map(|x| x.to_string()))),
             None => None,
         }
     }
 
     // Parses the values into the given TomlTable. Returns true in case of success
     // and false in case of error.
-    fn values(&mut self, into: &mut KvpMap) -> Option<String> {
+    fn values(&mut self, into: &mut KvpMap) -> bool {
         loop {
-            let pre_key = self.eat_aux().to_string();
+            self.skip_aux();
             match self.peek(0) {
-                Some((_, '[')) => return Some(pre_key),
+                Some((_, '[')) => return true,
                 Some(..) => {}
-                None => return Some(pre_key),
+                None => return true,
             }
             let key_lo = self.next_pos();
             let key = match self.key_name() {
                 Some(s) => s,
-                None => return None
+                None => return false
             };
-            let key = Key::new(pre_key, key, self.eat_ws());
-            if !self.expect('=') { return None }
+            let key = Key::new(self.take_aux().to_string(), key, self.eat_ws());
+            if !self.expect('=') { return false }
             let value = match self.value() {
                 Some(value) => value,
-                None => return None,
+                None => return false,
             };
             self.insert(into, key, value, key_lo);
             into.set_last_value_trail(self.eat_to_newline());
@@ -778,7 +777,7 @@ impl<'a> Parser<'a> {
 
     fn insert(&mut self, into: &mut KvpMap, key: Key,
               value: Formatted<DocValue>, key_lo: usize) {
-        let key_text = key.key.clone();
+        let key_text =  key.escaped.clone();
         if !into.insert(key, value) {
             self.errors.push(ParserError {
                 lo: key_lo,
@@ -794,7 +793,7 @@ impl<'a> Parser<'a> {
         if idx == keys.len() - 1 { Some(f(self, cur, keys)) }
         else {
             if let Some(values) = cur.0 {
-                match values.kvp_index.entry(keys[idx].key.clone()) {
+                match values.kvp_index.entry(keys[idx].escaped.clone()) {
                     Entry::Occupied(mut entry) => {
                         match &mut entry.get_mut().borrow_mut().value {
                             &mut DocValue::InlineTable(ref mut c) => {
@@ -811,7 +810,7 @@ impl<'a> Parser<'a> {
                                         lo: 0,
                                         hi: 0,
                                         desc: format!("array `{}` does not contain tables",
-                                                       &*keys[idx].key)
+                                                       &*keys[idx].escaped)
                                     });
                                     return None;
                                 }
@@ -824,7 +823,7 @@ impl<'a> Parser<'a> {
                                     lo: 0,
                                     hi: 0,
                                     desc: format!("key `{}` was not previously a table",
-                                                   &*keys[idx].key)
+                                                   &*keys[idx].escaped)
                                 });
                                 return None;
                             }
@@ -842,7 +841,7 @@ impl<'a> Parser<'a> {
                 });
                 return None;
             }
-            match cur.1.unwrap().entry(keys[idx].key.clone()) {
+            match cur.1.unwrap().entry(keys[idx].escaped.clone()) {
                 Entry::Occupied(mut entry) => match *entry.get_mut() {
                     IndirectChild::ImplicitTable(ref mut m)
                         => self._insert_exec((None, Some(m)), keys, idx+1, f),
@@ -876,26 +875,26 @@ impl<'a> Parser<'a> {
     }
 
     fn insert_table(&mut self, root: &mut RootTable, keys: Vec<Key>,
-                    table: ContainerData, lead: String, trail: String) {
+                    table: ContainerData, lead: String) {
         let added = self.insert_exec(root, keys, |this, seg, keys| {
             { let key = keys.last();
             let key = key.as_ref().unwrap();
             if let Some(map) = seg.0 {
-                if map.contains_key(&*key.key) {
-                    let is_table = map.kvp_index.get(&*key.key)
+                if map.contains_key(&* key.escaped) {
+                    let is_table = map.kvp_index.get(&* key.escaped)
                                    .unwrap().borrow().value.is_table();
                     this.errors.push(ParserError {
                         lo: 0,
                         hi: 0,
-                        desc: if is_table { format!("redefinition of table `{}`", &*key.key) }
-                              else { format!("duplicate key `{}` in table", &*key.key) },
+                        desc: if is_table { format!("redefinition of table `{}`", &* key.escaped) }
+                              else { format!("duplicate key `{}` in table", &* key.escaped) },
                             
                     });
                     return None;
                 }
             }}
-            let key_text = keys.last().as_ref().unwrap().key.clone();
-            let container = Container::new_table(table, keys, lead, trail);
+            let key_text = keys.last().as_ref().unwrap().escaped.clone();
+            let container = Container::new_table(table, keys, lead);
             let container = Rc::new(RefCell::new(container));
             match seg.1.unwrap().entry(key_text) {
                 Entry::Occupied(mut entry) => {
@@ -924,7 +923,7 @@ impl<'a> Parser<'a> {
                             lo: 0,
                             hi: 0,
                             desc: format!("redefinition of table `{}`",
-                                           &*keys.last().as_ref().unwrap().key),
+                                           &*keys.last().as_ref().unwrap().escaped),
                         });
                         None
                     }
@@ -941,22 +940,22 @@ impl<'a> Parser<'a> {
     }
 
     fn insert_array(&mut self, root: &mut RootTable, keys: Vec<Key>,
-                    table: ContainerData, lead: String, trail: String) {
+                    table: ContainerData, lead: String) {
         let added = self.insert_exec(root, keys, |this, seg, keys| {
             { let key = keys.last();
             let key = key.as_ref().unwrap();
             if let Some(map) = seg.0 {
-                if map.contains_key(&*key.key) {
+                if map.contains_key(&* key.escaped) {
                     this.errors.push(ParserError {
                         lo: 0,
                         hi: 0,
-                        desc: format!("duplicate key `{}` in table", &*key.key),
+                        desc: format!("duplicate key `{}` in table", &* key.escaped),
                     });
                     return None;
                 }
             }}
-            let key_text = keys.last().as_ref().unwrap().key.clone();
-            let container = Container::new_array(table, keys, lead, trail);
+            let key_text = keys.last().as_ref().unwrap().escaped.clone();
+            let container = Container::new_array(table, keys, lead);
             let container = Rc::new(RefCell::new(container));
             match seg.1.unwrap().entry(key_text) {
                 Entry::Occupied(mut entry) => {
@@ -970,7 +969,7 @@ impl<'a> Parser<'a> {
                                 desc:
                                     format!(
                                         "redefinition of table `{}`",
-                                        &*keys.last().as_ref().unwrap().key),
+                                        &*keys.last().as_ref().unwrap().escaped),
                             });
                             None
                         }

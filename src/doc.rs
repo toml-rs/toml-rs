@@ -5,6 +5,7 @@ use std::fmt::{Display, Error, Formatter};
 use std::rc::Rc;
 use std::iter::Map;
 use std::slice::Iter;
+use std::fmt::Write;
 
 use parser::{ParserError};
 use {Table};
@@ -15,18 +16,22 @@ fn convert_indirect_map(map: &IndirectChildrenMap) -> Vec<(String, super::Value)
     map.iter().map(|(k, c)|(k.clone(), c.convert())).collect()
 }
 
+pub trait Printable {
+    fn print(&self, buf: &mut String);
+}
+
 pub struct RootTable {
     pub values: KvpMap,
     pub table_list: Vec<Rc<RefCell<Container>>>,
     pub table_index: IndirectChildrenMap,
-    pub lead: String,
+    pub trail: String,
 } impl RootTable {
     pub fn new() -> RootTable {
         RootTable {
             values: KvpMap::new(),
             table_list: Vec::new(),
             table_index: HashMap::new(),
-            lead: String::new(),
+            trail: String::new(),
         }
     }
     pub fn convert(self) -> Table {
@@ -34,11 +39,11 @@ pub struct RootTable {
     }
 
     pub fn print(&self, buf: &mut String) {
-        buf.push_str(&*self.lead);
         self.values.print(buf);
         for table in self.table_list.iter() {
             table.borrow().print(buf);
         }
+        buf.push_str(&*self.trail);
     }
 }
 
@@ -62,7 +67,7 @@ pub struct KvpMap {
 
     pub fn insert(&mut self, key: Key, value: Formatted<Value>) -> bool {
         let value = Rc::new(RefCell::new(value));
-        match self.kvp_index.entry(key.key.clone()) {
+        match self.kvp_index.entry(key.escaped.clone()) {
             Entry::Occupied(_) => return false,
             Entry::Vacant(entry) => {
                 entry.insert(value.clone())
@@ -78,19 +83,23 @@ pub struct KvpMap {
     }
 
     fn convert(&self) -> Vec<(String, super::Value)> {
-        self.kvp_list.iter().map(|&(ref k, ref v)| (k.key.clone(), v.borrow().value.as_value())).collect()
+        self.kvp_list.iter().map(|&(ref k, ref v)| (k.escaped.clone(), v.borrow().value.as_value())).collect()
     }
 
     fn print(&self, buf: &mut String) {
-
+        for &(ref key, ref value) in self.kvp_list.iter() {
+            key.print(buf);
+            buf.push('=');
+            value.borrow().print(buf);
+        }
     }
 }
 
-pub struct Formatted<T> {
+pub struct Formatted<T> where T: Printable {
     pub value: T,
     pub lead: String,
     pub trail: String
-} impl<T> Formatted<T> {
+} impl<T:Printable> Formatted<T> {
     pub fn new(lead: String, v: T) -> Formatted<T> {
         Formatted {
             value: v,
@@ -99,12 +108,18 @@ pub struct Formatted<T> {
         }
     }
 
-    pub fn map<U, F:Fn(T)->U>(self, f:F) -> Formatted<U> {
+    pub fn map<U:Printable, F:Fn(T)->U>(self, f:F) -> Formatted<U> {
         Formatted {
             value: f(self.value),
             lead: self.lead,
             trail: self.trail
         }
+    }
+
+    fn print(&self, buf: &mut String) {
+        buf.push_str(&*self.lead);
+        self.value.print(buf);
+        buf.push_str(&*self.trail);
     }
 }
 
@@ -156,6 +171,18 @@ pub enum Value {
             _ => panic!()
         }
     }
+} impl Printable for Value {
+    fn print(&self, buf: &mut String) {
+        match *self {
+            Value::String(ref s) => {
+                buf.push('\"');
+                buf.push_str(&*s);
+                buf.push('\"');
+            }
+            Value::Integer(s) => { write!(buf, "{}", s).unwrap(); }
+            _ => panic!()
+        }
+    }
 }
 
 pub enum IndirectChild {
@@ -187,27 +214,25 @@ pub struct Container {
     pub keys: Vec<Key>,
     kind: ContainerKind,
     pub lead: String,
-    pub trail: String
 } impl Container {
 
-    pub fn new_array(data: ContainerData, ks: Vec<Key>, lead: String,
-                     trail: String) -> Container {
-        Container::new(ContainerKind::Array, data, ks, lead, trail)
+    pub fn new_array(data: ContainerData, ks: Vec<Key>, lead: String)
+                     -> Container {
+        Container::new(ContainerKind::Array, data, ks, lead)
     }
 
-    pub fn new_table(data: ContainerData, ks: Vec<Key>, lead: String,
-                     trail: String) -> Container {
-        Container::new(ContainerKind::Table, data, ks, lead, trail)
+    pub fn new_table(data: ContainerData, ks: Vec<Key>, lead: String)
+                     -> Container {
+        Container::new(ContainerKind::Table, data, ks, lead)
     }
 
-    fn new(kind: ContainerKind, data: ContainerData, ks: Vec<Key>, lead: String,
-           trail: String) -> Container {
+    fn new(kind: ContainerKind, data: ContainerData, ks: Vec<Key>, lead: String)
+           -> Container {
         Container {
             data: data,
             keys: ks,
             kind: kind,
             lead: lead,
-            trail: trail
         }
     }
 
@@ -228,7 +253,6 @@ pub struct Container {
             }
         }
         self.data.print(buf);
-        buf.push_str(&*self.trail);
     }
 
     fn convert(&self) -> super::Value {
@@ -248,7 +272,7 @@ pub struct ContainerData {
     }
 
     fn print(&self, buf: &mut String) {
-
+        self.direct.print(buf);
     }
     fn convert(&self) -> Vec<(String, super::Value)> {
         self.direct.convert().into_iter().chain(convert_indirect_map(&self.indirect)).collect()
@@ -264,21 +288,26 @@ enum ContainerKind {
 
 #[derive(PartialEq, Eq, Hash, Clone)]
 pub struct Key {
-    pub key: String,
+    pub escaped: String,
+    pub raw: Option<String>,
     lead: String,
     trail: String
 } impl Key {
-    pub fn new(lead: String, key: String, trail: &str) -> Key {
+    pub fn new(lead: String, key: (String, Option<String>), trail: &str) -> Key{
         Key {
+            escaped: key.0,
+            raw: key.1,
             lead: lead,
-            key: key,
             trail: trail.to_string(),
         }
     }
 
     fn print(&self, buf: &mut String) {
         buf.push_str(&*self.lead);
-        buf.push_str(&*self.key);
+        match self.raw {
+            Some(ref str_buf) => buf.push_str(&*str_buf),
+            None => buf.push_str(&*self.escaped)
+        };
         buf.push_str(&*self.trail);
     }
 }
@@ -308,6 +337,16 @@ mod test {
     #[test]
     fn empty() { round_trip!("  #asd \n ") }
     #[test]
-    fn single_table() { round_trip!("  #asd\t  \n [a]\n \t \n\n  #asdasdad\n ") }
+    fn single_table() {round_trip!("  #asd\t  \n [a]\n \t \n\n  #asdasdad\n ")}
+    #[test]
+    fn root_key() { round_trip!(" a = \"b\" \n ") }
+    #[test]
+    fn array_with_values() {
+        round_trip!(" #asd \n  \n   [[ a . b ]]  \n  \n  a = 1 \n \n ")
+    }
+    #[test]
+    fn escaped() {
+        round_trip!(" str = \"adas \\\"You can quote me\\\".sdas\" ")
+    }
 
 }
