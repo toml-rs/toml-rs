@@ -124,7 +124,7 @@ pub struct Formatted<T> where T: Printable {
 }
 
 pub enum Value {
-    String(String),
+    String{ raw: String, escaped: String },
     Integer(i64),
     Float(f64),
     Boolean(bool),
@@ -134,7 +134,7 @@ pub enum Value {
 } impl Value {
     pub fn as_value(&self) -> super::Value {
         match self {
-            &Value::String(ref x) => super::Value::String(x.clone()),
+            &Value::String{ escaped: ref x, .. } => super::Value::String(x.clone()),
             &Value::Integer(x) => super::Value::Integer(x),
             &Value::Float(x) => super::Value::Float(x),
             &Value::Boolean(x) => super::Value::Boolean(x),
@@ -148,7 +148,7 @@ pub enum Value {
 
     pub fn type_str(&self) -> &'static str {
         match *self {
-            Value::String(..) => "string",
+            Value::String{..} => "string",
             Value::Integer(..) => "integer",
             Value::Float(..) => "float",
             Value::Boolean(..) => "boolean",
@@ -174,10 +174,8 @@ pub enum Value {
 } impl Printable for Value {
     fn print(&self, buf: &mut String) {
         match *self {
-            Value::String(ref s) => {
-                buf.push('\"');
+            Value::String{ raw: ref s, .. } => {
                 buf.push_str(&*s);
-                buf.push('\"');
             }
             Value::Integer(s) => { write!(buf, "{}", s).unwrap(); }
             _ => panic!()
@@ -347,6 +345,10 @@ mod test {
     #[test]
     fn escaped() {
         round_trip!(" str = \"adas \\\"You can quote me\\\".sdas\" ")
+    }
+    #[test]
+    fn literal_string() {
+        round_trip!(" str = 'C:\\Users\\nodejs\\templates' ")
     }
 
 }

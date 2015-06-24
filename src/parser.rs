@@ -367,11 +367,19 @@ impl<'a> Parser<'a> {
                 self.newline();
             } else {
                 // empty
-                return Some(DocValue::String(String::new()))
+                return Some(DocValue::String {
+                    escaped: String::new(),
+                    raw: "\"\"".to_string()
+                })
             }
         }
 
-        self.finish_string(start, multiline).map(DocValue::String)
+        self.finish_string(start, multiline).map(|x|
+            DocValue::String { 
+                escaped: x,
+                raw: self.input[start..self.next_pos()].to_string()
+            }
+        )
     }
 
     // Finish parsing a basic string after the opening quote has been seen
@@ -492,7 +500,7 @@ impl<'a> Parser<'a> {
                 multiline = true;
                 self.newline();
             } else {
-                return Some(DocValue::String(ret)) // empty
+                return Some(DocValue::String { escaped: "''".to_string(), raw: ret }) // empty
             }
         }
 
@@ -526,7 +534,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        return Some(DocValue::String(ret));
+        return Some(DocValue::String { raw: format!("'{}'", ret), escaped: ret.clone() });
     }
 
     fn number_or_datetime(&mut self, start: usize) -> Option<DocValue> {
