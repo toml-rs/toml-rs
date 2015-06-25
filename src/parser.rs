@@ -158,13 +158,19 @@ impl<'a> Parser<'a> {
     }
 
     // Consumes a newline if one is next
-    fn newline(&mut self) -> bool {
+    fn newline(&mut self) -> Option<&str> {
+        let start = self.next_pos();
         match self.peek(0) {
-            Some((_, '\n')) => { self.cur.next(); true }
-            Some((_, '\r')) if self.peek(1).map(|c| c.1) == Some('\n') => {
-                self.cur.next(); self.cur.next(); true
+            Some((_, '\n')) => { 
+                self.cur.next();
+                Some(&self.input[start..self.next_pos()])
             }
-            _ => false
+            Some((_, '\r')) if self.peek(1).map(|c| c.1) == Some('\n') => {
+                self.cur.next();
+                self.cur.next();
+                Some(&self.input[start..self.next_pos()])
+            }
+            _ => None
         }
     }
 
@@ -173,7 +179,7 @@ impl<'a> Parser<'a> {
             let start = self.next_pos();
             loop {
                 self.ws();
-                if self.newline() { continue }
+                if self.newline().is_some() { continue }
                 if self.comment() { continue }
                 break;
             }
@@ -388,7 +394,7 @@ impl<'a> Parser<'a> {
                      multiline: bool) -> Option<String> {
         let mut ret = String::new();
         loop {
-            while multiline && self.newline() { ret.push('\n') }
+            while multiline && self.newline().is_some() { ret.push('\n') }
             match self.cur.next() {
                 Some((_, '"')) => {
                     if multiline {
@@ -423,8 +429,8 @@ impl<'a> Parser<'a> {
         }
 
         fn escape(me: &mut Parser, pos: usize, multiline: bool) -> Option<char> {
-            if multiline && me.newline() {
-                while me.ws() || me.newline() { /* ... */ }
+            if multiline && me.newline().is_some() {
+                while me.ws() || me.newline().is_some() { /* ... */ }
                 return None
             }
             match me.cur.next() {
@@ -492,20 +498,21 @@ impl<'a> Parser<'a> {
     fn literal_string(&mut self, start: usize) -> Option<DocValue> {
         if !self.expect('\'') { return None }
         let mut multiline = false;
+        let mut newline = None;
         let mut ret = String::new();
 
         // detect multiline literals
         if self.eat('\'') {
             if self.eat('\'') {
                 multiline = true;
-                self.newline();
+                newline = self.newline().map(|x| x.to_string());
             } else {
-                return Some(DocValue::String { escaped: "''".to_string(), raw: ret }) // empty
+                return Some(DocValue::String { raw: "''".to_string(), escaped: ret }) // empty
             }
         }
 
         loop {
-            if !multiline && self.newline() {
+            if !multiline && self.newline().is_some() {
                 let next = self.next_pos();
                 self.errors.push(ParserError {
                     lo: start,
@@ -533,8 +540,9 @@ impl<'a> Parser<'a> {
                 }
             }
         }
-
-        return Some(DocValue::String { raw: format!("'{}'", ret), escaped: ret.clone() });
+        let raw = if multiline { format!("'''{}{}'''", newline.unwrap_or(String::new()), ret) }
+                  else { format!("'{}'", ret) };
+        return Some(DocValue::String { raw: raw, escaped: ret });
     }
 
     fn number_or_datetime(&mut self, start: usize) -> Option<DocValue> {
@@ -558,6 +566,7 @@ impl<'a> Parser<'a> {
                      !input.starts_with("-") && self.eat('-') {
             self.datetime(start, end + 1)
         } else {
+            let raw_range = input;
             let input = match (decimal, exponent) {
                 (None, None) => prefix,
                 (Some(ref d), None) => prefix + "." + d,
@@ -566,9 +575,13 @@ impl<'a> Parser<'a> {
             };
             let input = input.trim_left_matches('+');
             if is_float {
-                input.parse().ok().map(DocValue::Float)
+                input.parse().ok().map(|x| {
+                    DocValue::Float{ parsed: x, raw: raw_range.to_string() }
+                })
             } else {
-                input.parse().ok().map(DocValue::Integer)
+                input.parse().ok().map(|x| {
+                    DocValue::Integer{ parsed: x, raw: raw_range.to_string() }
+                })
             }
         };
         if ret.is_none() {
@@ -721,22 +734,23 @@ impl<'a> Parser<'a> {
     fn array(&mut self, _start: usize) -> Option<DocValue> {
         if !self.expect('[') { return None }
         let mut ret = Vec::new();
-        fn consume(me: &mut Parser) {
-            loop {
-                me.ws();
-                if !me.newline() && !me.comment() { break }
-            }
-        }
         let mut type_str = None;
         loop {
             // Break out early if we see the closing bracket
-            consume(self);
-            if self.eat(']') { return Some(DocValue::Array(ret)) }
+            self.skip_aux();
+            if self.eat(']') {
+                let mut trail_aux = self.take_aux().to_string();
+                if ret.len() > 0 {
+                    trail_aux = format!(",{}", trail_aux);
+                }
+                return Some(DocValue::Array{ values: ret, trail: trail_aux})
+            }
 
             // Attempt to parse a value, triggering an error if it's the wrong
             // type.
             let start = self.next_pos();
-            let value = try!(self.value());
+            let lead = self.take_aux().to_string();
+            let mut value = try!(self.value());
             let end = self.next_pos();
             let expected = type_str.unwrap_or(value.value.type_str());
             if value.value.type_str() != expected {
@@ -748,17 +762,17 @@ impl<'a> Parser<'a> {
                 });
             } else {
                 type_str = Some(expected);
-                // TODO: handle trailing aux
+                value.lead = lead;
+                value.trail = self.eat_aux().to_string();
                 ret.push(value);
             }
 
             // Look for a comma. If we don't find one we're done
-            consume(self);
             if !self.eat(',') { break }
         }
-        consume(self);
+        let array_trail = self.eat_aux().to_string();
         if !self.expect(']') { return None }
-        return Some(DocValue::Array(ret))
+        return Some(DocValue::Array{ values: ret, trail: array_trail})
     }
 
     fn inline_table(&mut self, _start: usize) -> Option<DocValue> {
@@ -808,7 +822,7 @@ impl<'a> Parser<'a> {
                                 let segment = (Some(c), None);
                                 return self._insert_exec(segment, keys, idx+1, f);
                             }
-                            &mut DocValue::Array(ref mut vec) => {
+                            &mut DocValue::Array{ values: ref mut vec, ..} => {
                                 let has_tables = match vec.first() {
                                     None => false,
                                     Some(v) => v.value.is_table()

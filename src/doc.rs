@@ -124,22 +124,22 @@ pub struct Formatted<T> where T: Printable {
 }
 
 pub enum Value {
-    String{ raw: String, escaped: String },
-    Integer(i64),
-    Float(f64),
+    String{ escaped: String, raw: String },
+    Integer{ parsed: i64, raw: String },
+    Float{ parsed: f64, raw: String },
     Boolean(bool),
     Datetime(String),
-    Array(Vec<Formatted<Value>>),
+    Array{ values: Vec<Formatted<Value>>, trail: String },
     InlineTable(KvpMap),
 } impl Value {
     pub fn as_value(&self) -> super::Value {
         match self {
-            &Value::String{ escaped: ref x, .. } => super::Value::String(x.clone()),
-            &Value::Integer(x) => super::Value::Integer(x),
-            &Value::Float(x) => super::Value::Float(x),
+            &Value::String{ ref escaped, .. } => super::Value::String(escaped.clone()),
+            &Value::Integer{ parsed, .. } => super::Value::Integer(parsed),
+            &Value::Float{ parsed, .. } => super::Value::Float(parsed),
             &Value::Boolean(x) => super::Value::Boolean(x),
             &Value::Datetime(ref x) => super::Value::Datetime(x.clone()),
-            &Value::Array(ref vec) => super::Value::Array(vec.iter().map(|fv| fv.value.as_value()).collect()),
+            &Value::Array{ ref values, ..} => super::Value::Array(values.iter().map(|fv| fv.value.as_value()).collect()),
             &Value::InlineTable(ref x) => { 
                 super::Value::Table(x.convert().into_iter().collect())
             },
@@ -149,11 +149,11 @@ pub enum Value {
     pub fn type_str(&self) -> &'static str {
         match *self {
             Value::String{..} => "string",
-            Value::Integer(..) => "integer",
-            Value::Float(..) => "float",
+            Value::Integer{..} => "integer",
+            Value::Float{..} => "float",
             Value::Boolean(..) => "boolean",
             Value::Datetime(..) => "datetime",
-            Value::Array(..) => "array",
+            Value::Array{..} => "array",
             Value::InlineTable(..) => "table",
         }
     }
@@ -174,11 +174,21 @@ pub enum Value {
 } impl Printable for Value {
     fn print(&self, buf: &mut String) {
         match *self {
-            Value::String{ raw: ref s, .. } => {
-                buf.push_str(&*s);
+            Value::String{ ref raw, .. } => buf.push_str(raw),
+            Value::Integer{ ref raw, .. } => buf.push_str(raw),
+            Value::Float{ ref raw, .. } => buf.push_str(raw),
+            Value::Boolean(b) => buf.push_str(if b {"true"} else {"false"}),
+            Value::Datetime(ref s) => buf.push_str(s),
+            Value::Array{ ref values, ref trail } => {
+                buf.push('[');
+                for (idx, value) in values.iter().enumerate() {
+                    value.print(buf);
+                    if idx != values.len() - 1 { buf.push(',') }
+                }
+                buf.push_str(trail);
+                buf.push(']');
             }
-            Value::Integer(s) => { write!(buf, "{}", s).unwrap(); }
-            _ => panic!()
+            Value::InlineTable(..) => panic!()
         }
     }
 }
@@ -333,11 +343,17 @@ mod test {
     }
 
     #[test]
-    fn empty() { round_trip!("  #asd \n ") }
+    fn empty() {
+        round_trip!("  #asd \n ")
+    }
     #[test]
-    fn single_table() {round_trip!("  #asd\t  \n [a]\n \t \n\n  #asdasdad\n ")}
+    fn single_table() {
+        round_trip!("  #asd\t  \n [a]\n \t \n\n  #asdasdad\n ")
+    }
     #[test]
-    fn root_key() { round_trip!(" a = \"b\" \n ") }
+    fn root_key() {
+        round_trip!(" a = \"b\" \n ")
+    }
     #[test]
     fn array_with_values() {
         round_trip!(" #asd \n  \n   [[ a . b ]]  \n  \n  a = 1 \n \n ")
@@ -350,5 +366,24 @@ mod test {
     fn literal_string() {
         round_trip!(" str = 'C:\\Users\\nodejs\\templates' ")
     }
-
+    #[test]
+    fn array_empty() { 
+        round_trip!(" foo = [   ] ")
+    }
+    #[test]
+    fn array_non_empty() {
+        round_trip!(" foo = [ 1 , 2 ] ")
+    }
+    #[test]
+    fn array_trailing_comma() {
+        round_trip!(" foo = [ 1 , 2 , ] ")
+    }
+    #[test]
+    fn integer_with_sign() {
+        round_trip!(" foo = +10 ")
+    }
+    #[test]
+    fn underscore_integer() {
+        round_trip!(" foo = 1_000 ")
+    }
 }
