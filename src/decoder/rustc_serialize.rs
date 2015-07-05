@@ -241,7 +241,9 @@ impl rustc_serialize::Decoder for Decoder {
         let ret = try!(f(self, len));
         match self.toml {
             Some(Value::Array(ref mut arr)) => {
-                arr.retain(|slot| slot.as_integer() != Some(0));
+                if arr.iter().all(|slot| slot.as_integer() == Some(0)) {
+                    arr.clear();
+                }
                 if arr.len() != 0 { return Ok(ret) }
             }
             _ => return Ok(ret)
@@ -364,5 +366,40 @@ mod tests {
         };
         assert_eq!(err.field.as_ref().unwrap(), "wut.a.features");
 
+    }
+
+    #[test]
+    fn array_preserves_leftovers_position() {
+        #[derive(RustcDecodable)]
+        #[allow(dead_code)]
+        struct Foo {
+            bars: Vec<Bar>,
+        }
+
+        #[derive(RustcDecodable)]
+        #[allow(dead_code)]
+        struct Bar {
+            baz: usize,
+        }
+
+        let toml = "
+            [[bars]]
+            baz = 42
+
+            [[bars]]
+            baz = 42
+            qux = 69
+
+            [[bars]]
+            baz = 42
+        ";
+        let parser = Parser::new(toml).parse().unwrap();
+        let mut decoder = Decoder::new(Value::Table(parser));
+        Foo::decode(&mut decoder).unwrap();
+        let leftovers = decoder.toml.take().unwrap();
+
+        assert_eq!(leftovers.lookup("bars.0").unwrap(), &Value::Integer(0));
+        assert_eq!(leftovers.lookup("bars.1.qux").unwrap(), &Value::Integer(69));
+        assert_eq!(leftovers.lookup("bars.2").unwrap(), &Value::Integer(0));
     }
 }
