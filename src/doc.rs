@@ -93,6 +93,17 @@ pub struct KvpMap {
             value.borrow().print(buf);
         }
     }
+
+    fn print_inline(&self, buf: &mut String) {
+        for (idx, &(ref key, ref value)) in self.kvp_list.iter().enumerate() {
+            key.print(buf);
+            buf.push('=');
+            value.borrow().print(buf);
+            if idx < self.kvp_list.len() - 1 {
+                buf.push(',');
+            }
+        }
+    }
 }
 
 pub struct Formatted<T> where T: Printable {
@@ -130,7 +141,7 @@ pub enum Value {
     Boolean(bool),
     Datetime(String),
     Array{ values: Vec<Formatted<Value>>, trail: String },
-    InlineTable(KvpMap),
+    InlineTable{ values: KvpMap, trail: String },
 } impl Value {
     pub fn as_value(&self) -> super::Value {
         match self {
@@ -139,9 +150,9 @@ pub enum Value {
             &Value::Float{ parsed, .. } => super::Value::Float(parsed),
             &Value::Boolean(x) => super::Value::Boolean(x),
             &Value::Datetime(ref x) => super::Value::Datetime(x.clone()),
-            &Value::Array{ ref values, ..} => super::Value::Array(values.iter().map(|fv| fv.value.as_value()).collect()),
-            &Value::InlineTable(ref x) => { 
-                super::Value::Table(x.convert().into_iter().collect())
+            &Value::Array{ ref values, .. } => super::Value::Array(values.iter().map(|fv| fv.value.as_value()).collect()),
+            &Value::InlineTable{ ref values, .. } => { 
+                super::Value::Table(values.convert().into_iter().collect())
             },
         }
     }
@@ -154,20 +165,20 @@ pub enum Value {
             Value::Boolean(..) => "boolean",
             Value::Datetime(..) => "datetime",
             Value::Array{..} => "array",
-            Value::InlineTable(..) => "table",
+            Value::InlineTable{..} => "table",
         }
     }
 
     pub fn is_table(&self) -> bool{
         match *self {
-            Value::InlineTable(_) => true,
+            Value::InlineTable{..} => true,
             _ => false
         }
     }
 
     pub fn as_table(&mut self) -> &mut KvpMap {
         match *self {
-            Value::InlineTable(ref mut x) => x,
+            Value::InlineTable{ ref mut values, .. } => values,
             _ => panic!()
         }
     }
@@ -188,7 +199,12 @@ pub enum Value {
                 buf.push_str(trail);
                 buf.push(']');
             }
-            Value::InlineTable(..) => panic!()
+            Value::InlineTable{ ref values, ref trail } => {
+                buf.push('{');
+                values.print_inline(buf);
+                buf.push_str(trail);
+                buf.push('}');
+            }
         }
     }
 }
@@ -327,7 +343,7 @@ impl Display for Key {
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use Parser;
 
     macro_rules! round_trip {
@@ -385,5 +401,9 @@ mod test {
     #[test]
     fn underscore_integer() {
         round_trip!(" foo = 1_000 ")
+    }
+    #[test]
+    fn inline_table() {
+        round_trip!("\n a = { x = \"foo\"  , y = \"bar\"\t } ")
     }
 }

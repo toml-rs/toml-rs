@@ -777,24 +777,24 @@ impl<'a> Parser<'a> {
 
     fn inline_table(&mut self, _start: usize) -> Option<DocValue> {
         if !self.expect('{') { return None }
-        self.ws();
+        let mut trail = self.eat_ws().to_string();
         let mut ret = KvpMap::new();
-        if self.eat('}') { return Some(DocValue::InlineTable(ret)) }
+        if self.eat('}') {
+            return Some(DocValue::InlineTable{ values: ret, trail: trail })
+        }
         loop {
             let lo = self.next_pos();
-            let key = try!(self.key_name());
-            self.ws();
+            let key_name = try!(self.key_name());
+            let key = Key::new(trail.clone(), key_name, self.eat_ws());
             if !self.expect('=') { return None }
-            self.ws();
-            let value = try!(self.value());
-            self.insert(&mut ret, Key::new(String::new(), key, ""), value, lo);
-
-            self.ws();
+            let mut value = try!(self.value());
+            value.trail = self.eat_ws().to_string();
+            self.insert(&mut ret, key, value, lo);
             if self.eat('}') { break }
             if !self.expect(',') { return None }
-            self.ws();
+            trail = self.eat_ws().to_string();
         }
-        return Some(DocValue::InlineTable(ret))
+        return Some(DocValue::InlineTable{ values: ret, trail: String::new() })
     }
 
     fn insert(&mut self, into: &mut KvpMap, key: Key,
@@ -818,8 +818,8 @@ impl<'a> Parser<'a> {
                 match values.kvp_index.entry(keys[idx].escaped.clone()) {
                     Entry::Occupied(mut entry) => {
                         match &mut entry.get_mut().borrow_mut().value {
-                            &mut DocValue::InlineTable(ref mut c) => {
-                                let segment = (Some(c), None);
+                            &mut DocValue::InlineTable{ ref mut values, .. }=>{
+                                let segment = (Some(values), None);
                                 return self._insert_exec(segment, keys, idx+1, f);
                             }
                             &mut DocValue::Array{ values: ref mut vec, ..} => {
