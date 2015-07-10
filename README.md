@@ -1,6 +1,7 @@
 # toml-rs
 
 [![Build Status](https://travis-ci.org/alexcrichton/toml-rs.svg?branch=master)](https://travis-ci.org/alexcrichton/toml-rs)
+[![Coverage Status](https://coveralls.io/repos/alexcrichton/toml-rs/badge.svg?branch=master&service=github)](https://coveralls.io/github/alexcrichton/toml-rs?branch=master)
 
 [Documentation](http://alexcrichton.com/toml-rs)
 
