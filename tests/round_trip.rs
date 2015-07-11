@@ -11,7 +11,7 @@ fn run(toml: &str) {
             }).collect::<Vec<(String, &str)>>());
     assert!(table.is_some());
     let mut str_buf = String::new();
-    table.unwrap().print(&mut str_buf);
+    table.unwrap().serialize(&mut str_buf);
     assert!(toml == &*str_buf,
             "expected:\n{}\nactual:\n{}\n",
             toml,

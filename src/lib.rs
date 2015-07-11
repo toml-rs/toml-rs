@@ -50,7 +50,7 @@ use std::collections::BTreeMap;
 use std::str::FromStr;
 use std::string;
 
-pub use parser::{Parser, ParserError};
+pub use self::doc::parser::{Parser, ParserError};
 
 #[cfg(any(feature = "rustc-serialize", feature = "serde"))]
 pub use self::encoder::{Encoder, Error, encode, encode_str};
@@ -58,13 +58,17 @@ pub use self::encoder::{Encoder, Error, encode, encode_str};
 pub use self::decoder::{Decoder, DecodeError, DecodeErrorKind, decode, decode_str};
 
 #[allow(missing_docs)]
-pub mod doc;
-mod parser;
+mod doc;
 mod display;
 #[cfg(any(feature = "rustc-serialize", feature = "serde"))]
 mod encoder;
 #[cfg(any(feature = "rustc-serialize", feature = "serde"))]
 mod decoder;
+
+#[allow(missing_docs)]
+pub mod document {
+    pub use doc::RootTable;
+}
 
 /// Representation of a TOML value.
 #[derive(PartialEq, Clone, Debug)]

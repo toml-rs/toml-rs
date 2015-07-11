@@ -9,15 +9,19 @@ use std::cell::{RefCell};
 use std::rc::Rc;
 use std::mem;
 
-use doc::{ContainerData, Formatted, Key, KvpMap, RootTable};
-use doc::{IndirectChild, Container};
-use doc::Value as DocValue;
+use super::{Container, ContainerData, Formatted, IndirectChild, Key, RootTable}; 
+use super::ValuesMap;
+use super::Value as DocValue;
+use Table;
 
 macro_rules! try {
     ($e:expr) => (match $e { Some(s) => s, None => return None })
 }
 
-type Segment<'a> =(Option<&'a mut KvpMap>, Option<&'a mut HashMap<String,IndirectChild>>);
+type Segment<'a> =(
+    Option<&'a mut ValuesMap>,
+    Option<&'a mut HashMap<String,IndirectChild>>
+);
 
 /// Parser for converting a string to a TOML `Value` instance.
 ///
@@ -219,12 +223,12 @@ impl<'a> Parser<'a> {
     ///
     /// If an error occurs, the `errors` field of this parser can be consulted
     /// to determine the cause of the parse failure.
-    pub fn parse(&mut self) -> Option<super::Table> {
-        self.parse_doc().map(|x| x.convert())
+    pub fn parse(&mut self) -> Option<Table> {
+        self.parse_doc().map(|x| x.simplify())
     }
 
     /// TODO: write something here
-    pub fn parse_doc(&mut self) -> Option<super::doc::RootTable> {
+    pub fn parse_doc(&mut self) -> Option<RootTable> {
         let mut ret = RootTable::new();
         while self.peek(0).is_some() {
             self.skip_aux();
@@ -308,7 +312,7 @@ impl<'a> Parser<'a> {
 
     // Parses the values into the given TomlTable. Returns true in case of success
     // and false in case of error.
-    fn values(&mut self, into: &mut KvpMap) -> bool {
+    fn values(&mut self, into: &mut ValuesMap) -> bool {
         loop {
             self.skip_aux();
             match self.peek(0) {
@@ -328,7 +332,7 @@ impl<'a> Parser<'a> {
                 None => return false,
             };
             self.insert(into, key, value, key_lo);
-            into.set_last_value_trail(self.eat_to_newline());
+            into.set_last_value_trail(self.eat_to_newline().to_string());
         }
     }
 
@@ -778,7 +782,7 @@ impl<'a> Parser<'a> {
     fn inline_table(&mut self, _start: usize) -> Option<DocValue> {
         if !self.expect('{') { return None }
         let mut trail = self.eat_ws().to_string();
-        let mut ret = KvpMap::new();
+        let mut ret = ValuesMap::new();
         if self.eat('}') {
             return Some(DocValue::InlineTable{ values: ret, trail: trail })
         }
@@ -797,7 +801,7 @@ impl<'a> Parser<'a> {
         return Some(DocValue::InlineTable{ values: ret, trail: String::new() })
     }
 
-    fn insert(&mut self, into: &mut KvpMap, key: Key,
+    fn insert(&mut self, into: &mut ValuesMap, key: Key,
               value: Formatted<DocValue>, key_lo: usize) {
         let key_text =  key.escaped.clone();
         if !into.insert(key, value) {
@@ -902,7 +906,7 @@ impl<'a> Parser<'a> {
             { let key = keys.last();
             let key = key.as_ref().unwrap();
             if let Some(map) = seg.0 {
-                if map.contains_key(&* key.escaped) {
+                if map.kvp_index.contains_key(&* key.escaped) {
                     let is_table = map.kvp_index.get(&* key.escaped)
                                    .unwrap().borrow().value.is_table();
                     this.errors.push(ParserError {
@@ -967,7 +971,7 @@ impl<'a> Parser<'a> {
             { let key = keys.last();
             let key = key.as_ref().unwrap();
             if let Some(map) = seg.0 {
-                if map.contains_key(&* key.escaped) {
+                if map.kvp_index.contains_key(&* key.escaped) {
                     this.errors.push(ParserError {
                         lo: 0,
                         hi: 0,
