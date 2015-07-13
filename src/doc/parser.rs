@@ -9,8 +9,8 @@ use std::cell::{RefCell};
 use std::rc::Rc;
 use std::mem;
 
-use super::{Container, ContainerData, Formatted, IndirectChild, Key, RootTable}; 
-use super::ValuesMap;
+use super::{Container, ContainerData, FormattedValue, IndirectChild, Key}; 
+use super::{RootTable, ValuesMap};
 use super::Value as DocValue;
 use Table;
 
@@ -337,7 +337,7 @@ impl<'a> Parser<'a> {
     }
 
     // Parses a value
-    fn value(&mut self) -> Option<Formatted<DocValue>> {
+    fn value(&mut self) -> Option<FormattedValue> {
         let leading_ws = self.eat_ws().to_string();
         let value = match self.cur.clone().next() {
             Some((pos, '"')) => self.string(pos),
@@ -361,7 +361,7 @@ impl<'a> Parser<'a> {
                 return None
             }
         };
-        value.map(|v| Formatted::<DocValue>::new(leading_ws, v))
+        value.map(|v| FormattedValue::new(leading_ws, v))
     }
 
     // Parses a single or multi-line string
@@ -802,7 +802,7 @@ impl<'a> Parser<'a> {
     }
 
     fn insert(&mut self, into: &mut ValuesMap, key: Key,
-              value: Formatted<DocValue>, key_lo: usize) {
+              value: FormattedValue, key_lo: usize) {
         let key_text =  key.escaped.clone();
         if !into.insert(key, value) {
             self.errors.push(ParserError {
@@ -897,7 +897,7 @@ impl<'a> Parser<'a> {
     fn insert_exec<F, U>(&mut self, r: &mut RootTable, keys: Vec<Key>, f:F)
                          -> Option<U>
                          where F: FnOnce(&mut Parser, Segment, Vec<Key>) -> U {
-        self._insert_exec((Some(&mut r.values), Some(&mut r.table_index)), keys, 0, f)
+        self._insert_exec((Some(&mut r.values), Some(&mut r.container_index)), keys, 0, f)
     }
 
     fn insert_table(&mut self, root: &mut RootTable, keys: Vec<Key>,
@@ -961,7 +961,7 @@ impl<'a> Parser<'a> {
             }
         });
         if let Some(ptr) = added.and_then(|x| x) {
-            root.table_list.push(ptr);
+            root.container_list.push(ptr);
         }
     }
 
@@ -1012,7 +1012,7 @@ impl<'a> Parser<'a> {
             }
         });
         if let Some(ptr) = added.and_then(|x| x) {
-            root.table_list.push(ptr);
+            root.container_list.push(ptr);
         }
     }
 }

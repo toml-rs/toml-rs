@@ -11,14 +11,25 @@ pub mod parser;
 
 // Main table representing the whole document.
 // This structure preserves TOML document and its markup.
+// Internally, a document is split in the following way:
+//         +
+//         |- values
+//  a="b"  +
+//         +
+//  [foo]  |
+//  x="y"  |- container_list
+//  [bar]  |
+//  c="d"  +
+//         +
+//         |- trail
+//         +
 pub struct RootTable {
     values: ValuesMap,
     // List of containers: tables and arrays that are present in the document.
     // Stored in the order they appear in the document.
-    table_list: Vec<Rc<RefCell<Container>>>,
-    // Index over contained structure for quick traversal.
-    table_index: IndirectChildrenMap,
-    // Trailing auxiliary text.
+    container_list: Vec<Rc<RefCell<Container>>>,
+    // Index for quick traversal.
+    container_index: HashMap<String, IndirectChild>,
     trail: String
 }
 
@@ -26,8 +37,8 @@ impl RootTable {
     fn new() -> RootTable {
         RootTable {
             values: ValuesMap::new(),
-            table_list: Vec::new(),
-            table_index: HashMap::new(),
+            container_list: Vec::new(),
+            container_index: HashMap::new(),
             trail: String::new(),
         }
     }
@@ -36,23 +47,36 @@ impl RootTable {
     fn simplify(self) -> super::Table {
         self.values
             .simplify().into_iter()
-            .chain(as_simplified_vec(&self.table_index))
+            .chain(as_simplified_vec(&self.container_index))
             .collect()
     }
 
     pub fn serialize(&self, buf: &mut String) {
         self.values.serialize(buf);
-        for table in self.table_list.iter() {
+        for table in self.container_list.iter() {
             table.borrow().serialize(buf);
         }
         buf.push_str(&*self.trail);
     }
 }
 
-// Indexed map of values that are directly contained in a table.
+// Order-preserving map of values that are directly contained in
+// a root table, table or an array.
+// A map is represented in the following way:
+//         +
+//         |- kvp_list[0]
+//  a="b"  +
+//         +
+//         |- kvp_list[1]
+//  x="y"  +
+//         +
+//         |- trail
+//         +
 struct ValuesMap {
-    kvp_list: Vec<(Key, Rc<RefCell<Formatted<Value>>>)>,
-    kvp_index: HashMap<String, Rc<RefCell<Formatted<Value>>>>,
+    // key-value pairs stored in the order they appear in a document
+    kvp_list: Vec<(Key, Rc<RefCell<FormattedValue>>)>,
+    // Index for quick traversal.
+    kvp_index: HashMap<String, Rc<RefCell<FormattedValue>>>,
     trail: String
 }
 
@@ -65,7 +89,7 @@ impl ValuesMap {
         }
     }
 
-    fn insert(&mut self, key: Key, value: Formatted<Value>) -> bool {
+    fn insert(&mut self, key: Key, value: FormattedValue) -> bool {
         let value = Rc::new(RefCell::new(value));
         match self.kvp_index.entry(key.escaped.clone()) {
             Entry::Occupied(_) => return false,
@@ -110,26 +134,25 @@ impl ValuesMap {
     }
 }
 
-struct Formatted<T: Serializable> {
-    value: T,
+// Value plus leading and trailing auxiliary text.
+// a =     "qwertyu"   \n
+//    +---++-------++---+
+//      |      |      |
+//    lead   value  trail
+struct FormattedValue {
+    value: Value,
+    // auxiliary text between the equality sign and the value
     lead: String,
+    // auxiliary text after the value, up to and including the first newline
     trail: String
 }
 
-impl<T: Serializable> Formatted<T> {
-    fn new(lead: String, v: T) -> Formatted<T> {
-        Formatted {
+impl FormattedValue {
+    fn new(lead: String, v: Value) -> FormattedValue {
+        FormattedValue {
             value: v,
             lead: lead,
             trail: String::new()
-        }
-    }
-
-    fn map<U: Serializable, F: Fn(T) -> U>(self, f: F) -> Formatted<U> {
-        Formatted {
-            value: f(self.value),
-            lead: self.lead,
-            trail: self.trail
         }
     }
 
@@ -146,7 +169,7 @@ enum Value {
     Float { parsed: f64, raw: String },
     Boolean(bool),
     Datetime(String),
-    Array { values: Vec<Formatted<Value>>, trail: String },
+    Array { values: Vec<FormattedValue>, trail: String },
     InlineTable { values: ValuesMap, trail: String }
 }
 
@@ -198,9 +221,7 @@ impl Value {
             _ => panic!()
         }
     }
-}
 
-impl Serializable for Value {
     fn serialize(&self, buf: &mut String) {
         match *self {
             Value::String { ref raw, .. } => buf.push_str(raw),
@@ -227,19 +248,32 @@ impl Serializable for Value {
     }
 }
 
+// Entry in the document index. This index is used for traversal (which is
+// heavily used during parsing and adding new elements) and does not preserve
+// ordering, just the structure 
+// Some examples:
+//  [a.b]
+//  x="y"
+// Document above contains single implicit table [a], which in turn contains
+// single explicit table [a.b].
+//  [a.b]
+//  x="y"
+//  [a]
+// Document above contains single explicit table [a], which in turn contains
+// single explicit table [a.b].
 enum IndirectChild {
-    ImplicitTable(IndirectChildrenMap),
+    ImplicitTable(HashMap<String, IndirectChild>),
     ExplicitTable(Rc<RefCell<Container>>),
     Array(Vec<Rc<RefCell<Container>>>)
 }
 
 impl IndirectChild {
-    fn as_implicit(&mut self) -> &mut IndirectChildrenMap {
+    fn as_implicit(&mut self) -> &mut HashMap<String, IndirectChild> {
         if let IndirectChild::ImplicitTable(ref mut m) = *self { m }
         else { panic!() }
     }
 
-    fn to_implicit(self) -> IndirectChildrenMap {
+    fn to_implicit(self) -> HashMap<String, IndirectChild> {
         if let IndirectChild::ImplicitTable(m) = self { m }
         else { panic!() }
     }
@@ -264,6 +298,11 @@ impl IndirectChild {
 
 struct Container {
     data: ContainerData,
+    // Path to the table, eg:
+    //  [   a   .   b   ]
+    //   +-----+ +-----+
+    //      |       |
+    //   keys[0] keys[1]
     keys: Vec<Key>,
     kind: ContainerKind,
     lead: String,
@@ -314,9 +353,18 @@ impl Container {
     }
 }
 
+// Direct children are key-values that appear below container declaration,
+// indirect children are are all other containers that are logically defined
+// inside the container. For example:
+//  [a]
+//  x="y"
+// [a.b]
+// q="w"
+// In the document above, table container [a] contains single direct child
+// (x="y") and single indirect child (table container [a.b])
 struct ContainerData {
     direct: ValuesMap,
-    indirect: IndirectChildrenMap
+    indirect: HashMap<String, IndirectChild>
 }
 
 impl ContainerData {
@@ -374,9 +422,8 @@ impl Key {
     }
 }
 
-type IndirectChildrenMap = HashMap<String, IndirectChild>;
-
-fn as_simplified_vec(map: &IndirectChildrenMap) -> Vec<(String, super::Value)> {
+fn as_simplified_vec(map: &HashMap<String, IndirectChild>)
+                     -> Vec<(String, super::Value)> {
     map.iter().map(|(k, c)|(k.clone(), c.simplify())).collect()
 }
 
