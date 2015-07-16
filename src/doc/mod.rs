@@ -402,13 +402,12 @@ struct Key {
 }
 
 impl Key {
-    fn new(lead: String, key: (String, Option<String>), trail: &str)
-               -> Key{
+    fn new(lead: String, key: (String, Option<String>), trail: String) -> Key {
         Key {
             escaped: key.0,
             raw: key.1,
             lead: lead,
-            trail: trail.to_string(),
+            trail: trail,
         }
     }
 

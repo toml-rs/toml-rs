@@ -18,9 +18,9 @@ macro_rules! try {
     ($e:expr) => (match $e { Some(s) => s, None => return None })
 }
 
-type Segment<'a> =(
+type TraversalPosition<'a> =(
     Option<&'a mut ValuesMap>,
-    Option<&'a mut HashMap<String,IndirectChild>>
+    Option<&'a mut HashMap<String, IndirectChild>>
 );
 
 /// Parser for converting a string to a TOML `Value` instance.
@@ -191,28 +191,31 @@ impl<'a> Parser<'a> {
         }));
     }
 
-    fn eat_aux(&mut self) -> &str {
+    fn eat_aux(&mut self) -> String {
         self.skip_aux();
         self.take_aux()
     }
 
-    fn eat_to_newline(&mut self) -> &str {
+    fn eat_to_newline(&mut self) -> String {
         let start = self.next_pos();
         self.ws();
         self.newline();
         self.comment();
-        &self.input[start..self.next_pos()]
+        self.input[start..self.next_pos()].to_string()
     }
 
-    fn eat_ws(&mut self) -> &str {
+    fn eat_ws(&mut self) -> String {
         let start = self.next_pos();
         self.ws();
-        &self.input[start..self.next_pos()]
+        self.input[start..self.next_pos()].to_string()
     }
 
-    fn take_aux<'b>(&'b mut self) -> &'a str {
-        self.aux_range.take().map(|(start, end)| &self.input[start..end])
-                      .unwrap_or("")
+    fn take_aux(&mut self) -> String {
+        self.aux_range
+            .take()
+            .map(|(start, end)| &self.input[start..end])
+            .unwrap_or("")
+            .to_string()
     }
 
     /// Executes the parser, parsing the string contained within.
@@ -240,7 +243,7 @@ impl<'a> Parser<'a> {
                 // Parse the name of the section
                 let mut keys = Vec::new();
                 loop {
-                    let key_lead_aux = self.eat_ws().to_string();
+                    let key_lead_aux = self.eat_ws();
                     if let Some(s) = self.key_name() {
                         keys.push(Key::new(key_lead_aux, s, self.eat_ws()));
                     }
@@ -256,11 +259,9 @@ impl<'a> Parser<'a> {
                 let mut container = ContainerData::new();
                 if !self.values(&mut container.direct) { return None };
                 if array {
-                    self.insert_array(&mut ret, keys, container, 
-                                      container_aux.to_string())
+                    self.insert_array(&mut ret, keys, container, container_aux)
                 } else {
-                    self.insert_table(&mut ret, keys, container,
-                                      container_aux.to_string())
+                    self.insert_table(&mut ret, keys, container, container_aux)
                 }
             } else {
                 if !self.values(&mut ret.values) { return None }
@@ -269,7 +270,7 @@ impl<'a> Parser<'a> {
         if self.errors.len() > 0 {
             None
         } else {
-            ret.trail = self.take_aux().to_string();
+            ret.trail = self.take_aux();
             Some(ret)
         }
     }
@@ -310,8 +311,8 @@ impl<'a> Parser<'a> {
         }
     }
 
-    // Parses the values into the given TomlTable. Returns true in case of success
-    // and false in case of error.
+    // Parses the values into the given ValuesMap.
+    // Returns true in case of success and false in case of error.
     fn values(&mut self, into: &mut ValuesMap) -> bool {
         loop {
             self.skip_aux();
@@ -325,14 +326,14 @@ impl<'a> Parser<'a> {
                 Some(s) => s,
                 None => return false
             };
-            let key = Key::new(self.take_aux().to_string(), key, self.eat_ws());
+            let key = Key::new(self.take_aux(), key, self.eat_ws());
             if !self.expect('=') { return false }
             let value = match self.value() {
                 Some(value) => value,
                 None => return false,
             };
             self.insert(into, key, value, key_lo);
-            into.set_last_value_trail(self.eat_to_newline().to_string());
+            into.set_last_value_trail(self.eat_to_newline());
         }
     }
 
@@ -511,7 +512,10 @@ impl<'a> Parser<'a> {
                 multiline = true;
                 newline = self.newline().map(|x| x.to_string());
             } else {
-                return Some(DocValue::String { raw: "''".to_string(), escaped: ret }) // empty
+                return Some(DocValue::String {
+                    raw: "''".to_string(),
+                    escaped: ret
+                })
             }
         }
 
@@ -544,8 +548,11 @@ impl<'a> Parser<'a> {
                 }
             }
         }
-        let raw = if multiline { format!("'''{}{}'''", newline.unwrap_or(String::new()), ret) }
-                  else { format!("'{}'", ret) };
+        let raw = if multiline { 
+            format!("'''{}{}'''", newline.unwrap_or(String::new()), ret)
+        } else {
+            format!("'{}'", ret)
+        };
         return Some(DocValue::String { raw: raw, escaped: ret });
     }
 
@@ -743,7 +750,7 @@ impl<'a> Parser<'a> {
             // Break out early if we see the closing bracket
             self.skip_aux();
             if self.eat(']') {
-                let mut trail_aux = self.take_aux().to_string();
+                let mut trail_aux = self.take_aux();
                 if ret.len() > 0 {
                     trail_aux = format!(",{}", trail_aux);
                 }
@@ -753,7 +760,7 @@ impl<'a> Parser<'a> {
             // Attempt to parse a value, triggering an error if it's the wrong
             // type.
             let start = self.next_pos();
-            let lead = self.take_aux().to_string();
+            let lead = self.take_aux();
             let mut value = try!(self.value());
             let end = self.next_pos();
             let expected = type_str.unwrap_or(value.value.type_str());
@@ -767,21 +774,21 @@ impl<'a> Parser<'a> {
             } else {
                 type_str = Some(expected);
                 value.lead = lead;
-                value.trail = self.eat_aux().to_string();
+                value.trail = self.eat_aux();
                 ret.push(value);
             }
 
             // Look for a comma. If we don't find one we're done
             if !self.eat(',') { break }
         }
-        let array_trail = self.eat_aux().to_string();
+        let array_trail = self.eat_aux();
         if !self.expect(']') { return None }
         return Some(DocValue::Array{ values: ret, trail: array_trail})
     }
 
     fn inline_table(&mut self, _start: usize) -> Option<DocValue> {
         if !self.expect('{') { return None }
-        let mut trail = self.eat_ws().to_string();
+        let mut trail = self.eat_ws();
         let mut ret = ValuesMap::new();
         if self.eat('}') {
             return Some(DocValue::InlineTable{ values: ret, trail: trail })
@@ -792,11 +799,11 @@ impl<'a> Parser<'a> {
             let key = Key::new(trail.clone(), key_name, self.eat_ws());
             if !self.expect('=') { return None }
             let mut value = try!(self.value());
-            value.trail = self.eat_ws().to_string();
+            value.trail = self.eat_ws();
             self.insert(&mut ret, key, value, lo);
             if self.eat('}') { break }
             if !self.expect(',') { return None }
-            trail = self.eat_ws().to_string();
+            trail = self.eat_ws();
         }
         return Some(DocValue::InlineTable{ values: ret, trail: String::new() })
     }
@@ -813,9 +820,9 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn _insert_exec<F, U>(&mut self, cur: Segment, keys: Vec<Key>, idx: usize, f:F)
+    fn _insert_exec<F, U>(&mut self, cur: TraversalPosition, keys: Vec<Key>, idx: usize, f:F)
         -> Option<U>
-        where F: FnOnce(&mut Parser, Segment, Vec<Key>) -> U {
+        where F: FnOnce(&mut Parser, TraversalPosition, Vec<Key>) -> U {
         if idx == keys.len() - 1 { Some(f(self, cur, keys)) }
         else {
             if let Some(values) = cur.0 {
@@ -896,10 +903,9 @@ impl<'a> Parser<'a> {
 
     fn insert_exec<F, U>(&mut self, r: &mut RootTable, keys: Vec<Key>, f:F)
                          -> Option<U>
-                         where F: FnOnce(&mut Parser, Segment, Vec<Key>) -> U {
+                         where F: FnOnce(&mut Parser, TraversalPosition, Vec<Key>) -> U {
         self._insert_exec((Some(&mut r.values), Some(&mut r.container_index)), keys, 0, f)
     }
-
     fn insert_table(&mut self, root: &mut RootTable, keys: Vec<Key>,
                     table: ContainerData, lead: String) {
         let added = self.insert_exec(root, keys, |this, seg, keys| {
