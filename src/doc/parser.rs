@@ -1,6 +1,6 @@
 use std::ascii::AsciiExt;
 use std::char;
-use std::collections::hash_map::Entry;
+use std::collections::hash_map::{Entry, OccupiedEntry, VacantEntry};
 use std::collections::{BTreeMap, HashMap};
 use std::error::Error;
 use std::fmt;
@@ -10,18 +10,13 @@ use std::rc::Rc;
 use std::mem;
 
 use super::{Container, ContainerData, FormattedValue, IndirectChild, Key}; 
-use super::{RootTable, ValuesMap};
+use super::{RootTable, ValuesMap, TraversalPosition};
 use super::Value as DocValue;
 use Table;
 
 macro_rules! try {
     ($e:expr) => (match $e { Some(s) => s, None => return None })
 }
-
-type TraversalPosition<'a> =(
-    Option<&'a mut ValuesMap>,
-    Option<&'a mut HashMap<String, IndirectChild>>
-);
 
 /// Parser for converting a string to a TOML `Value` instance.
 ///
@@ -791,7 +786,7 @@ impl<'a> Parser<'a> {
         let mut trail = self.eat_ws();
         let mut ret = ValuesMap::new();
         if self.eat('}') {
-            return Some(DocValue::InlineTable{ values: ret, trail: trail })
+            return Some(DocValue::new_table(ret,trail))
         }
         loop {
             let lo = self.next_pos();
@@ -805,7 +800,7 @@ impl<'a> Parser<'a> {
             if !self.expect(',') { return None }
             trail = self.eat_ws();
         }
-        return Some(DocValue::InlineTable{ values: ret, trail: String::new() })
+        return Some(DocValue::new_table(ret, String::new()))
     }
 
     fn insert(&mut self, into: &mut ValuesMap, key: Key,
@@ -820,150 +815,172 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn _insert_exec<F, U>(&mut self, cur: TraversalPosition, keys: Vec<Key>, idx: usize, f:F)
-        -> Option<U>
+    fn insert_exec_recurse<F, U>(&mut self,
+                                 cur: TraversalPosition,
+                                 keys: Vec<Key>,
+                                 idx: usize,
+                                 f:F)
+                                 -> Option<U>
         where F: FnOnce(&mut Parser, TraversalPosition, Vec<Key>) -> U {
-        if idx == keys.len() - 1 { Some(f(self, cur, keys)) }
-        else {
-            if let Some(values) = cur.0 {
-                match values.kvp_index.entry(keys[idx].escaped.clone()) {
-                    Entry::Occupied(mut entry) => {
-                        match &mut entry.get_mut().borrow_mut().value {
-                            &mut DocValue::InlineTable{ ref mut values, .. }=>{
-                                let segment = (Some(values), None);
-                                return self._insert_exec(segment, keys, idx+1, f);
-                            }
-                            &mut DocValue::Array{ values: ref mut vec, ..} => {
-                                let has_tables = match vec.first() {
-                                    None => false,
-                                    Some(v) => v.value.is_table()
-                                };
-                                if !has_tables {
-                                    self.errors.push(ParserError {
-                                        lo: 0,
-                                        hi: 0,
-                                        desc: format!("array `{}` does not contain tables",
-                                                       &*keys[idx].escaped)
-                                    });
-                                    return None;
-                                }
-                                let idx_last = vec.len()-1;
-                                let c = vec[idx_last].value.as_table();
-                                return self._insert_exec((Some(c), None), keys, idx+1, f);
-                            }
-                            _ => {
-                                self.errors.push(ParserError {
-                                    lo: 0,
-                                    hi: 0,
-                                    desc: format!("key `{}` was not previously a table",
-                                                   &*keys[idx].escaped)
-                                });
-                                return None;
-                            }
+        if idx == keys.len() - 1 { 
+            return Some(f(self, cur, keys));
+        }
+        match cur.direct.map(|x| x.kvp_index.entry(keys[idx].escaped.clone())) {
+            Some(Entry::Occupied(mut entry)) => {
+                match &mut entry.get_mut().borrow_mut().value {
+                    &mut DocValue::InlineTable { ref mut values, .. } => {
+                        let next = values.traverse();
+                        return self.insert_exec_recurse(next, keys, idx+1, f);
+                    }
+                    &mut DocValue::Array { values: ref mut vec, ..} => {
+                        let has_tables = match vec.first() {
+                            None => false,
+                            Some(v) => v.value.is_table()
+                        };
+                        if !has_tables {
+                            let error_msg = format!(
+                                "array `{}` does not contain tables",
+                                &*keys[idx].escaped
+                            );
+                            self.errors.push(ParserError {
+                                lo: 0,
+                                hi: 0,
+                                desc: error_msg
+                            });
+                            return None;
                         }
+                        let idx_last = vec.len()-1;
+                        let next = vec[idx_last].value.as_table().traverse();
+                        return self.insert_exec_recurse(next, keys, idx+1, f);
                     }
-                    Entry::Vacant(_) => { }
+                    _ => {
+                        self.errors.push(ParserError {
+                            lo: 0,
+                            hi: 0,
+                            desc: format!("key `{}` was not previously a table",
+                                          &*keys[idx].escaped)
+                            });
+                        return None;
+                    }
                 }
             }
-            // TODO: fix error message
-            if cur.1.is_none() {
-                self.errors.push(ParserError {
-                    lo: 0,
-                    hi: 0,
-                    desc: format!("bad things happened")
-                });
-                return None;
-            }
-            match cur.1.unwrap().entry(keys[idx].escaped.clone()) {
-                Entry::Occupied(mut entry) => match *entry.get_mut() {
-                    IndirectChild::ImplicitTable(ref mut m)
-                        => self._insert_exec((None, Some(m)), keys, idx+1, f),
-                    IndirectChild::ExplicitTable(ref mut c) => {
-                        let c_data = &mut c.borrow_mut().data;
-                        let segment =
-                            (Some(&mut c_data.direct), Some(&mut c_data.indirect));
-                        self._insert_exec(segment, keys, idx+1, f)
-                    }
-                    IndirectChild::Array(ref mut vec) => {
-                        let mut c_data =
-                            &mut vec.last().as_mut().unwrap().borrow_mut().data;
-                        let segment =
-                            (Some(&mut c_data.direct), Some(&mut c_data.indirect));
-                        self._insert_exec(segment, keys, idx+1, f)
-                    }
-                },
-                Entry::Vacant(entry) => {
-                    let empty = HashMap::new();
-                    let map = entry.insert(IndirectChild::ImplicitTable(empty));
-                    self._insert_exec((None, Some(map.as_implicit())), keys, idx+1,f)
+            _ => { }
+        }
+        match cur.indirect.entry(keys[idx].escaped.clone()) {
+            Entry::Occupied(mut entry) => match *entry.get_mut() {
+                IndirectChild::ImplicitTable(ref mut map) => {
+                    let next = TraversalPosition::from_indirect(map);
+                    self.insert_exec_recurse(next, keys, idx+1, f)
                 }
+                IndirectChild::ExplicitTable(ref mut c) => {
+                    let c_data = &mut c.borrow_mut().data;
+                    self.insert_exec_recurse(c_data.traverse(), keys, idx+1, f)
+                }
+                IndirectChild::Array(ref mut vec) => {
+                    let mut c_data = &mut vec.last()
+                                             .as_mut()
+                                             .unwrap()
+                                             .borrow_mut()
+                                             .data;
+                    self.insert_exec_recurse(c_data.traverse(), keys, idx+1, f)
+                }
+            },
+            Entry::Vacant(entry) => {
+                let empty = HashMap::new();
+                let map = entry.insert(IndirectChild::ImplicitTable(empty));
+                let next = TraversalPosition::from_indirect(map.as_implicit());
+                self.insert_exec_recurse(next, keys, idx+1, f)
             }
         }
     }
 
-    fn insert_exec<F, U>(&mut self, r: &mut RootTable, keys: Vec<Key>, f:F)
-                         -> Option<U>
-                         where F: FnOnce(&mut Parser, TraversalPosition, Vec<Key>) -> U {
-        self._insert_exec((Some(&mut r.values), Some(&mut r.container_index)), keys, 0, f)
+    // Executes given function on the container keyed by the path `keys`,
+    // inserting missing containers on the go
+    fn insert_exec_container<F, U>(&mut self,
+                                   r: &mut RootTable,
+                                   keys: Vec<Key>,
+                                   f:F) -> Option<U>
+                                   where F: FnOnce(&mut Parser,
+                                                   TraversalPosition,
+                                                   Vec<Key>) -> U {
+        self.insert_exec_recurse(r.traverse(), keys, 0, f)
     }
-    fn insert_table(&mut self, root: &mut RootTable, keys: Vec<Key>,
-                    table: ContainerData, lead: String) {
-        let added = self.insert_exec(root, keys, |this, seg, keys| {
-            { let key = keys.last();
-            let key = key.as_ref().unwrap();
-            if let Some(map) = seg.0 {
-                if map.kvp_index.contains_key(&* key.escaped) {
-                    let is_table = map.kvp_index.get(&* key.escaped)
-                                   .unwrap().borrow().value.is_table();
+
+    fn try_insert_table(this: &mut Parser,
+                        mut entry: OccupiedEntry<String, IndirectChild>,
+                        container: Rc<RefCell<Container>>)
+                        -> Option< Rc<RefCell<Container>>> {
+        if entry.get().is_implicit() {
+            let table = IndirectChild::ExplicitTable(container.clone());
+            let old = entry.insert(table);
+            for (k,v) in old.to_implicit() {
+                let key_copy = k.clone();
+                if container.borrow_mut().data.indirect.insert(k, v).is_some() {
                     this.errors.push(ParserError {
                         lo: 0,
                         hi: 0,
-                        desc: if is_table { format!("redefinition of table `{}`", &* key.escaped) }
-                              else { format!("duplicate key `{}` in table", &* key.escaped) },
-                            
+                        desc: format!("duplicate key `{}` in table", key_copy),
                     });
                     return None;
                 }
-            }}
-            let key_text = keys.last().as_ref().unwrap().escaped.clone();
+           }
+           Some(container)
+        }
+        else {
+            let keys = &container.borrow().keys;
+            this.errors.push(ParserError {
+                lo: 0,
+                hi: 0,
+                desc: format!("redefinition of table `{}`",
+                              &*keys.last().as_ref().unwrap().escaped),
+            });
+            None
+        }
+    }
+
+    fn add_table(entry: VacantEntry<String, IndirectChild>,
+                 container: Rc<RefCell<Container>>)
+                 -> Option<Rc<RefCell<Container>>> {
+        entry.insert(IndirectChild::ExplicitTable(container.clone()));
+        Some(container)
+    }
+
+    fn last_key_text(keys: &Vec<Key>) -> String {
+        keys.last().as_ref().unwrap().escaped.clone()
+    }
+
+    fn insert_table(&mut self, root: &mut RootTable, keys: Vec<Key>, 
+                    table: ContainerData, lead: String) {
+        let added = self.insert_exec_container(root, keys, |this, seg, keys| {
+            let key_text = Parser::last_key_text(&keys);
+            if let Some(map) = seg.direct {
+                if map.kvp_index.contains_key(&*key_text) {
+                    let is_table = map.kvp_index
+                                      .get(&*key_text)
+                                      .unwrap()
+                                      .borrow()
+                                      .value
+                                      .is_table();
+                    let error_msg  = if is_table {
+                        format!("redefinition of table `{}`", &*key_text)
+                    } else {
+                        format!("duplicate key `{}` in table", &*key_text)
+                    };
+                    this.errors.push(ParserError {
+                        lo: 0,
+                        hi: 0,
+                        desc: error_msg
+                    });
+                    return None;
+                }
+            }
             let container = Container::new_table(table, keys, lead);
             let container = Rc::new(RefCell::new(container));
-            match seg.1.unwrap().entry(key_text) {
-                Entry::Occupied(mut entry) => {
-                    let is_implicit = match entry.get() {
-                        &IndirectChild::ImplicitTable(_) => true,
-                        _ => false
-                    };
-                    if is_implicit {
-                       let old = entry.insert(IndirectChild::ExplicitTable(container.clone()));
-                       for (k,v) in old.to_implicit() {
-                            let key_copy = k.clone();
-                            if container.borrow_mut().data.indirect.insert(k, v).is_some() {
-                                this.errors.push(ParserError {
-                                    lo: 0,
-                                    hi: 0,
-                                    desc: format!("duplicate key `{}` in table", key_copy),
-                                });
-                                return None;
-                            }
-                       }
-                       Some(container)
-                    }
-                    else {
-                        let keys = &container.borrow().keys;
-                        this.errors.push(ParserError {
-                            lo: 0,
-                            hi: 0,
-                            desc: format!("redefinition of table `{}`",
-                                           &*keys.last().as_ref().unwrap().escaped),
-                        });
-                        None
-                    }
-                }
-                Entry::Vacant(entry) => {
-                    entry.insert(IndirectChild::ExplicitTable(container.clone()));
-                    Some(container)
-                }
+            match seg.indirect.entry(key_text) {
+                Entry::Occupied(entry)
+                    => Parser::try_insert_table(this, entry, container),
+                Entry::Vacant(entry) 
+                    => Parser::add_table(entry, container.clone())
             }
         });
         if let Some(ptr) = added.and_then(|x| x) {
@@ -971,50 +988,61 @@ impl<'a> Parser<'a> {
         }
     }
 
+    fn try_insert_array(this: &mut Parser,
+                        mut entry: OccupiedEntry<String, IndirectChild>,
+                        container: Rc<RefCell<Container>>)
+                        -> Option< Rc<RefCell<Container>>> {
+        match *entry.get_mut() {
+            IndirectChild::ExplicitTable(_)
+            | IndirectChild::ImplicitTable(_) => {
+                let keys = &container.borrow().keys;
+                this.errors.push(ParserError {
+                    lo: 0,
+                    hi: 0,
+                    desc:
+                        format!(
+                            "key `{}` was previously not an array",
+                            Parser::last_key_text(&keys)),
+                });
+                None
+            }
+            IndirectChild::Array(ref mut vec) => {
+                vec.push(container.clone());
+                Some(container)
+            }
+        }
+    }
+
+    fn add_array(entry: VacantEntry<String, IndirectChild>,
+                 container: Rc<RefCell<Container>>)
+                 -> Option<Rc<RefCell<Container>>> {
+        entry.insert(IndirectChild::Array(vec!(container.clone())));
+        Some(container)
+    }
+
+
+
     fn insert_array(&mut self, root: &mut RootTable, keys: Vec<Key>,
                     table: ContainerData, lead: String) {
-        let added = self.insert_exec(root, keys, |this, seg, keys| {
-            { let key = keys.last();
-            let key = key.as_ref().unwrap();
-            if let Some(map) = seg.0 {
-                if map.kvp_index.contains_key(&* key.escaped) {
+        let added = self.insert_exec_container(root, keys, |this, seg, keys| {
+            let key_text = Parser::last_key_text(&keys);
+            if let Some(map) = seg.direct {
+                if map.kvp_index.contains_key(&*key_text) {
                     this.errors.push(ParserError {
                         lo: 0,
                         hi: 0,
-                        desc: format!("duplicate key `{}` in table", &* key.escaped),
+                        desc: format!("duplicate key `{}` in table", &*key_text)
                     });
                     return None;
                 }
-            }}
-            let key_text = keys.last().as_ref().unwrap().escaped.clone();
+            }
             let container = Container::new_array(table, keys, lead);
             let container = Rc::new(RefCell::new(container));
-            match seg.1.unwrap().entry(key_text) {
-                Entry::Occupied(mut entry) => {
-                    match *entry.get_mut() {
-                        IndirectChild::ExplicitTable(_)
-                        | IndirectChild::ImplicitTable(_) => {
-                            let keys = &container.borrow().keys;
-                            this.errors.push(ParserError {
-                                lo: 0,
-                                hi: 0,
-                                desc:
-                                    format!(
-                                        "redefinition of table `{}`",
-                                        &*keys.last().as_ref().unwrap().escaped),
-                            });
-                            None
-                        }
-                        IndirectChild::Array(ref mut vec) => {
-                            vec.push(container.clone());
-                            Some(container)
-                        }
-                    }
-                }
-                Entry::Vacant(entry) => {
-                    entry.insert(IndirectChild::Array(vec!(container.clone())));
-                    Some(container)
-                }
+            match seg.indirect.entry(key_text) {
+                Entry::Occupied(entry)
+                    => Parser::try_insert_array(this, entry, container),
+                Entry::Vacant(entry)
+                    => Parser::add_array(entry, container.clone())
             }
         });
         if let Some(ptr) = added.and_then(|x| x) {

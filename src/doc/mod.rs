@@ -9,6 +9,21 @@ use std::fmt::Write;
 
 pub mod parser;
 
+struct TraversalPosition<'a> {
+    direct: Option<&'a mut ValuesMap>,
+    indirect: &'a mut HashMap<String, IndirectChild>
+}
+
+impl<'a> TraversalPosition<'a> {
+    fn from_indirect(map: &mut HashMap<String, IndirectChild>)
+                     -> TraversalPosition {
+        TraversalPosition {
+            direct: None,
+            indirect: map 
+        }
+    }
+}
+
 // Main table representing the whole document.
 // This structure preserves TOML document and its markup.
 // Internally, a document is split in the following way:
@@ -57,6 +72,13 @@ impl RootTable {
             table.borrow().serialize(buf);
         }
         buf.push_str(&*self.trail);
+    }
+
+    fn traverse(&mut self) -> TraversalPosition {
+        TraversalPosition {
+            direct: Some(&mut self.values),
+            indirect: &mut self.container_index
+        }
     }
 }
 
@@ -170,10 +192,20 @@ enum Value {
     Boolean(bool),
     Datetime(String),
     Array { values: Vec<FormattedValue>, trail: String },
-    InlineTable { values: ValuesMap, trail: String }
+    InlineTable { values: ContainerData, trail: String }
 }
 
 impl Value {
+    fn new_table(map: ValuesMap, trail: String) -> Value {
+        Value::InlineTable { 
+            values: ContainerData {
+                direct: map,
+                indirect: HashMap::new()
+            },
+            trail: trail
+        }
+    }
+
     fn as_simple_value(&self) -> super::Value {
         match self {
             &Value::String { ref escaped, .. } => {
@@ -215,7 +247,7 @@ impl Value {
         }
     }
 
-    fn as_table(&mut self) -> &mut ValuesMap {
+    fn as_table(&mut self) -> &mut ContainerData {
         match *self {
             Value::InlineTable { ref mut values, .. } => values,
             _ => panic!()
@@ -240,7 +272,7 @@ impl Value {
             }
             Value::InlineTable { ref values, ref trail } => {
                 buf.push('{');
-                values.serialize_inline(buf);
+                values.direct.serialize_inline(buf);
                 buf.push_str(trail);
                 buf.push('}');
             }
@@ -292,6 +324,13 @@ impl IndirectChild {
                     .collect();
                 super::Value::Array(values)
             }
+        }
+    }
+
+    fn is_implicit(&self) -> bool {
+        match *self {
+            IndirectChild::ImplicitTable (..) => true,
+            _ => false
         }
     }
 }
@@ -378,12 +417,20 @@ impl ContainerData {
     fn serialize(&self, buf: &mut String) {
         self.direct.serialize(buf);
     }
+
     fn simplify(&self) -> Vec<(String, super::Value)> {
         self.direct
             .simplify()
             .into_iter()
             .chain(as_simplified_vec(&self.indirect))
             .collect()
+    }
+
+    fn traverse(&mut self) -> TraversalPosition {
+        TraversalPosition {
+            direct: Some(&mut self.direct),
+            indirect: &mut self.indirect
+        }
     }
 }
 
@@ -434,64 +481,31 @@ trait Serializable {
 mod tests {
     use Parser;
 
-    macro_rules! round_trip {
-        ($text: expr) => ({
-            let mut p = Parser::new($text);
-            let table = p.parse_doc().unwrap();
-            let mut buf = String::new();
-            table.serialize(&mut buf);
-            if $text != buf {
-                panic!(format!("expected:\n{}\nactual:\n{}\n", $text, buf));
+    macro_rules! test_round_trip {
+        ($name: ident, $text: expr) => (
+            #[test]
+            fn $name() {
+                let mut p = Parser::new($text);
+                let table = p.parse_doc().unwrap();
+                let mut buf = String::new();
+                table.serialize(&mut buf);
+                if $text != buf {
+                    panic!(format!("expected:\n{}\nactual:\n{}\n", $text, buf));
+                }
             }
-        })
+        )
     }
 
-    #[test]
-    fn empty() {
-        round_trip!("  #asd \n ")
-    }
-    #[test]
-    fn single_table() {
-        round_trip!("  #asd\t  \n [a]\n \t \n\n  #asdasdad\n ")
-    }
-    #[test]
-    fn root_key() {
-        round_trip!(" a = \"b\" \n ")
-    }
-    #[test]
-    fn array_with_values() {
-        round_trip!(" #asd \n  \n   [[ a . b ]]  \n  \n  a = 1 \n \n ")
-    }
-    #[test]
-    fn escaped() {
-        round_trip!(" str = \"adas \\\"You can quote me\\\".sdas\" ")
-    }
-    #[test]
-    fn literal_string() {
-        round_trip!(" str = 'C:\\Users\\nodejs\\templates' ")
-    }
-    #[test]
-    fn array_empty() { 
-        round_trip!(" foo = [   ] ")
-    }
-    #[test]
-    fn array_non_empty() {
-        round_trip!(" foo = [ 1 , 2 ] ")
-    }
-    #[test]
-    fn array_trailing_comma() {
-        round_trip!(" foo = [ 1 , 2 , ] ")
-    }
-    #[test]
-    fn integer_with_sign() {
-        round_trip!(" foo = +10 ")
-    }
-    #[test]
-    fn underscore_integer() {
-        round_trip!(" foo = 1_000 ")
-    }
-    #[test]
-    fn inline_table() {
-        round_trip!("\n a = { x = \"foo\"  , y = \"bar\"\t } ")
-    }
+    test_round_trip!(empty, "  #asd \n ");
+    test_round_trip!(single_table, "  #asd\t  \n [a]\n \t \n\n  #asdasdad\n ");
+    test_round_trip!(root_key, " a = \"b\" \n ");
+    test_round_trip!(array_with_values, " #as \n  \n  [[ a .b ]] \n  a = 1\n ");
+    test_round_trip!(escaped, " str = \"adas \\\"Quote me\\\".sdas\" ");
+    test_round_trip!(literal_string, " str = 'C:\\Users\\nodejs\\templates' ");
+    test_round_trip!(array_empty," foo = [   ] ");
+    test_round_trip!(array_non_empty, " foo = [ 1 , 2 ] ");
+    test_round_trip!(array_trailing_comma, " foo = [ 1 , 2 , ] ");
+    test_round_trip!(integer_with_sign, " foo = +10 ");
+    test_round_trip!(underscore_integer, " foo = 1_000 ");
+    test_round_trip!(inline_table, "\n a = { x = \"foo\"  , y = \"bar\"\t } ");
 }
