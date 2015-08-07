@@ -283,7 +283,7 @@ impl de::Deserializer for UnitDeserializer {
 
 // Based on https://github.com/serde-rs/serde/blob/199ed417bd6afc2071d17759b8c7e0ab8d0ba4cc/serde_json/src/value.rs#L265
 impl de::Deserialize for Value {
-    fn deserialize<D>(deserializer: &mut D) -> Result<Value, D::Error> {
+    fn deserialize<D>(deserializer: &mut D) -> Result<Value, D::Error> where D: de::Deserializer {
         struct ValueVisitor;
 
         impl de::Visitor for ValueVisitor {
@@ -319,5 +319,7 @@ impl de::Deserialize for Value {
                 Ok(Value::Table(values))
             }
         }
+
+        deserializer.visit(ValueVisitor)
     }
 }
