@@ -280,3 +280,46 @@ impl de::Deserializer for UnitDeserializer {
         visitor.visit_none()
     }
 }
+
+// Based on https://github.com/serde-rs/serde/blob/199ed417bd6afc2071d17759b8c7e0ab8d0ba4cc/serde_json/src/value.rs#L265
+impl de::Deserialize for Value {
+    fn deserialize<D>(deserializer: &mut D) -> Result<Value, D::Error> where D: de::Deserializer {
+        struct ValueVisitor;
+
+        impl de::Visitor for ValueVisitor {
+            type Value = Value;
+
+            fn visit_bool<E>(&mut self, value: bool) -> Result<Value, E> {
+                Ok(Value::Boolean(value))
+            }
+
+            fn visit_i64<E>(&mut self, value: i64) -> Result<Value, E> {
+                Ok(Value::Integer(value))
+            }
+
+            fn visit_f64<E>(&mut self, value: f64) -> Result<Value, E> {
+                Ok(Value::Float(value))
+            }
+
+            fn visit_str<E>(&mut self, value: &str) -> Result<Value, E> {
+                Ok(Value::String(value.into()))
+            }
+
+            fn visit_string<E>(&mut self, value: String) -> Result<Value, E> {
+                Ok(Value::String(value))
+            }
+
+            fn visit_seq<V>(&mut self, visitor: V) -> Result<Value, V::Error> where V: de::SeqVisitor {
+                let values = try!(de::impls::VecVisitor::new().visit_seq(visitor));
+                Ok(Value::Array(values))
+            }
+
+            fn visit_map<V>(&mut self, visitor: V) -> Result<Value, V::Error> where V: de::MapVisitor {
+                let values = try!(de::impls::BTreeMapVisitor::new().visit_map(visitor));
+                Ok(Value::Table(values))
+            }
+        }
+
+        deserializer.visit(ValueVisitor)
+    }
+}
