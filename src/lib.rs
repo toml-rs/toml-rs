@@ -43,7 +43,6 @@
 
 use std::collections::BTreeMap;
 use std::str::FromStr;
-use std::string;
 
 pub use parser::{Parser, ParserError};
 
@@ -76,7 +75,7 @@ pub enum Value {
 pub type Array = Vec<Value>;
 
 /// Type representing a TOML table, payload of the Value::Table variant
-pub type Table = BTreeMap<string::String, Value>;
+pub type Table = BTreeMap<String, Value>;
 
 impl Value {
     /// Tests whether this and another value have the same type.
