@@ -1,5 +1,11 @@
 language: rust
+rust:
+  - 1.0.0
+  - beta
+  - nightly
 sudo: false
+before_script:
+  - pip install 'travis-cargo<0.2' --user && export PATH=$HOME/.local/bin:$PATH
 script:
   - cargo build --verbose
   - cargo build --verbose --no-default-features
@@ -7,17 +13,18 @@ script:
   - cargo test --verbose --features serde
   - rustdoc --test README.md -L target
   - cargo doc --no-deps
-after_success: |
-  [ $TRAVIS_BRANCH = master ] &&
-  [ $TRAVIS_PULL_REQUEST = false ] &&
-  echo '<meta http-equiv=refresh content=0;url=toml/index.html>' > target/doc/index.html &&
-  pip install ghp-import --user $USER &&
-  $HOME/.local/bin/ghp-import -n target/doc &&
-  git push -qf https://${TOKEN}@github.com/${TRAVIS_REPO_SLUG}.git gh-pages
+after_success:
+  - travis-cargo --only nightly doc-upload
+  - travis-cargo coveralls --no-sudo
 env:
   global:
-    - secure: FO8GVrtHAn5GTj4LOz2BApC3tAEsMbNzvH5UVmCIeNKPuVcKcI3oWNJC/KMCvuJZhu96J3okfRLBxBJrhxsp/YT4fS4kibhZDm6AzbCqxz6AmvHJo2d0jztoRyuLwLSkhwW8vM4VeHH+Tf4PeC56YmnpUGkccHMMidxytJzx8qI=
-    - secure: WVCzGVsthRub6ezJU15xzo+ahlUoZEwvZDeMPmjIMf1G28ObE9Y4BeUNW0j9CxCjyQ+5S0mrp1l0TESN326XTDosigabDiGnKyr5wfncnreN3PCUi3gx7NI+bRTy9B3eV318BhuCDgLgRWLWufCyPtkgAdT6cl+u6p+bEh+vyxo=
+    secure: LZMkQQJT5LqLQQ8JyakjvHNqqMPy8lm/SyC+H5cKUVI/xk7xRuti4eKY937N8uSmbff2m9ZYlG6cNwIOfk/nWn8YsqxA8Wg/xugubWzqGuqu+NQ4IZVa7INT2Fiqyk5SPCh8B5fo2x7OBJ24SCkWb2p8bEWAuW8XdZZOdmi3H2I=
 notifications:
   email:
     on_success: never
+addons:
+  apt:
+    packages:
+      - libcurl4-openssl-dev
+      - libelf-dev
+      - libdw-dev
