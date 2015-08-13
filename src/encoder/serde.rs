@@ -59,6 +59,24 @@ impl ser::Serializer for Encoder {
         try!(value.serialize(self));
         Ok(())
     }
+    fn visit_newtype_struct<T>(&mut self,
+                               _name: &'static str,
+                               value: T) -> Result<(), Self::Error>
+        where T: ser::Serialize,
+    {
+        // Don't serialize the newtype struct in a tuple.
+        value.serialize(self)
+    }
+    fn visit_newtype_variant<T>(&mut self,
+                                _name: &'static str,
+                                _variant_index: usize,
+                                _variant: &'static str,
+                                value: T) -> Result<(), Self::Error>
+        where T: ser::Serialize,
+    {
+        // Don't serialize the newtype struct variant in a tuple.
+        value.serialize(self)
+    }
 }
 
 impl ser::Serialize for Value {
