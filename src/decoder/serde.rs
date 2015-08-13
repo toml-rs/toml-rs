@@ -3,13 +3,6 @@ use Value;
 use super::{Decoder, DecodeError, DecodeErrorKind};
 use std::collections::BTreeMap;
 
-struct MapVisitor<'a, I> {
-    iter: I,
-    toml: &'a mut Option<Value>,
-    key: Option<String>,
-    value: Option<Value>,
-}
-
 fn se2toml(err: de::value::Error, ty: &'static str) -> DecodeError {
     match err {
         de::value::Error::SyntaxError => de::Error::syntax(ty),
@@ -59,12 +52,92 @@ impl de::Deserializer for Decoder {
             Some(Value::Table(t)) => {
                 visitor.visit_map(MapVisitor {
                     iter: t.into_iter(),
-                    toml: &mut self.toml,
+                    de: self,
                     key: None,
                     value: None,
                 })
             }
             None => Err(de::Error::end_of_stream()),
+        }
+    }
+
+    fn visit_isize<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        self.visit_i64(visitor)
+    }
+
+    fn visit_i8<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        self.visit_i64(visitor)
+    }
+    fn visit_i16<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        self.visit_i64(visitor)
+    }
+
+    fn visit_i32<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        self.visit_i64(visitor)
+    }
+
+    fn visit_i64<V>(&mut self, mut visitor: V) -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        match self.toml.take() {
+            Some(Value::Integer(f)) => {
+                visitor.visit_i64(f).map_err(|e| se2toml(e, "integer"))
+            }
+            ref found => Err(self.mismatch("integer", found)),
+        }
+    }
+
+    fn visit_usize<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        self.visit_i64(visitor)
+    }
+
+    fn visit_u8<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        self.visit_i64(visitor)
+    }
+    fn visit_u16<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        self.visit_i64(visitor)
+    }
+
+    fn visit_u32<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        self.visit_i64(visitor)
+    }
+
+    fn visit_u64<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        self.visit_i64(visitor)
+    }
+
+    fn visit_f32<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        self.visit_f64(visitor)
+    }
+
+    fn visit_f64<V>(&mut self, mut visitor: V) -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        match self.toml.take() {
+            Some(Value::Float(f)) => {
+                visitor.visit_f64(f).map_err(|e| se2toml(e, "float"))
+            }
+            ref found => Err(self.mismatch("float", found)),
         }
     }
 
