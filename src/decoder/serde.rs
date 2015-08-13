@@ -346,12 +346,20 @@ impl de::Error for DecodeError {
     }
 }
 
+struct MapVisitor<'a, I> {
+    iter: I,
+    de: &'a mut Decoder,
+    key: Option<String>,
+    value: Option<Value>,
+}
+
 impl<'a, I> MapVisitor<'a, I> {
     fn put_value_back(&mut self, v: Value) {
-        *self.toml = self.toml.take().or_else(|| {
+        self.de.toml = self.de.toml.take().or_else(|| {
             Some(Value::Table(BTreeMap::new()))
         });
-        match self.toml.as_mut().unwrap() {
+
+        match self.de.toml.as_mut().unwrap() {
             &mut Value::Table(ref mut t) => {
                 t.insert(self.key.take().unwrap(), v);
             },
@@ -369,8 +377,9 @@ impl<'a, I> de::MapVisitor for MapVisitor<'a, I>
         where K: de::Deserialize
     {
         while let Some((k, v)) = self.iter.next() {
-            self.key = Some(k.clone());
-            let mut dec = Decoder::new(Value::String(k));
+            let mut dec = self.de.sub_decoder(Some(Value::String(k.clone())), &k);
+            self.key = Some(k);
+
             match de::Deserialize::deserialize(&mut dec) {
                 Ok(val) => {
                     self.value = Some(v);
@@ -382,6 +391,7 @@ impl<'a, I> de::MapVisitor for MapVisitor<'a, I>
                 Err(DecodeError {kind: DecodeErrorKind::UnknownField, ..}) => {
                     self.put_value_back(v);
                 }
+
                 Err(e) => return Err(e),
             }
         }
@@ -393,7 +403,16 @@ impl<'a, I> de::MapVisitor for MapVisitor<'a, I>
     {
         match self.value.take() {
             Some(t) => {
-                let mut dec = Decoder::new(t);
+                let mut dec = {
+                    // Borrowing the key here because Rust doesn't have
+                    // non-lexical borrows yet.
+                    let key = match self.key {
+                        Some(ref key) => &**key,
+                        None => ""
+                    };
+
+                    self.de.sub_decoder(Some(t), key)
+                };
                 let v = try!(de::Deserialize::deserialize(&mut dec));
                 if let Some(t) = dec.toml {
                     self.put_value_back(t);
