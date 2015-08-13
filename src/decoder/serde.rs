@@ -3,17 +3,10 @@ use Value;
 use super::{Decoder, DecodeError, DecodeErrorKind};
 use std::collections::BTreeMap;
 
-struct MapVisitor<'a, I> {
-    iter: I,
-    toml: &'a mut Option<Value>,
-    key: Option<String>,
-    value: Option<Value>,
-}
-
 fn se2toml(err: de::value::Error, ty: &'static str) -> DecodeError {
     match err {
-        de::value::Error::SyntaxError => de::Error::syntax_error(),
-        de::value::Error::EndOfStreamError => de::Error::end_of_stream_error(),
+        de::value::Error::SyntaxError => de::Error::syntax(ty),
+        de::value::Error::EndOfStreamError => de::Error::end_of_stream(),
         de::value::Error::MissingFieldError(s) => {
             DecodeError {
                 field: Some(s.to_string()),
@@ -59,12 +52,92 @@ impl de::Deserializer for Decoder {
             Some(Value::Table(t)) => {
                 visitor.visit_map(MapVisitor {
                     iter: t.into_iter(),
-                    toml: &mut self.toml,
+                    de: self,
                     key: None,
                     value: None,
                 })
             }
-            None => Err(de::Error::end_of_stream_error()),
+            None => Err(de::Error::end_of_stream()),
+        }
+    }
+
+    fn visit_isize<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        self.visit_i64(visitor)
+    }
+
+    fn visit_i8<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        self.visit_i64(visitor)
+    }
+    fn visit_i16<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        self.visit_i64(visitor)
+    }
+
+    fn visit_i32<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        self.visit_i64(visitor)
+    }
+
+    fn visit_i64<V>(&mut self, mut visitor: V) -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        match self.toml.take() {
+            Some(Value::Integer(f)) => {
+                visitor.visit_i64(f).map_err(|e| se2toml(e, "integer"))
+            }
+            ref found => Err(self.mismatch("integer", found)),
+        }
+    }
+
+    fn visit_usize<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        self.visit_i64(visitor)
+    }
+
+    fn visit_u8<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        self.visit_i64(visitor)
+    }
+    fn visit_u16<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        self.visit_i64(visitor)
+    }
+
+    fn visit_u32<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        self.visit_i64(visitor)
+    }
+
+    fn visit_u64<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        self.visit_i64(visitor)
+    }
+
+    fn visit_f32<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        self.visit_f64(visitor)
+    }
+
+    fn visit_f64<V>(&mut self, mut visitor: V) -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        match self.toml.take() {
+            Some(Value::Float(f)) => {
+                visitor.visit_f64(f).map_err(|e| se2toml(e, "float"))
+            }
+            ref found => Err(self.mismatch("float", found)),
         }
     }
 
@@ -88,6 +161,94 @@ impl de::Deserializer for Decoder {
         } else {
             self.visit(visitor)
         }
+    }
+
+    fn visit_enum<V>(&mut self,
+                     _enum: &str,
+                     variants: &[&str],
+                     mut visitor: V) -> Result<V::Value, DecodeError>
+        where V: de::EnumVisitor,
+    {
+        // When decoding enums, this crate takes the strategy of trying to
+        // decode the current TOML as all of the possible variants, returning
+        // success on the first one that succeeds.
+        //
+        // Note that fidelity of the errors returned here is a little nebulous,
+        // but we try to return the error that had the relevant field as the
+        // longest field. This way we hopefully match an error against what was
+        // most likely being written down without losing too much info.
+        let mut first_error = None::<DecodeError>;
+
+        for variant in 0 .. variants.len() {
+            let mut de = VariantVisitor {
+                de: self.sub_decoder(self.toml.clone(), ""),
+                variant: variant,
+            };
+
+            match visitor.visit(&mut de) {
+                Ok(value) => {
+                    self.toml = de.de.toml;
+                    return Ok(value);
+                }
+                Err(e) => {
+                    if let Some(ref first) = first_error {
+                        let my_len = e.field.as_ref().map(|s| s.len());
+                        let first_len = first.field.as_ref().map(|s| s.len());
+                        if my_len <= first_len {
+                            continue
+                        }
+                    }
+                    first_error = Some(e);
+                }
+            }
+        }
+
+        Err(first_error.unwrap_or_else(|| self.err(DecodeErrorKind::NoEnumVariants)))
+    }
+}
+
+struct VariantVisitor {
+    de: Decoder,
+    variant: usize,
+}
+
+impl de::VariantVisitor for VariantVisitor {
+    type Error = DecodeError;
+
+    fn visit_variant<V>(&mut self) -> Result<V, DecodeError>
+        where V: de::Deserialize
+    {
+        use serde::de::value::ValueDeserializer;
+
+        let mut de = self.variant.into_deserializer();
+
+        de::Deserialize::deserialize(&mut de).map_err(|e| se2toml(e, "variant"))
+    }
+
+    fn visit_unit(&mut self) -> Result<(), DecodeError> {
+        de::Deserialize::deserialize(&mut self.de)
+    }
+
+    fn visit_newtype<T>(&mut self) -> Result<T, DecodeError>
+        where T: de::Deserialize,
+    {
+        de::Deserialize::deserialize(&mut self.de)
+    }
+
+    fn visit_tuple<V>(&mut self,
+                      _len: usize,
+                      visitor: V) -> Result<V::Value, DecodeError>
+        where V: de::Visitor,
+    {
+        de::Deserializer::visit(&mut self.de, visitor)
+    }
+
+    fn visit_struct<V>(&mut self,
+                       _fields: &'static [&'static str],
+                       visitor: V) -> Result<V::Value, DecodeError>
+        where V: de::Visitor,
+    {
+        de::Deserializer::visit(&mut self.de, visitor)
     }
 }
 
@@ -155,7 +316,7 @@ impl<'a, I> de::SeqVisitor for SeqDeserializer<'a, I>
         if self.len == 0 {
             Ok(())
         } else {
-            Err(de::Error::end_of_stream_error())
+            Err(de::Error::end_of_stream())
         }
     }
 
@@ -165,19 +326,19 @@ impl<'a, I> de::SeqVisitor for SeqDeserializer<'a, I>
 }
 
 impl de::Error for DecodeError {
-    fn syntax_error() -> DecodeError {
+    fn syntax(_: &str) -> DecodeError {
         DecodeError { field: None, kind: DecodeErrorKind::SyntaxError }
     }
-    fn end_of_stream_error() -> DecodeError {
+    fn end_of_stream() -> DecodeError {
         DecodeError { field: None, kind: DecodeErrorKind::EndOfStream }
     }
-    fn missing_field_error(name: &'static str) -> DecodeError {
+    fn missing_field(name: &'static str) -> DecodeError {
         DecodeError {
             field: Some(name.to_string()),
             kind: DecodeErrorKind::ExpectedField(None),
         }
     }
-    fn unknown_field_error(name: &str) -> DecodeError {
+    fn unknown_field(name: &str) -> DecodeError {
         DecodeError {
             field: Some(name.to_string()),
             kind: DecodeErrorKind::UnknownField,
@@ -185,12 +346,20 @@ impl de::Error for DecodeError {
     }
 }
 
+struct MapVisitor<'a, I> {
+    iter: I,
+    de: &'a mut Decoder,
+    key: Option<String>,
+    value: Option<Value>,
+}
+
 impl<'a, I> MapVisitor<'a, I> {
     fn put_value_back(&mut self, v: Value) {
-        *self.toml = self.toml.take().or_else(|| {
+        self.de.toml = self.de.toml.take().or_else(|| {
             Some(Value::Table(BTreeMap::new()))
         });
-        match self.toml.as_mut().unwrap() {
+
+        match self.de.toml.as_mut().unwrap() {
             &mut Value::Table(ref mut t) => {
                 t.insert(self.key.take().unwrap(), v);
             },
@@ -208,8 +377,9 @@ impl<'a, I> de::MapVisitor for MapVisitor<'a, I>
         where K: de::Deserialize
     {
         while let Some((k, v)) = self.iter.next() {
-            self.key = Some(k.clone());
-            let mut dec = Decoder::new(Value::String(k));
+            let mut dec = self.de.sub_decoder(Some(Value::String(k.clone())), &k);
+            self.key = Some(k);
+
             match de::Deserialize::deserialize(&mut dec) {
                 Ok(val) => {
                     self.value = Some(v);
@@ -221,6 +391,7 @@ impl<'a, I> de::MapVisitor for MapVisitor<'a, I>
                 Err(DecodeError {kind: DecodeErrorKind::UnknownField, ..}) => {
                     self.put_value_back(v);
                 }
+
                 Err(e) => return Err(e),
             }
         }
@@ -232,14 +403,23 @@ impl<'a, I> de::MapVisitor for MapVisitor<'a, I>
     {
         match self.value.take() {
             Some(t) => {
-                let mut dec = Decoder::new(t);
+                let mut dec = {
+                    // Borrowing the key here because Rust doesn't have
+                    // non-lexical borrows yet.
+                    let key = match self.key {
+                        Some(ref key) => &**key,
+                        None => ""
+                    };
+
+                    self.de.sub_decoder(Some(t), key)
+                };
                 let v = try!(de::Deserialize::deserialize(&mut dec));
                 if let Some(t) = dec.toml {
                     self.put_value_back(t);
                 }
                 Ok(v)
             },
-            None => Err(de::Error::end_of_stream_error())
+            None => Err(de::Error::end_of_stream())
         }
     }
 
