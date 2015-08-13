@@ -12,8 +12,8 @@ struct MapVisitor<'a, I> {
 
 fn se2toml(err: de::value::Error, ty: &'static str) -> DecodeError {
     match err {
-        de::value::Error::SyntaxError => de::Error::syntax_error(),
-        de::value::Error::EndOfStreamError => de::Error::end_of_stream_error(),
+        de::value::Error::SyntaxError => de::Error::syntax(ty),
+        de::value::Error::EndOfStreamError => de::Error::end_of_stream(),
         de::value::Error::MissingFieldError(s) => {
             DecodeError {
                 field: Some(s.to_string()),
@@ -64,7 +64,7 @@ impl de::Deserializer for Decoder {
                     value: None,
                 })
             }
-            None => Err(de::Error::end_of_stream_error()),
+            None => Err(de::Error::end_of_stream()),
         }
     }
 
@@ -155,7 +155,7 @@ impl<'a, I> de::SeqVisitor for SeqDeserializer<'a, I>
         if self.len == 0 {
             Ok(())
         } else {
-            Err(de::Error::end_of_stream_error())
+            Err(de::Error::end_of_stream())
         }
     }
 
@@ -165,19 +165,19 @@ impl<'a, I> de::SeqVisitor for SeqDeserializer<'a, I>
 }
 
 impl de::Error for DecodeError {
-    fn syntax_error() -> DecodeError {
+    fn syntax(_: &str) -> DecodeError {
         DecodeError { field: None, kind: DecodeErrorKind::SyntaxError }
     }
-    fn end_of_stream_error() -> DecodeError {
+    fn end_of_stream() -> DecodeError {
         DecodeError { field: None, kind: DecodeErrorKind::EndOfStream }
     }
-    fn missing_field_error(name: &'static str) -> DecodeError {
+    fn missing_field(name: &'static str) -> DecodeError {
         DecodeError {
             field: Some(name.to_string()),
             kind: DecodeErrorKind::ExpectedField(None),
         }
     }
-    fn unknown_field_error(name: &str) -> DecodeError {
+    fn unknown_field(name: &str) -> DecodeError {
         DecodeError {
             field: Some(name.to_string()),
             kind: DecodeErrorKind::UnknownField,
@@ -239,7 +239,7 @@ impl<'a, I> de::MapVisitor for MapVisitor<'a, I>
                 }
                 Ok(v)
             },
-            None => Err(de::Error::end_of_stream_error())
+            None => Err(de::Error::end_of_stream())
         }
     }
 

@@ -87,7 +87,7 @@ fn application_decode_error() {
          fn deserialize<D: Deserializer>(d: &mut D) -> Result<Range10, D::Error> {
              let x: usize = try!(Deserialize::deserialize(d));
              if x > 10 {
-                 Err(serde::de::Error::syntax_error())
+                 Err(serde::de::Error::syntax("more than 10"))
              } else {
                  Ok(Range10(x))
              }
