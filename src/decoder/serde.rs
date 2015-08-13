@@ -179,7 +179,7 @@ impl de::Deserializer for Decoder {
         // most likely being written down without losing too much info.
         let mut first_error = None::<DecodeError>;
 
-        for variant in 0 .. variants.len() {
+        for variant in 0..variants.len() {
             let mut de = VariantVisitor {
                 de: self.sub_decoder(self.toml.clone(), ""),
                 variant: variant,
@@ -461,9 +461,10 @@ impl de::Deserializer for UnitDeserializer {
     }
 }
 
-// Based on https://github.com/serde-rs/serde/blob/199ed417bd6afc2071d17759b8c7e0ab8d0ba4cc/serde_json/src/value.rs#L265
 impl de::Deserialize for Value {
-    fn deserialize<D>(deserializer: &mut D) -> Result<Value, D::Error> where D: de::Deserializer {
+    fn deserialize<D>(deserializer: &mut D) -> Result<Value, D::Error>
+        where D: de::Deserializer
+    {
         struct ValueVisitor;
 
         impl de::Visitor for ValueVisitor {
@@ -489,13 +490,18 @@ impl de::Deserialize for Value {
                 Ok(Value::String(value))
             }
 
-            fn visit_seq<V>(&mut self, visitor: V) -> Result<Value, V::Error> where V: de::SeqVisitor {
+            fn visit_seq<V>(&mut self, visitor: V) -> Result<Value, V::Error>
+                where V: de::SeqVisitor
+            {
                 let values = try!(de::impls::VecVisitor::new().visit_seq(visitor));
                 Ok(Value::Array(values))
             }
 
-            fn visit_map<V>(&mut self, visitor: V) -> Result<Value, V::Error> where V: de::MapVisitor {
-                let values = try!(de::impls::BTreeMapVisitor::new().visit_map(visitor));
+            fn visit_map<V>(&mut self, visitor: V) -> Result<Value, V::Error>
+                where V: de::MapVisitor
+            {
+                let mut v = de::impls::BTreeMapVisitor::new();
+                let values = try!(v.visit_map(visitor));
                 Ok(Value::Table(values))
             }
         }
