@@ -7,6 +7,12 @@ fn run(toml: &str) {
     let table = p.parse();
     assert!(table.is_none());
     assert!(p.errors.len() > 0);
+
+    // test Parser::to_linecol with the generated error offsets
+    for error in &p.errors {
+      p.to_linecol(error.lo);
+      p.to_linecol(error.hi);
+    }
 }
 
 macro_rules! test( ($name:ident, $toml:expr) => (
