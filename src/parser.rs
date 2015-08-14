@@ -148,7 +148,7 @@ impl<'a> Parser<'a> {
     pub fn to_linecol(&self, offset: usize) -> (usize, usize) {
         let mut cur = 0;
         for (i, line) in self.input.lines().enumerate() {
-            if cur + line.len() > offset {
+            if cur + line.len() + 1 > offset {
                 return (i, offset - cur)
             }
             cur += line.len() + 1;
