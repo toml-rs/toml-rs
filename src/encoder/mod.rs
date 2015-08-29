@@ -197,7 +197,7 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Error::NeedsKey => write!(f, "need a key to encode"),
-            Error::NoValue => write!(f, "not value to emit for a previous key"),
+            Error::NoValue => write!(f, "no value to emit for a previous key"),
             Error::InvalidMapKeyLocation => write!(f, "a map cannot be emitted \
                                                        at this location"),
             Error::InvalidMapKeyType => write!(f, "only strings can be used as \
