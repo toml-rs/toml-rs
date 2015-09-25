@@ -155,6 +155,8 @@ impl Value {
     ///
     /// Note: arrays have zero-based indexes.
     ///
+    /// Note: empty path returns self.
+    ///
     /// ```
     /// # #![allow(unstable)]
     /// let toml = r#"
@@ -180,6 +182,10 @@ impl Value {
     /// ```
     pub fn lookup<'a>(&'a self, path: &'a str) -> Option<&'a Value> {
         let mut cur_value = self;
+        if path.len() == 0 {
+            return Some(cur_value)
+        }
+
         for key in path.split('.') {
             match cur_value {
                 &Value::Table(ref hm) => {
@@ -259,5 +265,19 @@ mod tests {
 
         let foo = value.lookup("values.str.foo");
         assert!(foo.is_none());
+    }
+
+    #[test]
+    fn lookup_self() {
+        let value: Value = r#"foo = "bar""#.parse().unwrap();
+
+        let foo = value.lookup("foo").unwrap();
+        assert_eq!(foo.as_str().unwrap(), "bar");
+
+        let foo = value.lookup("").unwrap();
+        assert!(foo.as_table().is_some());
+
+        let baz = foo.lookup("foo").unwrap();
+        assert_eq!(baz.as_str().unwrap(), "bar");
     }
 }
