@@ -103,7 +103,7 @@ pub struct Parser<'a> {
 ///
 /// The data in this structure can be used to trace back to the original cause
 /// of the error in order to provide diagnostics about parse errors.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct ParserError {
     /// The low byte at which this error is pointing at.
     pub lo: usize,
