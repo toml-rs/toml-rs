@@ -178,3 +178,6 @@ test!(example3,
 test!(example4,
        include_str!("valid/example-v0.4.0.toml"),
        include_str!("valid/example-v0.4.0.json"));
+test!(example_bom,
+       include_str!("valid/example-bom.toml"),
+       include_str!("valid/example.json"));
