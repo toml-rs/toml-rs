@@ -190,6 +190,14 @@ impl<'a> Parser<'a> {
         false
     }
 
+    // Consumes a BOM (Byte Order Mark) if one is next
+    fn bom(&mut self) -> bool {
+        match self.peek(0) {
+            Some((_, '\u{feff}')) => { self.cur.next(); true }
+            _ => false
+        }
+    }
+
     // Consumes whitespace ('\t' and ' ') until another character (or EOF) is
     // reached. Returns if any whitespace was consumed
     fn ws(&mut self) -> bool {
@@ -234,6 +242,7 @@ impl<'a> Parser<'a> {
     /// to determine the cause of the parse failure.
     pub fn parse(&mut self) -> Option<super::Table> {
         let mut ret = TomlTable { values: BTreeMap::new(), defined: false };
+        self.bom();
         while self.peek(0).is_some() {
             self.ws();
             if self.newline() { continue }
