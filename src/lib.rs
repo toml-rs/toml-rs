@@ -59,6 +59,8 @@ mod encoder;
 #[cfg(any(feature = "rustc-serialize", feature = "serde"))]
 mod decoder;
 
+mod new_parser;
+
 /// Representation of a TOML value.
 #[derive(PartialEq, Clone, Debug)]
 #[allow(missing_docs)]
