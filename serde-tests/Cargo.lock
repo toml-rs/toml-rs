@@ -5,7 +5,7 @@ dependencies = [
  "serde 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde_codegen 0.6.5 (registry+https://github.com/rust-lang/crates.io-index)",
  "syntex 0.22.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "toml 0.1.23",
+ "toml 0.1.24",
 ]
 
 [[package]]
@@ -146,7 +146,7 @@ dependencies = [
 
 [[package]]
 name = "toml"
-version = "0.1.23"
+version = "0.1.24"
 dependencies = [
  "rustc-serialize 0.3.16 (registry+https://github.com/rust-lang/crates.io-index)",
  "serde 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
