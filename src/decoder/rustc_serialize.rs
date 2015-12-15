@@ -57,7 +57,7 @@ impl rustc_serialize::Decoder for Decoder {
     }
     fn read_f64(&mut self) -> Result<f64, DecodeError> {
         match self.toml {
-            Some(Value::Float(f)) => Ok(f),
+            Some(Value::Float(f)) => { self.toml.take(); Ok(f) },
             ref found => Err(self.mismatch("float", found)),
         }
     }
