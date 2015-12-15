@@ -1,46 +1,66 @@
-use std::str;
-use std::iter;
 use std::borrow::Cow;
+use std::char;
+use std::iter;
+use std::str;
+use std::string;
 
 use self::Token::*;
 
+#[derive(Eq, PartialEq, Debug)]
 pub enum Token<'a> {
     Whitespace(&'a str),
-    Newline(&'a str),
+    Newline,
     Comment(&'a str),
 
-    Equals(&'a str),
-    Period(&'a str),
-    Comma(&'a str),
-    LeftBrace(&'a str),
-    RightBrace(&'a str),
-    LeftBracket(&'a str),
-    RightBracket(&'a str),
-    LeftDoubleBracket(&'a str),
-    RightDoubleBracket(&'a str),
+    Equals,
+    Period,
+    Comma,
+    LeftBrace,
+    RightBrace,
+    LeftBracket,
+    RightBracket,
+    LeftDoubleBracket,
+    RightDoubleBracket,
 
     Keylike(&'a str),
     String { src: &'a str, val: Cow<'a, str> },
 }
 
+#[derive(Eq, PartialEq, Debug)]
 pub enum Error {
-    BareCr(usize),
     InvalidCharInString(usize, char),
+    InvalidEscape(usize, char),
+    InvalidHexEscape(usize, char),
+    InvalidEscapeValue(usize, u32),
     NewlineInString(usize),
-    UnterminatedString(usize),
     Unexpected(usize, char),
+    UnterminatedString(usize),
 }
 
 pub struct Tokenizer<'a> {
     input: &'a str,
-    chars: iter::Peekable<str::CharIndices<'a>>,
+    chars: iter::Peekable<CrlfFold<'a>>,
+}
+
+struct CrlfFold<'a> {
+    stored: Option<(usize, char)>,
+    chars: str::CharIndices<'a>,
+}
+
+#[derive(Debug)]
+enum MaybeString {
+    NotEscaped(usize),
+    Owned(string::String),
 }
 
 impl<'a> Tokenizer<'a> {
     pub fn new(input: &'a str) -> Tokenizer<'a> {
         Tokenizer {
             input: input,
-            chars: input.char_indices().peekable(),
+            chars: CrlfFold {
+                stored: None,
+                chars: input.char_indices(),
+            }.peekable(),
         }
     }
 
@@ -58,14 +78,6 @@ impl<'a> Tokenizer<'a> {
         self.chars.peek().map(|i| i.0).unwrap_or(self.input.len())
     }
 
-    fn crlf(&mut self, start: usize) -> Result<Token<'a>, Error> {
-        if self.eat('\n') {
-            Ok(Newline(&self.input[start..start+2]))
-        } else {
-            Err(Error::BareCr(start))
-        }
-    }
-
     fn whitespace(&mut self, start: usize) -> Token<'a> {
         while self.eat(' ') || self.eat('\t') {
             // ...
@@ -75,7 +87,7 @@ impl<'a> Tokenizer<'a> {
 
     fn comment(&mut self, start: usize) -> Token<'a> {
         while let Some(&(_, ch)) = self.chars.peek() {
-            if ch != '\t' && (ch < '\u{20}' || ch > '\u{10fff}') {
+            if ch != '\t' && (ch < '\u{20}' || ch > '\u{10ffff}') {
                 break
             }
             self.chars.next();
@@ -83,119 +95,151 @@ impl<'a> Tokenizer<'a> {
         Comment(&self.input[start..self.current()])
     }
 
-    fn left_bracket(&mut self, start: usize) -> Token<'a> {
+    fn left_bracket(&mut self) -> Token<'a> {
         if self.eat('[') {
-            LeftDoubleBracket(&self.input[start..start+2])
+            LeftDoubleBracket
         } else {
-            LeftBracket(&self.input[start..start+1])
+            LeftBracket
         }
     }
 
-    fn right_bracket(&mut self, start: usize) -> Token<'a> {
-        if self.eat('[') {
-            RightDoubleBracket(&self.input[start..start+2])
+    fn right_bracket(&mut self) -> Token<'a> {
+        if self.eat(']') {
+            RightDoubleBracket
         } else {
-            RightBracket(&self.input[start..start+1])
+            RightBracket
         }
     }
 
-    fn literal_string(&mut self, start: usize) -> Result<Token<'a>, Error> {
-        let ok = |me: &Tokenizer<'a>, val_start, val_end, end| {
-            Ok(String {
-                src: &me.input[start..end],
-                val: Cow::Borrowed(&me.input[val_start..val_end]),
-            })
-        };
+    fn read_string(&mut self,
+                   delim: char,
+                   start: usize,
+                   new_ch: &mut FnMut(&mut Tokenizer, &mut MaybeString,
+                                      bool, usize, char)
+                                     -> Result<(), Error>)
+                   -> Result<Token<'a>, Error> {
         let mut multiline = false;
-        if self.eat('\'') {
-            if self.eat('\'') {
+        if self.eat(delim) {
+            if self.eat(delim) {
                 multiline = true;
             } else {
-                return ok(self, 0, 0, start + 2)
+                return Ok(String {
+                    src: &self.input[start..start+2],
+                    val: Cow::Borrowed(""),
+                })
             }
         }
-        let mut val_start = self.current();
-        loop {
+        let mut val = MaybeString::NotEscaped(self.current());
+        let mut n = 0;
+        'outer: loop {
+            n += 1;
             match self.chars.next() {
-                Some((end, '\'')) => {
-                    if !multiline {
-                        return ok(self, val_start, end, end + 1)
-                    } else if self.eat('\'') && self.eat('\'') {
-                        return ok(self, val_start, end, end + 3)
-                    }
-                }
-                Some((i, c @ '\n')) |
-                Some((i, c @ '\r')) => {
+                Some((i, '\n')) => {
                     if multiline {
-                        if c == '\r' {
-                            try!(self.crlf(i));
+                        if self.input.as_bytes()[i] == b'\r' {
+                            val.to_owned(&self.input[..i]);
                         }
-                        if val_start == start + 3 {
-                            val_start = self.current();
+                        if n == 1 {
+                            val = MaybeString::NotEscaped(self.current());
+                        } else {
+                            val.push('\n');
                         }
+                        continue
                     } else {
                         return Err(Error::NewlineInString(i))
                     }
                 }
-                Some((i, ch)) => {
-                    if ch == '\u{09}' || ('\u{20}' <= ch && ch <= '\u{10fff}') {
-                        continue
+                Some((i, ch)) if ch == delim => {
+                    if multiline {
+                        for _ in 0..2 {
+                            if !self.eat(delim) {
+                                val.push(delim);
+                                continue 'outer
+                            }
+                        }
                     }
-                    return Err(Error::InvalidCharInString(i, ch))
+                    return Ok(String {
+                        src: &self.input[start..self.current()],
+                        val: val.into_cow(&self.input[..i]),
+                    })
                 }
-                None => return Err(Error::UnterminatedString(start)),
+                Some((i, c)) => try!(new_ch(self, &mut val, multiline, i, c)),
+                None => return Err(Error::UnterminatedString(start))
             }
         }
     }
 
+    fn literal_string(&mut self, start: usize) -> Result<Token<'a>, Error> {
+        self.read_string('\'', start, &mut |_me, val, _multi, i, ch| {
+            if ch == '\u{09}' || ('\u{20}' <= ch && ch <= '\u{10ffff}') {
+                val.push(ch);
+                Ok(())
+            } else {
+                Err(Error::InvalidCharInString(i, ch))
+            }
+        })
+    }
+
     fn basic_string(&mut self, start: usize) -> Result<Token<'a>, Error> {
-        loop {}
-        // let mut multiline = false;
-        // let ok = |me: &Tokenizer<'a>, val_start, val_end, end| {
-        //     Ok(String {
-        //         src: &me.input[start..end],
-        //         val: Cow::Borrowed(&me.input[val_start..val_end]),
-        //     })
-        // };
-        // if self.eat('\'') {
-        //     if self.eat('\'') {
-        //         multiline = true;
-        //     } else {
-        //         return ok(self, 0, 0, start + 2)
-        //     }
-        // }
-        // let mut val_start = self.current();
-        // loop {
-        //     match self.chars.next() {
-        //         Some((end, '\'')) => {
-        //             if !multiline {
-        //                 return ok(self, val_start, end, end + 1)
-        //             } else if self.eat('\'') && self.eat('\'') {
-        //                 return ok(self, val_start, end, end + 3)
-        //             }
-        //         }
-        //         Some((i, c @ '\n')) |
-        //         Some((i, c @ '\r')) => {
-        //             if multiline {
-        //                 if c == '\r' {
-        //                     try!(self.crlf(i));
-        //                 }
-        //                 if val_start == start + 3 {
-        //                     val_start = self.current();
-        //                 }
-        //             } else {
-        //                 return Err(Error::NewlineInLiteralString(i))
-        //             }
-        //         }
-        //         Some((i, ch)) => {
-        //             if ch == '\u{09}' || ('\u{20}' <= ch && ch <= '\u{10fff}') {
-        //                 continue
-        //             }
-        //             return Err(Error::InvalidCharInLiteralString(i, ch))
-        //         }
-        //         None => return Err(Error::UnterminatedString(start)),
-        //     }
-        // }
+        self.read_string('"', start, &mut |me, val, multi, i, ch| {
+            match ch {
+                '\\' => {
+                    val.to_owned(&me.input[..i]);
+                    match me.chars.next() {
+                        Some((_, '"')) => val.push('"'),
+                        Some((_, '\\')) => val.push('\\'),
+                        Some((_, 'b')) => val.push('\u{8}'),
+                        Some((_, 'f')) => val.push('\u{c}'),
+                        Some((_, 'n')) => val.push('\n'),
+                        Some((_, 'r')) => val.push('\r'),
+                        Some((_, 't')) => val.push('\t'),
+                        Some((i, c @ 'u')) |
+                        Some((i, c @ 'U')) => {
+                            let len = if c == 'u' {4} else {8};
+                            val.push(try!(me.hex(start, i, len)));
+                        }
+                        Some((_, '\n')) if multi => {
+                            while let Some(&(_, ch)) = me.chars.peek() {
+                                match ch {
+                                    ' ' | '\t' | '\n' => {
+                                        me.chars.next();
+                                    }
+                                    _ => break,
+                                }
+                            }
+                        }
+                        Some((i, c)) => return Err(Error::InvalidEscape(i, c)),
+                        None => return Err(Error::UnterminatedString(start)),
+                    }
+                    Ok(())
+                }
+                ch if '\u{20}' <= ch && ch <= '\u{10ffff}' => {
+                    val.push(ch);
+                    Ok(())
+                }
+                _ => Err(Error::InvalidCharInString(i, ch))
+            }
+        })
+    }
+
+    fn hex(&mut self, start: usize, i: usize, len: usize) -> Result<char, Error> {
+        let mut val = 0;
+        for _ in 0..len {
+            match self.chars.next() {
+                Some((_, ch)) if '0' <= ch && ch <= '9' => {
+                    val = val * 16 + (ch as u32 - '0' as u32);
+                }
+                Some((_, ch)) if 'A' <= ch && ch <= 'F' => {
+                    val = val * 16 + (ch as u32 - 'A' as u32) + 10;
+                }
+                Some((i, ch)) => return Err(Error::InvalidHexEscape(i, ch)),
+                None => return Err(Error::UnterminatedString(start)),
+            }
+        }
+        match char::from_u32(val) {
+            Some(ch) => Ok(ch),
+            None => Err(Error::InvalidEscapeValue(i, val)),
+        }
     }
 
     fn keylike(&mut self, start: usize) -> Token<'a> {
@@ -214,26 +258,69 @@ impl<'a> Iterator for Tokenizer<'a> {
 
     fn next(&mut self) -> Option<Result<Token<'a>, Error>> {
         let token = match self.chars.next() {
+            Some((_, '\n')) => Newline,
             Some((start, ' ')) => self.whitespace(start),
             Some((start, '\t')) => self.whitespace(start),
-            Some((start, '\n')) => Newline(&self.input[start..start+1]),
-            Some((start, '\r')) => return Some(self.crlf(start)),
             Some((start, '#')) => self.comment(start),
-            Some((start, '=')) => Equals(&self.input[start..start+1]),
-            Some((start, '.')) => Period(&self.input[start..start+1]),
-            Some((start, ',')) => Comma(&self.input[start..start+1]),
-            Some((start, '{')) => LeftBrace(&self.input[start..start+1]),
-            Some((start, '}')) => RightBrace(&self.input[start..start+1]),
-            Some((start, '[')) => self.left_bracket(start),
-            Some((start, ']')) => self.right_bracket(start),
+            Some((_, '=')) => Equals,
+            Some((_, '.')) => Period,
+            Some((_, ',')) => Comma,
+            Some((_, '{')) => LeftBrace,
+            Some((_, '}')) => RightBrace,
+            Some((_, '[')) => self.left_bracket(),
+            Some((_, ']')) => self.right_bracket(),
             Some((start, '\'')) => return Some(self.literal_string(start)),
             Some((start, '"')) => return Some(self.basic_string(start)),
             Some((start, ch)) if is_keylike(ch) => self.keylike(start),
 
-            Some((i, ch)) => return Some(Err(Error::Unexpected(i, ch))),
+            Some((start, ch)) => return Some(Err(Error::Unexpected(start, ch))),
             None => return None,
         };
         Some(Ok(token))
+    }
+}
+
+impl<'a> Iterator for CrlfFold<'a> {
+    type Item = (usize, char);
+
+    fn next(&mut self) -> Option<(usize, char)> {
+        if let Some(pair) = self.stored.take() {
+            return Some(pair)
+        }
+        self.chars.next().map(|(i, c)| {
+            if c == '\r' {
+                match self.chars.next() {
+                    Some((_, '\n')) => return (i, '\n'),
+                    next => self.stored = next,
+                }
+            }
+            (i, c)
+        })
+    }
+}
+
+impl MaybeString {
+    fn push(&mut self, ch: char) {
+        match *self {
+            MaybeString::NotEscaped(..) => {}
+            MaybeString::Owned(ref mut s) => s.push(ch),
+        }
+    }
+
+    fn to_owned(&mut self, input: &str) {
+        match *self {
+            MaybeString::NotEscaped(start) => {
+                *self = MaybeString::Owned(input[start..].to_owned());
+            }
+            MaybeString::Owned(..) => {}
+        }
+    }
+
+    fn into_cow<'a>(self, input: &'a str) -> Cow<'a, str> {
+        match self {
+            MaybeString::NotEscaped(start) => Cow::Borrowed(&input[start..]),
+            MaybeString::Owned(s) => Cow::Owned(s),
+        }
     }
 }
 
@@ -243,4 +330,159 @@ fn is_keylike(ch: char) -> bool {
         ('0' <= ch && ch <= '9') ||
         ch == '-' ||
         ch == '_'
+}
+
+#[cfg(test)]
+mod tests {
+    use std::borrow::Cow;
+    use super::{Tokenizer, Token, Error};
+
+    fn err(input: &str, err: Error) {
+        let mut t = Tokenizer::new(input);
+        let token = t.next().unwrap().unwrap_err();
+        assert_eq!(token, err);
+        assert!(t.next().is_none());
+    }
+
+    #[test]
+    fn literal_strings() {
+        fn t(input: &str, val: &str) {
+            let mut t = Tokenizer::new(input);
+            let token = t.next().unwrap().unwrap();
+            assert_eq!(token, Token::String {
+                src: input,
+                val: Cow::Borrowed(val),
+            });
+            assert!(t.next().is_none());
+        }
+
+        t("''", "");
+        t("''''''", "");
+        t("'''\n'''", "");
+        t("'a'", "a");
+        t("'\"a'", "\"a");
+        t("''''a'''", "'a");
+        t("'''\n'a\n'''", "'a\n");
+        t("'''a\n'a\r\n'''", "a\n'a\n");
+    }
+
+    #[test]
+    fn basic_strings() {
+        fn t(input: &str, val: &str) {
+            let mut t = Tokenizer::new(input);
+            let token = t.next().unwrap().unwrap();
+            assert_eq!(token, Token::String {
+                src: input,
+                val: Cow::Borrowed(val),
+            });
+            assert!(t.next().is_none());
+        }
+
+        t(r#""""#, "");
+        t(r#""""""""#, "");
+        t(r#""a""#, "a");
+        t(r#""""a""""#, "a");
+        t(r#""\t""#, "\t");
+        t(r#""\u0000""#, "\0");
+        t(r#""\U00000000""#, "\0");
+        t(r#""\U000A0000""#, "\u{A0000}");
+        t(r#""\\t""#, "\\t");
+        t("\"\"\"\\\n\"\"\"", "");
+        t("\"\"\"\\\n     \t   \t  \\\r\n  \t \n  \t \r\n\"\"\"", "");
+        t(r#""\r""#, "\r");
+        t(r#""\n""#, "\n");
+        t(r#""\b""#, "\u{8}");
+        t(r#""a\fa""#, "a\u{c}a");
+        t(r#""\"a""#, "\"a");
+        t("\"\"\"\na\"\"\"", "a");
+        t("\"\"\"\n\"\"\"", "");
+        err(r#""\a"#, Error::InvalidEscape(2, 'a'));
+        err("\"\\\n", Error::InvalidEscape(2, '\n'));
+        err("\"\\\r\n", Error::InvalidEscape(2, '\n'));
+        err("\"\\", Error::UnterminatedString(0));
+        err("\"\u{0}", Error::InvalidCharInString(1, '\u{0}'));
+        err(r#""\U00""#, Error::InvalidHexEscape(5, '"'));
+        err(r#""\U00"#, Error::UnterminatedString(0));
+        err(r#""\uD800"#, Error::InvalidEscapeValue(2, 0xd800));
+        err(r#""\UFFFFFFFF"#, Error::InvalidEscapeValue(2, 0xffffffff));
+    }
+
+    #[test]
+    fn keylike() {
+        fn t(input: &str) {
+            let mut t = Tokenizer::new(input);
+            let token = t.next().unwrap().unwrap();
+            assert_eq!(token, Token::Keylike(input));
+            assert!(t.next().is_none());
+        }
+        t("foo");
+        t("0bar");
+        t("bar0");
+        t("1234");
+        t("a-b");
+        t("a_B");
+        t("-_-");
+        t("___");
+    }
+
+    #[test]
+    fn all() {
+        fn t(input: &str, expected: &[Token]) {
+            let actual = Tokenizer::new(input).collect::<Result<Vec<_>, _>>();
+            let actual = actual.unwrap();
+            for (a, b) in actual.iter().zip(expected) {
+                assert_eq!(a, b);
+            }
+            assert_eq!(actual.len(), expected.len());
+        }
+
+        t(" a ", &[
+            Token::Whitespace(" "),
+            Token::Keylike("a"),
+            Token::Whitespace(" "),
+        ]);
+
+        t(" a\t [[]] \t [] {} , . =\n# foo \r\n#foo \n ", &[
+            Token::Whitespace(" "),
+            Token::Keylike("a"),
+            Token::Whitespace("\t "),
+            Token::LeftDoubleBracket,
+            Token::RightDoubleBracket,
+            Token::Whitespace(" \t "),
+            Token::LeftBracket,
+            Token::RightBracket,
+            Token::Whitespace(" "),
+            Token::LeftBrace,
+            Token::RightBrace,
+            Token::Whitespace(" "),
+            Token::Comma,
+            Token::Whitespace(" "),
+            Token::Period,
+            Token::Whitespace(" "),
+            Token::Equals,
+            Token::Newline,
+            Token::Comment("# foo "),
+            Token::Newline,
+            Token::Comment("#foo "),
+            Token::Newline,
+            Token::Whitespace(" "),
+        ]);
+    }
+
+    #[test]
+    fn bare_cr_bad() {
+        err("\r", Error::Unexpected(0, '\r'));
+        err("'\n", Error::NewlineInString(1));
+        err("'\u{0}", Error::InvalidCharInString(1, '\u{0}'));
+        err("'", Error::UnterminatedString(0));
+        err("\u{0}", Error::Unexpected(0, '\u{0}'));
+    }
+
+    #[test]
+    fn bad_comment() {
+        let mut t = Tokenizer::new("#\u{0}");
+        assert!(t.next().unwrap().is_ok());
+        assert_eq!(t.next().unwrap(), Err(Error::Unexpected(1, '\u{0}')));
+        assert!(t.next().is_none());
+    }
 }
