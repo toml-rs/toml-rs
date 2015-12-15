@@ -12,7 +12,9 @@ script:
   - cargo build --verbose --no-default-features
   - cargo build --verbose --features serde --no-default-features
   - cargo test --verbose --features serde
-  - [ "$TRAVIS_RUST_VERSION" = "1.0.0" ] || cargo test --verbose --manifest-path serde-tests/Cargo.toml
+  - if [ "$TRAVIS_RUST_VERSION" != "1.0.0" ]; then
+      cargo test --verbose --manifest-path serde-tests/Cargo.toml;
+    fi
   - rustdoc --test README.md -L target
   - cargo doc --no-deps
 after_success:
