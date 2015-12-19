@@ -640,6 +640,33 @@ mod tests {
     }
 
     #[test]
+    fn unused_fields8() {
+        #[derive(RustcEncodable, RustcDecodable, PartialEq, Debug)]
+        struct Foo { a: BTreeMap<String, Bar> }
+        #[derive(RustcEncodable, RustcDecodable, PartialEq, Debug)]
+        struct Bar { a: isize }
+
+        let v = Foo { a: map! { a, Bar { a: 2 } } };
+        let mut d = Decoder::new(Table(map! {
+            a, Table(map! {
+                a, Table(map! {
+                    a, Integer(2),
+                    b, Integer(2)
+                })
+            })
+        }));
+        assert_eq!(v, Decodable::decode(&mut d).unwrap());
+
+        assert_eq!(d.toml, Some(Table(map! {
+            a, Table(map! {
+                a, Table(map! {
+                    b, Integer(2)
+                })
+            })
+        })));
+    }
+
+    #[test]
     fn empty_arrays() {
         #[derive(RustcEncodable, RustcDecodable, PartialEq, Debug)]
         struct Foo { a: Vec<Bar> }

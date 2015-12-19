@@ -1,5 +1,7 @@
 use std::error;
 use std::fmt;
+use std::collections::{btree_map, BTreeMap};
+use std::iter::Peekable;
 
 use Value;
 use self::DecodeErrorKind::*;
@@ -17,6 +19,8 @@ pub struct Decoder {
     /// whether fields were decoded or not.
     pub toml: Option<Value>,
     cur_field: Option<String>,
+    cur_map: Peekable<btree_map::IntoIter<String, Value>>,
+    leftover_map: ::Table,
 }
 
 /// Description for errors which can occur while decoding a type.
@@ -105,7 +109,12 @@ impl Decoder {
     /// This decoder can be passed to the `Decodable` methods or driven
     /// manually.
     pub fn new(toml: Value) -> Decoder {
-        Decoder { toml: Some(toml), cur_field: None }
+        Decoder {
+            toml: Some(toml),
+            cur_field: None,
+            leftover_map: BTreeMap::new(),
+            cur_map: BTreeMap::new().into_iter().peekable(),
+        }
     }
 
     fn sub_decoder(&self, toml: Option<Value>, field: &str) -> Decoder {
@@ -118,7 +127,9 @@ impl Decoder {
                     None => Some(format!("{}", field)),
                     Some(ref s) => Some(format!("{}.{}", s, field))
                 }
-            }
+            },
+            leftover_map: BTreeMap::new(),
+            cur_map: BTreeMap::new().into_iter().peekable(),
         }
     }
 

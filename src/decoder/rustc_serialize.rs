@@ -1,5 +1,6 @@
 use rustc_serialize;
 use std::mem;
+use std::collections::BTreeMap;
 
 use super::{Decoder, DecodeError};
 use super::DecodeErrorKind::*;
@@ -275,46 +276,50 @@ impl rustc_serialize::Decoder for Decoder {
         -> Result<T, DecodeError>
         where F: FnOnce(&mut Decoder, usize) -> Result<T, DecodeError>
     {
-        let len = match self.toml {
-            Some(Value::Table(ref table)) => table.len(),
-            ref found => return Err(self.mismatch("table", found)),
+        let map = match self.toml.take() {
+            Some(Value::Table(table)) => table,
+            found => {
+                self.toml = found;
+                return Err(self.mismatch("table", &self.toml))
+            }
         };
-        let ret = try!(f(self, len));
-        self.toml.take();
+        let amt = map.len();
+        let prev_iter = mem::replace(&mut self.cur_map,
+                                     map.into_iter().peekable());
+        let prev_map = mem::replace(&mut self.leftover_map, BTreeMap::new());
+        let ret = try!(f(self, amt));
+        let leftover = mem::replace(&mut self.leftover_map, prev_map);
+        self.cur_map = prev_iter;
+        if leftover.len() > 0 {
+            self.toml = Some(Value::Table(leftover));
+        }
         Ok(ret)
     }
     fn read_map_elt_key<T, F>(&mut self, idx: usize, f: F)
         -> Result<T, DecodeError>
         where F: FnOnce(&mut Decoder) -> Result<T, DecodeError>
     {
-        match self.toml {
-            Some(Value::Table(ref table)) => {
-                match table.iter().skip(idx).next() {
-                    Some((key, _)) => {
-                        let val = Value::String(key.to_string());
-                        f(&mut self.sub_decoder(Some(val), key))
-                    }
-                    None => Err(self.err(ExpectedMapKey(idx))),
-                }
-            }
-            ref found => Err(self.mismatch("table", found)),
-        }
+        let key = match self.cur_map.peek().map(|p| p.0.clone()) {
+            Some(k) => k,
+            None => return Err(self.err(ExpectedMapKey(idx))),
+        };
+        let val = Value::String(key.clone());
+        f(&mut self.sub_decoder(Some(val), &key))
     }
     fn read_map_elt_val<T, F>(&mut self, idx: usize, f: F)
         -> Result<T, DecodeError>
         where F: FnOnce(&mut Decoder) -> Result<T, DecodeError>
     {
-        match self.toml {
-            Some(Value::Table(ref table)) => {
-                match table.iter().skip(idx).next() {
-                    Some((key, value)) => {
-                        // XXX: this shouldn't clone
-                        f(&mut self.sub_decoder(Some(value.clone()), key))
-                    }
-                    None => Err(self.err(ExpectedMapElement(idx))),
+        match self.cur_map.next() {
+            Some((key, value)) => {
+                let mut d = self.sub_decoder(Some(value), &key);
+                let ret = f(&mut d);
+                if let Some(toml) = d.toml.take() {
+                    self.leftover_map.insert(key, toml);
                 }
+                return ret
             }
-            ref found => Err(self.mismatch("table", found)),
+            None => return Err(self.err(ExpectedMapElement(idx))),
         }
     }
 
