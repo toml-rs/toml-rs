@@ -82,7 +82,8 @@ pub fn decode<T: ::serde::Deserialize>(toml: Value) -> Option<T> {
 /// Decodes a string into a toml-encoded value.
 ///
 /// This function will parse the given string into a TOML value, and then parse
-/// the TOML value into the desired type. If any error occurs `None` is return.
+/// the TOML value into the desired type. If any error occurs, `None` is
+/// returned.
 ///
 /// If more fine-grained errors are desired, these steps should be driven
 /// manually.
@@ -94,7 +95,8 @@ pub fn decode_str<T: ::rustc_serialize::Decodable>(s: &str) -> Option<T> {
 /// Decodes a string into a toml-encoded value.
 ///
 /// This function will parse the given string into a TOML value, and then parse
-/// the TOML value into the desired type. If any error occurs `None` is return.
+/// the TOML value into the desired type. If any error occurs, `None` is
+/// returned.
 ///
 /// If more fine-grained errors are desired, these steps should be driven
 /// manually.
