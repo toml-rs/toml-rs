@@ -108,7 +108,7 @@ impl Value {
     }
 
     /// Extracts the string of this value if it is a string.
-    pub fn as_str<'a>(&'a self) -> Option<&'a str> {
+    pub fn as_str(&self) -> Option<&str> {
         match *self { Value::String(ref s) => Some(&**s), _ => None }
     }
 
@@ -135,17 +135,17 @@ impl Value {
     /// ```notrust
     /// 1979-05-27T07:32:00Z
     /// ```
-    pub fn as_datetime<'a>(&'a self) -> Option<&'a str> {
+    pub fn as_datetime(&self) -> Option<&str> {
         match *self { Value::Datetime(ref s) => Some(&**s), _ => None }
     }
 
     /// Extracts the array value if it is an array.
-    pub fn as_slice<'a>(&'a self) -> Option<&'a [Value]> {
+    pub fn as_slice(&self) -> Option<&[Value]> {
         match *self { Value::Array(ref s) => Some(&**s), _ => None }
     }
 
     /// Extracts the table value if it is a table.
-    pub fn as_table<'a>(&'a self) -> Option<&'a Table> {
+    pub fn as_table(&self) -> Option<&Table> {
         match *self { Value::Table(ref s) => Some(s), _ => None }
     }
 
@@ -187,14 +187,14 @@ impl Value {
         }
 
         for key in path.split('.') {
-            match cur_value {
-                &Value::Table(ref hm) => {
+            match *cur_value {
+                Value::Table(ref hm) => {
                     match hm.get(key) {
                         Some(v) => cur_value = v,
                         None => return None
                     }
                 },
-                &Value::Array(ref v) => {
+                Value::Array(ref v) => {
                     match key.parse::<usize>().ok() {
                         Some(idx) if idx < v.len() => cur_value = &v[idx],
                         _ => return None
