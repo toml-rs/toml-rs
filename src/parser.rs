@@ -153,7 +153,7 @@ impl<'a> Parser<'a> {
             }
             cur += line.len() + 1;
         }
-        return (self.input.lines().count(), 0)
+        (self.input.lines().count(), 0)
     }
 
     fn next_pos(&self) -> usize {
@@ -265,7 +265,7 @@ impl<'a> Parser<'a> {
                     }
                     if !self.expect('.') { return None }
                 }
-                if keys.len() == 0 { return None }
+                if keys.is_empty() { return None }
 
                 // Build the section table
                 let mut table = TomlTable {
@@ -283,7 +283,7 @@ impl<'a> Parser<'a> {
                 if !self.values(&mut ret) { return None }
             }
         }
-        if self.errors.len() > 0 {
+        if !self.errors.is_empty() {
             None
         } else {
             Some(ret.convert())
@@ -309,7 +309,7 @@ impl<'a> Parser<'a> {
             Some(ret)
         };
         match key {
-            Some(ref name) if name.len() == 0 => {
+            Some(ref name) if name.is_empty() => {
                 self.errors.push(ParserError {
                     lo: start,
                     hi: start,
@@ -349,7 +349,7 @@ impl<'a> Parser<'a> {
             self.comment();
             self.newline();
         }
-        return true
+        true
     }
 
     fn keyval_sep(&mut self) -> bool {
@@ -381,7 +381,7 @@ impl<'a> Parser<'a> {
                     hi: hi,
                     desc: format!("expected a value"),
                 });
-                return None
+                None
             }
         }
     }
@@ -558,7 +558,7 @@ impl<'a> Parser<'a> {
             }
         }
 
-        return Some(Value::String(ret));
+        Some(Value::String(ret))
     }
 
     fn number_or_datetime(&mut self, start: usize) -> Option<Value> {
@@ -602,7 +602,7 @@ impl<'a> Parser<'a> {
                 desc: format!("invalid numeric literal"),
             });
         }
-        return ret;
+        ret
     }
 
     fn integer(&mut self, start: usize, allow_leading_zeros: bool,
@@ -662,7 +662,7 @@ impl<'a> Parser<'a> {
                 hi: pos,
                 desc: format!("numeral cannot end with an underscore"),
             });
-            return None
+            None
         } else {
             Some(s)
         }
@@ -780,7 +780,7 @@ impl<'a> Parser<'a> {
         }
         consume(self);
         if !self.expect(']') { return None }
-        return Some(Value::Array(ret))
+        Some(Value::Array(ret))
     }
 
     fn inline_table(&mut self, _start: usize) -> Option<Value> {
@@ -800,7 +800,7 @@ impl<'a> Parser<'a> {
             if !self.expect(',') { return None }
             self.ws();
         }
-        return Some(Value::Table(ret))
+        Some(Value::Table(ret))
     }
 
     fn insert(&mut self, into: &mut TomlTable, key: String, value: Value,

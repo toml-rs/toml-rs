@@ -10,7 +10,7 @@ impl rustc_serialize::Decoder for Decoder {
     type Error = DecodeError;
     fn read_nil(&mut self) -> Result<(), DecodeError> {
         match self.toml {
-            Some(Value::String(ref s)) if s.len() == 0 => {}
+            Some(Value::String(ref s)) if s.is_empty() => {}
             Some(Value::String(..)) => return Err(self.err(NilTooLong)),
             ref found => return Err(self.mismatch("string", found)),
         }
@@ -158,7 +158,7 @@ impl rustc_serialize::Decoder for Decoder {
             Some(Value::Table(..)) => {
                 let ret = try!(f(self));
                 match self.toml {
-                    Some(Value::Table(ref t)) if t.len() == 0 => {}
+                    Some(Value::Table(ref t)) if t.is_empty() => {}
                     _ => return Ok(ret)
                 }
                 self.toml.take();
@@ -243,7 +243,7 @@ impl rustc_serialize::Decoder for Decoder {
         match self.toml {
             Some(Value::Array(ref mut arr)) => {
                 arr.retain(|slot| slot.as_integer() != Some(0));
-                if arr.len() != 0 { return Ok(ret) }
+                if !arr.is_empty() { return Ok(ret) }
             }
             _ => return Ok(ret)
         }
@@ -262,12 +262,10 @@ impl rustc_serialize::Decoder for Decoder {
         };
         let mut d = self.sub_decoder(Some(toml), "");
         let ret = try!(f(&mut d));
-        match d.toml {
-            Some(toml) => match self.toml {
-                Some(Value::Array(ref mut arr)) => arr[idx] = toml,
-                _ => {}
-            },
-            _ => {}
+        if let Some(toml) = d.toml {
+            if let Some(Value::Array(ref mut arr)) = self.toml {
+                arr[idx] = toml;
+            }
         }
         Ok(ret)
     }
@@ -290,7 +288,7 @@ impl rustc_serialize::Decoder for Decoder {
         let ret = try!(f(self, amt));
         let leftover = mem::replace(&mut self.leftover_map, prev_map);
         self.cur_map = prev_iter;
-        if leftover.len() > 0 {
+        if !leftover.is_empty() {
             self.toml = Some(Value::Table(leftover));
         }
         Ok(ret)
@@ -317,9 +315,9 @@ impl rustc_serialize::Decoder for Decoder {
                 if let Some(toml) = d.toml.take() {
                     self.leftover_map.insert(key, toml);
                 }
-                return ret
+                ret
             }
-            None => return Err(self.err(ExpectedMapElement(idx))),
+            None => Err(self.err(ExpectedMapElement(idx))),
         }
     }
 

@@ -61,9 +61,8 @@ impl<'a, 'b> Printer<'a, 'b> {
             match *v {
                 Table(..) => continue,
                 Array(ref a) => {
-                    match a.first() {
-                        Some(&Table(..)) => continue,
-                        _ => {}
+                    if let Some(&Table(..)) = a.first() {
+                        continue;
                     }
                 }
                 _ => {}
