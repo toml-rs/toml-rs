@@ -294,7 +294,9 @@ impl<'a> Parser<'a> {
     fn key_name(&mut self) -> Option<String> {
         let start = self.next_pos();
         let key = if self.eat('"') {
-            self.finish_string(start, false)
+            self.finish_basic_string(start, false)
+        } else if self.eat('\'') {
+            self.finish_literal_string(start, false)
         } else {
             let mut ret = String::new();
             while let Some((_, ch)) = self.cur.clone().next() {
@@ -363,7 +365,7 @@ impl<'a> Parser<'a> {
     fn value(&mut self) -> Option<Value> {
         self.ws();
         match self.cur.clone().next() {
-            Some((pos, '"')) => self.string(pos),
+            Some((pos, '"')) => self.basic_string(pos),
             Some((pos, '\'')) => self.literal_string(pos),
             Some((pos, 't')) |
             Some((pos, 'f')) => self.boolean(pos),
@@ -387,7 +389,7 @@ impl<'a> Parser<'a> {
     }
 
     // Parses a single or multi-line string
-    fn string(&mut self, start: usize) -> Option<Value> {
+    fn basic_string(&mut self, start: usize) -> Option<Value> {
         if !self.expect('"') { return None }
         let mut multiline = false;
 
@@ -403,13 +405,13 @@ impl<'a> Parser<'a> {
             }
         }
 
-        self.finish_string(start, multiline).map(Value::String)
+        self.finish_basic_string(start, multiline).map(Value::String)
     }
 
     // Finish parsing a basic string after the opening quote has been seen
-    fn finish_string(&mut self,
-                     start: usize,
-                     multiline: bool) -> Option<String> {
+    fn finish_basic_string(&mut self,
+                           start: usize,
+                           multiline: bool) -> Option<String> {
         let mut ret = String::new();
         loop {
             while multiline && self.newline() { ret.push('\n') }
@@ -516,7 +518,6 @@ impl<'a> Parser<'a> {
     fn literal_string(&mut self, start: usize) -> Option<Value> {
         if !self.expect('\'') { return None }
         let mut multiline = false;
-        let mut ret = String::new();
 
         // detect multiline literals
         if self.eat('\'') {
@@ -524,10 +525,16 @@ impl<'a> Parser<'a> {
                 multiline = true;
                 self.newline();
             } else {
-                return Some(Value::String(ret)) // empty
+                return Some(Value::String(String::new())) // empty
             }
         }
 
+        self.finish_literal_string(start, multiline).map(Value::String)
+    }
+
+    fn finish_literal_string(&mut self, start: usize, multiline: bool)
+                             -> Option<String> {
+        let mut ret = String::new();
         loop {
             if !multiline && self.newline() {
                 let next = self.next_pos();
@@ -544,7 +551,7 @@ impl<'a> Parser<'a> {
                         if !self.eat('\'') { ret.push_str("'"); continue }
                         if !self.eat('\'') { ret.push_str("''"); continue }
                     }
-                    break
+                    return Some(ret)
                 }
                 Some((_, ch)) => ret.push(ch),
                 None => {
@@ -557,8 +564,6 @@ impl<'a> Parser<'a> {
                 }
             }
         }
-
-        Some(Value::String(ret))
     }
 
     fn number_or_datetime(&mut self, start: usize) -> Option<Value> {
@@ -1231,7 +1236,7 @@ trimmed in raw strings.
             \"a^b\" = 3
             \"\\\"\" = 3
             \"character encoding\" = \"value\"
-            \"ʎǝʞ\" = \"value\"
+            'ʎǝʞ' = \"value\"
         ");
         let table = Table(p.parse().unwrap());
         assert!(table.lookup("foo").is_some());
@@ -1269,6 +1274,11 @@ trimmed in raw strings.
         assert!(Parser::new("[!]").parse().is_none());
         assert!(Parser::new("[\"\n\"]").parse().is_none());
         assert!(Parser::new("[a.b]\n[a.\"b\"]").parse().is_none());
+        assert!(Parser::new("[']").parse().is_none());
+        assert!(Parser::new("[''']").parse().is_none());
+        assert!(Parser::new("['''''']").parse().is_none());
+        assert!(Parser::new("['\n']").parse().is_none());
+        assert!(Parser::new("['\r\n']").parse().is_none());
     }
 
     #[test]
@@ -1278,11 +1288,14 @@ trimmed in raw strings.
             [\"f f\"]
             [\"f.f\"]
             [\"\\\"\"]
+            ['a.a']
+            ['\"\"']
         ");
         let table = Table(p.parse().unwrap());
         assert!(table.lookup("a.b").is_some());
         assert!(table.lookup("f f").is_some());
         assert!(table.lookup("\"").is_some());
+        assert!(table.lookup("\"\"").is_some());
     }
 
     #[test]
