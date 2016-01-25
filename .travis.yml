@@ -1,6 +1,5 @@
 language: rust
 rust:
-  - 1.0.0
   - stable
   - beta
   - nightly
@@ -12,9 +11,7 @@ script:
   - cargo build --verbose --no-default-features
   - cargo build --verbose --features serde --no-default-features
   - cargo test --verbose --features serde
-  - if [ "$TRAVIS_RUST_VERSION" != "1.0.0" ]; then
-      cargo test --verbose --manifest-path serde-tests/Cargo.toml;
-    fi
+  - cargo test --verbose --manifest-path serde-tests/Cargo.toml
   - rustdoc --test README.md -L target
   - cargo doc --no-deps
 after_success:
