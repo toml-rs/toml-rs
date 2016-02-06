@@ -260,6 +260,11 @@ impl Value {
     /// assert_eq!(no_bar.is_none(), true);
     /// ```
     pub fn lookup<'a>(&'a mut self, path: &str) -> LookupResult<&'a mut Value> {
+        self.lookup_mut(path).map(|v| v)
+    }
+
+    /// Same as Value::lookup() but returns the value mutable
+    pub fn lookup_mut<'a>(&'a mut self, path: &str) -> LookupResult<&'a mut Value> {
         let tokens = Value::tokenize(path);
         if tokens.is_err() {
             return tokens.map(|_| self);
