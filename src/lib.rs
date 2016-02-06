@@ -259,8 +259,9 @@ impl Value {
     /// let no_bar = value.lookup("test.bar");
     /// assert_eq!(no_bar.is_none(), true);
     /// ```
-    pub fn lookup<'a>(&'a mut self, path: &str) -> LookupResult<&'a mut Value> {
-        self.lookup_mut(path).map(|v| v)
+    pub fn lookup<'a>(&'a self, path: &str) -> LookupResult<Value> {
+        let mut clone = self.clone();
+        clone.lookup_mut(path).map(|v| v.clone())
     }
 
     /// Same as Value::lookup() but returns the value mutable
