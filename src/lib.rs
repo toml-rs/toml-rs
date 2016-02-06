@@ -417,62 +417,261 @@ impl FromStr for Value {
 #[cfg(test)]
 mod tests {
     use super::Value;
+    use super::Token;
+
+    use std::collections::BTreeMap;
 
     #[test]
-    fn lookup_valid() {
-        let toml = r#"
-              [test]
-              foo = "bar"
+    fn test_walk_header_simple() {
+        let tokens = Value::tokenize("a").unwrap();
+        assert!(tokens.len() == 1, "1 token was expected, {} were parsed", tokens.len());
+        assert!(tokens.iter().next().unwrap() == &Token::Key(String::from("a")),
+                "'a' token was expected, {:?} was parsed", tokens.iter().next());
 
-              [[values]]
-              foo = "baz"
+        let mut header = BTreeMap::new();
+        header.insert(String::from("a"), Value::Integer(1));
 
-              [[values]]
-              foo = "qux"
-        "#;
-
-        let value: Value = toml.parse().unwrap();
-
-        let test_foo = value.lookup("test.foo").unwrap();
-        assert_eq!(test_foo.as_str().unwrap(), "bar");
-
-        let foo1 = value.lookup("values.1.foo").unwrap();
-        assert_eq!(foo1.as_str().unwrap(), "qux");
-
-        assert!(value.lookup("test.bar").is_none());
-        assert!(value.lookup("test.foo.bar").is_none());
+        let mut v_header = Value::Table(header);
+        let res = Value::walk(&mut v_header, tokens);
+        assert_eq!(&mut Value::Integer(1), res.unwrap());
     }
 
     #[test]
-    fn lookup_invalid_index() {
-        let toml = r#"
-            [[values]]
-            foo = "baz"
-        "#;
+    fn test_walk_header_with_array() {
+        let tokens = Value::tokenize("a.0").unwrap();
+        assert!(tokens.len() == 2, "2 token was expected, {} were parsed", tokens.len());
+        assert!(tokens.iter().next().unwrap() == &Token::Key(String::from("a")),
+                "'a' token was expected, {:?} was parsed", tokens.iter().next());
 
-        let value: Value = toml.parse().unwrap();
+        let mut header = BTreeMap::new();
+        let ary = Value::Array(vec![Value::Integer(1)]);
+        header.insert(String::from("a"), ary);
 
-        let foo = value.lookup("test.foo");
-        assert!(foo.is_none());
 
-        let foo = value.lookup("values.100.foo");
-        assert!(foo.is_none());
-
-        let foo = value.lookup("values.str.foo");
-        assert!(foo.is_none());
+        let mut v_header = Value::Table(header);
+        let res = Value::walk(&mut v_header, tokens);
+        assert_eq!(&mut Value::Integer(1), res.unwrap());
     }
 
     #[test]
-    fn lookup_self() {
-        let value: Value = r#"foo = "bar""#.parse().unwrap();
+    fn test_walk_header_extract_array() {
+        let tokens = Value::tokenize("a").unwrap();
+        assert!(tokens.len() == 1, "1 token was expected, {} were parsed", tokens.len());
+        assert!(tokens.iter().next().unwrap() == &Token::Key(String::from("a")),
+                "'a' token was expected, {:?} was parsed", tokens.iter().next());
 
-        let foo = value.lookup("foo").unwrap();
-        assert_eq!(foo.as_str().unwrap(), "bar");
+        let mut header = BTreeMap::new();
+        let ary = Value::Array(vec![Value::Integer(1)]);
+        header.insert(String::from("a"), ary);
 
-        let foo = value.lookup("").unwrap();
-        assert!(foo.as_table().is_some());
-
-        let baz = foo.lookup("foo").unwrap();
-        assert_eq!(baz.as_str().unwrap(), "bar");
+        let mut v_header = Value::Table(header);
+        let res = Value::walk(&mut v_header, tokens);
+        assert_eq!(&mut Value::Array(vec![Value::Integer(1)]), res.unwrap());
     }
+
+    /**
+     * Creates a big testing header.
+     *
+     * JSON equivalent:
+     *
+     * ```json
+     * {
+     *      "a": {
+     *          "array": [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 ]
+     *      },
+     *      "b": {
+     *          "array": [ "string1", "string2", "string3", "string4" ]
+     *      },
+     *      "c": {
+     *          "array": [ 1, "string2", 3, "string4" ]
+     *      },
+     *      "d": {
+     *          "array": [
+     *              {
+     *                  "d1": 1
+     *              },
+     *              {
+     *                  "d2": 2
+     *              },
+     *              {
+     *                  "d3": 3
+     *              },
+     *          ],
+     *
+     *          "something": "else",
+     *
+     *          "and": {
+     *              "something": {
+     *                  "totally": "different"
+     *              }
+     *          }
+     *      }
+     * }
+     * ```
+     *
+     * The sections "a", "b", "c", "d" are created in the respective helper functions
+     * create_header_section_a, create_header_section_b, create_header_section_c and
+     * create_header_section_d.
+     *
+     * These functions can also be used for testing.
+     *
+     */
+    fn create_header() -> Value {
+        let a = create_header_section_a();
+        let b = create_header_section_b();
+        let c = create_header_section_c();
+        let d = create_header_section_d();
+
+        let mut header = BTreeMap::new();
+        header.insert(String::from("a"), a);
+        header.insert(String::from("b"), b);
+        header.insert(String::from("c"), c);
+        header.insert(String::from("d"), d);
+
+        Value::Table(header)
+    }
+
+    fn create_header_section_a() -> Value {
+        // 0..10 is exclusive 10
+        let a_ary = Value::Array((0..10).map(|x| Value::Integer(x)).collect());
+
+        let mut a_obj = BTreeMap::new();
+        a_obj.insert(String::from("array"), a_ary);
+        Value::Table(a_obj)
+    }
+
+    fn create_header_section_b() -> Value {
+        let b_ary = Value::Array((0..9)
+                                 .map(|x| Value::String(format!("string{}", x)))
+                                 .collect());
+
+        let mut b_obj = BTreeMap::new();
+        b_obj.insert(String::from("array"), b_ary);
+        Value::Table(b_obj)
+    }
+
+    fn create_header_section_c() -> Value {
+        let c_ary = Value::Array(
+            vec![
+                Value::Integer(1),
+                Value::String(String::from("string2")),
+                Value::Integer(3),
+                Value::String(String::from("string4"))
+            ]);
+
+        let mut c_obj = BTreeMap::new();
+        c_obj.insert(String::from("array"), c_ary);
+        Value::Table(c_obj)
+    }
+
+    fn create_header_section_d() -> Value {
+        let d_ary = Value::Array(
+            vec![
+                {
+                    let mut tab = BTreeMap::new();
+                    tab.insert(String::from("d1"), Value::Integer(1));
+                    tab
+                },
+                {
+                    let mut tab = BTreeMap::new();
+                    tab.insert(String::from("d2"), Value::Integer(2));
+                    tab
+                },
+                {
+                    let mut tab = BTreeMap::new();
+                    tab.insert(String::from("d3"), Value::Integer(3));
+                    tab
+                },
+            ].into_iter().map(Value::Table).collect());
+
+        let and_obj = Value::Table({
+            let mut tab = BTreeMap::new();
+            let something_tab = Value::Table({
+                let mut tab = BTreeMap::new();
+                tab.insert(String::from("titally"), Value::String(String::from("different")));
+                tab
+            });
+            tab.insert(String::from("something"), something_tab);
+            tab
+        });
+
+        let mut d_obj = BTreeMap::new();
+        d_obj.insert(String::from("array"), d_ary);
+        d_obj.insert(String::from("something"), Value::String(String::from("else")));
+        d_obj.insert(String::from("and"), and_obj);
+        Value::Table(d_obj)
+    }
+
+    #[test]
+    fn test_walk_header_big_a() {
+        test_walk_header_extract_section("a", &create_header_section_a());
+    }
+
+    #[test]
+    fn test_walk_header_big_b() {
+        test_walk_header_extract_section("b", &create_header_section_b());
+    }
+
+    #[test]
+    fn test_walk_header_big_c() {
+        test_walk_header_extract_section("c", &create_header_section_c());
+    }
+
+    #[test]
+    fn test_walk_header_big_d() {
+        test_walk_header_extract_section("d", &create_header_section_d());
+    }
+
+    fn test_walk_header_extract_section(secname: &str, expected: &Value) {
+        let tokens = Value::tokenize(secname).unwrap();
+        assert!(tokens.len() == 1, "1 token was expected, {} were parsed", tokens.len());
+        assert!(tokens.iter().next().unwrap() == &Token::Key(String::from(secname)),
+                "'{}' token was expected, {:?} was parsed", secname, tokens.iter().next());
+
+        let mut header = create_header();
+        let res = Value::walk(&mut header, tokens);
+        assert_eq!(expected, res.unwrap());
+    }
+
+    #[test]
+    fn test_walk_header_extract_numbers() {
+        test_extract_number("a", 0, 0);
+        test_extract_number("a", 1, 1);
+        test_extract_number("a", 2, 2);
+        test_extract_number("a", 3, 3);
+        test_extract_number("a", 4, 4);
+        test_extract_number("a", 5, 5);
+        test_extract_number("a", 6, 6);
+        test_extract_number("a", 7, 7);
+        test_extract_number("a", 8, 8);
+        test_extract_number("a", 9, 9);
+
+        test_extract_number("c", 0, 1);
+        test_extract_number("c", 2, 3);
+    }
+
+    fn test_extract_number(sec: &str, idx: usize, exp: i64) {
+        let tokens = Value::tokenize(&format!("{}.array.{}", sec, idx)[..]).unwrap();
+        assert!(tokens.len() == 3, "3 token was expected, {} were parsed", tokens.len());
+        {
+            let mut iter = tokens.iter();
+
+            let tok = iter.next().unwrap();
+            let exp = Token::Key(String::from(sec));
+            assert!(tok == &exp, "'{}' token was expected, {:?} was parsed", sec, tok);
+
+            let tok = iter.next().unwrap();
+            let exp = Token::Key(String::from("array"));
+            assert!(tok == &exp, "'array' token was expected, {:?} was parsed", tok);
+
+            let tok = iter.next().unwrap();
+            let exp = Token::Index(idx);
+            assert!(tok == &exp, "'{}' token was expected, {:?} was parsed", idx, tok);
+        }
+
+        let mut header = create_header();
+        let res = Value::walk(&mut header, tokens);
+        assert_eq!(&mut Value::Integer(exp), res.unwrap());
+    }
+
 }
