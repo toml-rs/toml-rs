@@ -288,8 +288,8 @@ impl Value {
         use std::vec::IntoIter;
 
         fn walk_iter<'a>(v: Result<&'a mut Value, LookupError>,
-                         i: &mut IntoIter<Token>) 
-            -> Result<&'a mut Value, LookupError> 
+                         i: &mut IntoIter<Token>)
+            -> Result<&'a mut Value, LookupError>
         {
             let next = i.next();
             v.and_then(move |value| {
