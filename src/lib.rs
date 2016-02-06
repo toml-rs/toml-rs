@@ -259,31 +259,12 @@ impl Value {
     /// let no_bar = value.lookup("test.bar");
     /// assert_eq!(no_bar.is_none(), true);
     /// ```
-    pub fn lookup<'a>(&'a self, path: &'a str) -> Option<&'a Value> {
-        let mut cur_value = self;
-        if path.len() == 0 {
-            return Some(cur_value)
+    pub fn lookup<'a>(&'a mut self, path: &str) -> LookupResult<&'a mut Value> {
+        let tokens = Value::tokenize(path);
+        if tokens.is_err() {
+            return tokens.map(|_| self);
         }
-
-        for key in path.split('.') {
-            match *cur_value {
-                Value::Table(ref hm) => {
-                    match hm.get(key) {
-                        Some(v) => cur_value = v,
-                        None => return None
-                    }
-                },
-                Value::Array(ref v) => {
-                    match key.parse::<usize>().ok() {
-                        Some(idx) if idx < v.len() => cur_value = &v[idx],
-                        _ => return None
-                    }
-                },
-                _ => return None
-            }
-        };
-
-        Some(cur_value)
+        Value::walk(self, tokens.unwrap())
     }
 
     fn tokenize(path: &str) -> LookupResult<Vec<Token>> {
