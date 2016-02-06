@@ -44,6 +44,9 @@
 
 use std::collections::BTreeMap;
 use std::str::FromStr;
+use std::error::Error as StdError;
+use std::fmt::{Display, Formatter};
+use std::fmt::Error as FmtError;
 
 pub use parser::{Parser, ParserError};
 
@@ -58,6 +61,82 @@ mod display;
 mod encoder;
 #[cfg(any(feature = "rustc-serialize", feature = "serde"))]
 mod decoder;
+
+/// Error kind for Lookup errors (Value::lookup())
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum LookupErrorKind {
+    /// Error if the string for the lookup has a syntax error
+    LookupStringSyntaxError,
+
+    /// Key is not found
+    KeyNotFound,
+
+    /// Path expects another type than found
+    PathTypeFailure,
+}
+
+impl LookupErrorKind {
+
+    /// Get the LookupErrorKind as human readable string (not intended as Display replacement)
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            &LookupErrorKind::LookupStringSyntaxError =>
+                "Syntax error in lookup string",
+            &LookupErrorKind::KeyNotFound => "Key not found",
+            &LookupErrorKind::PathTypeFailure => "Path type failure",
+        }
+    }
+
+}
+
+/// Error type for lookup()
+#[derive(Debug)]
+pub struct LookupError {
+    kind: LookupErrorKind,
+    cause: Option<Box<StdError>>,
+}
+
+impl LookupError {
+
+    /// Create a new LookupError
+    pub fn new(k: LookupErrorKind, c: Option<Box<StdError>>) -> LookupError {
+        LookupError {
+            kind: k,
+            cause: c,
+        }
+    }
+
+}
+
+impl Display for LookupError {
+
+    fn fmt(&self, fmt: &mut Formatter) -> Result<(), FmtError> {
+        try!(write!(fmt, "{}", self.kind.as_str()));
+        Ok(())
+    }
+
+}
+
+impl StdError for LookupError {
+
+    fn description(&self) -> &str {
+        self.kind.clone().as_str().clone()
+    }
+
+    fn cause(&self) -> Option<&StdError> {
+        self.cause.as_ref().map(|e| &**e)
+    }
+
+}
+
+/// newtype for all results from lookup() functionality
+pub type LookupResult<T> = Result<T, LookupError>;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Token {
+    Key(String),
+    Index(usize),
+}
 
 /// Representation of a TOML value.
 #[derive(PartialEq, Clone, Debug)]
@@ -206,6 +285,64 @@ impl Value {
 
         Some(cur_value)
     }
+
+    fn tokenize(path: &str) -> LookupResult<Vec<Token>> {
+        use std::str::FromStr;
+
+        path.split(".")
+            .map(|s| {
+                usize::from_str(s)
+                    .map(Token::Index)
+                    .or_else(|_| Ok(Token::Key(String::from(s))))
+            })
+            .collect()
+    }
+
+    fn walk(v: &mut Value, tokens: Vec<Token>) -> LookupResult<&mut Value> {
+        use std::vec::IntoIter;
+
+        fn walk_iter<'a>(v: Result<&'a mut Value, LookupError>,
+                         i: &mut IntoIter<Token>) 
+            -> Result<&'a mut Value, LookupError> 
+        {
+            let next = i.next();
+            v.and_then(move |value| {
+                if let Some(token) = next {
+                    walk_iter(Value::extract(value, &token), i)
+                } else {
+                    Ok(value)
+                }
+            })
+        }
+
+        walk_iter(Ok(v), &mut tokens.into_iter())
+    }
+
+
+    fn extract_from_table<'a>(v: &'a mut Value, s: &String) -> LookupResult<&'a mut Value> {
+        match v {
+            &mut Value::Table(ref mut t) => {
+                t.get_mut(&s[..])
+                    .ok_or(LookupError::new(LookupErrorKind::KeyNotFound, None))
+            },
+            _ => Err(LookupError::new(LookupErrorKind::PathTypeFailure, None)),
+        }
+    }
+
+    fn extract_from_array(v: &mut Value, i: usize) -> LookupResult<&mut Value> {
+        match v {
+            &mut Value::Array(ref mut a) => Ok(&mut a[i]),
+            _ => Err(LookupError::new(LookupErrorKind::PathTypeFailure, None)),
+        }
+    }
+
+    fn extract<'a>(v: &'a mut Value, token: &Token) -> LookupResult<&'a mut Value> {
+        match token {
+            &Token::Key(ref s)  => Value::extract_from_table(v, s),
+            &Token::Index(i)    => Value::extract_from_array(v, i),
+        }
+    }
+
 }
 
 impl FromStr for Value {
