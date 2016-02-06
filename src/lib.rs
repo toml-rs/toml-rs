@@ -272,6 +272,78 @@ impl Value {
         Value::walk(self, tokens.unwrap())
     }
 
+    /// Set a value inside.
+    ///
+    /// Returns true if the value was set, false if there was already a value at this place
+    pub fn set_by_path(&mut self, path: &str, v: Value) -> LookupResult<bool> {
+        let tokens = Value::tokenize(path);
+        if tokens.is_err() { // return parser error if any
+            return tokens.map(|_| false);
+        }
+        let tokens = tokens.unwrap();
+
+        let destination = tokens.iter().last();
+        if destination.is_none() {
+            return Err(LookupError::new(LookupErrorKind::LookupStringSyntaxError, None));
+        }
+        let destination = destination.unwrap();
+
+        let path_to_dest = tokens[..(tokens.len() - 2)].into(); // N - 1 tokens
+        let value = Value::walk(self, path_to_dest); // walk N-1 tokens
+        if value.is_err() {
+            return value.map(|_| false);
+        }
+        let mut value = value.unwrap();
+
+        // There is already an value at this place
+        if Value::extract(value, destination).is_ok() {
+            return Ok(false);
+        }
+
+        match destination {
+            &Token::Key(ref s) => { // if the destination shall be an map key
+                match value {
+                    /*
+                     * Put it in there if we have a map
+                     */
+                    &mut Value::Table(ref mut t) => {
+                        t.insert(s.clone(), v);
+                    }
+
+                    /*
+                     * Fail if there is no map here
+                     */
+                    _ => return Err(LookupError::new(LookupErrorKind::PathTypeFailure, None)),
+                }
+            },
+
+            &Token::Index(i) => { // if the destination shall be an array
+                match value {
+
+                    /*
+                     * Put it in there if we have an array
+                     */
+                    &mut Value::Array(ref mut a) => {
+                        a.push(v); // push to the end of the array
+
+                        // if the index is inside the array, we swap-remove the element at this
+                        // index
+                        if a.len() < i {
+                            a.swap_remove(i);
+                        }
+                    },
+
+                    /*
+                     * Fail if there is no array here
+                     */
+                    _ => return Err(LookupError::new(LookupErrorKind::PathTypeFailure, None)),
+                }
+            },
+        }
+
+        Ok(true)
+    }
+
     fn tokenize(path: &str) -> LookupResult<Vec<Token>> {
         use std::str::FromStr;
 
