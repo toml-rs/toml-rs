@@ -5,12 +5,12 @@ authors = ["Alex Crichton <alex@alexcrichton.com>"]
 build = "build.rs"
 
 [dependencies]
-serde = "0.6"
+serde = "0.7"
 toml = { path = "..", features = ["serde"] }
 
 [build-dependencies]
-syntex = "0.22"
-serde_codegen = "0.6"
+syntex = "0.29"
+serde_codegen = "0.7"
 
 [lib]
 name = "serde_tests"

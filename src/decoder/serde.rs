@@ -5,27 +5,32 @@ use std::collections::BTreeMap;
 
 fn se2toml(err: de::value::Error, ty: &'static str) -> DecodeError {
     match err {
-        de::value::Error::SyntaxError => de::Error::syntax(ty),
-        de::value::Error::EndOfStreamError => de::Error::end_of_stream(),
-        de::value::Error::MissingFieldError(s) => {
+        de::value::Error::Custom(s) => de::Error::custom(s),
+        de::value::Error::EndOfStream => de::Error::end_of_stream(),
+        de::value::Error::MissingField(s) => {
             DecodeError {
                 field: Some(s.to_string()),
                 kind: DecodeErrorKind::ExpectedField(Some(ty)),
             }
         },
-        de::value::Error::UnknownFieldError(s) => {
+        de::value::Error::UnknownField(s) => {
             DecodeError {
                 field: Some(s.to_string()),
                 kind: DecodeErrorKind::UnknownField,
             }
         },
+        de::value::Error::InvalidType(ty) => de::Error::invalid_type(ty),
+        de::value::Error::InvalidLength(l) => de::Error::invalid_length(l),
+        de::value::Error::InvalidValue(v) => de::Error::invalid_value(&v),
+        de::value::Error::UnknownVariant(v) => de::Error::unknown_variant(&v),
     }
 }
 
 impl de::Deserializer for Decoder {
     type Error = DecodeError;
 
-    fn visit<V>(&mut self, mut visitor: V) -> Result<V::Value, DecodeError>
+    fn deserialize<V>(&mut self, mut visitor: V)
+                      -> Result<V::Value, DecodeError>
         where V: de::Visitor
     {
         match self.toml.take() {
@@ -61,30 +66,34 @@ impl de::Deserializer for Decoder {
         }
     }
 
-    fn visit_isize<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
+    fn deserialize_isize<V>(&mut self, visitor: V)
+                            -> Result<V::Value, DecodeError>
         where V: de::Visitor
     {
-        self.visit_i64(visitor)
+        self.deserialize_i64(visitor)
     }
 
-    fn visit_i8<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
+    fn deserialize_i8<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
         where V: de::Visitor
     {
-        self.visit_i64(visitor)
+        self.deserialize_i64(visitor)
     }
-    fn visit_i16<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
+    fn deserialize_i16<V>(&mut self, visitor: V)
+                          -> Result<V::Value, DecodeError>
         where V: de::Visitor
     {
-        self.visit_i64(visitor)
-    }
-
-    fn visit_i32<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
-        where V: de::Visitor
-    {
-        self.visit_i64(visitor)
+        self.deserialize_i64(visitor)
     }
 
-    fn visit_i64<V>(&mut self, mut visitor: V) -> Result<V::Value, DecodeError>
+    fn deserialize_i32<V>(&mut self, visitor: V)
+                          -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        self.deserialize_i64(visitor)
+    }
+
+    fn deserialize_i64<V>(&mut self, mut visitor: V)
+                          -> Result<V::Value, DecodeError>
         where V: de::Visitor
     {
         match self.toml.take() {
@@ -95,42 +104,47 @@ impl de::Deserializer for Decoder {
         }
     }
 
-    fn visit_usize<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
+    fn deserialize_usize<V>(&mut self, visitor: V)
+                            -> Result<V::Value, DecodeError>
         where V: de::Visitor
     {
-        self.visit_i64(visitor)
+        self.deserialize_i64(visitor)
     }
 
-    fn visit_u8<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
+    fn deserialize_u8<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
         where V: de::Visitor
     {
-        self.visit_i64(visitor)
+        self.deserialize_i64(visitor)
     }
-    fn visit_u16<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
+    fn deserialize_u16<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
         where V: de::Visitor
     {
-        self.visit_i64(visitor)
-    }
-
-    fn visit_u32<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
-        where V: de::Visitor
-    {
-        self.visit_i64(visitor)
+        self.deserialize_i64(visitor)
     }
 
-    fn visit_u64<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
+    fn deserialize_u32<V>(&mut self, visitor: V)
+                          -> Result<V::Value, DecodeError>
         where V: de::Visitor
     {
-        self.visit_i64(visitor)
+        self.deserialize_i64(visitor)
     }
 
-    fn visit_f32<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
+    fn deserialize_u64<V>(&mut self, visitor: V)
+                          -> Result<V::Value, DecodeError>
         where V: de::Visitor
     {
-        self.visit_f64(visitor)
+        self.deserialize_i64(visitor)
     }
 
-    fn visit_f64<V>(&mut self, mut visitor: V) -> Result<V::Value, DecodeError>
+    fn deserialize_f32<V>(&mut self, visitor: V)
+                          -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        self.deserialize_f64(visitor)
+    }
+
+    fn deserialize_f64<V>(&mut self, mut visitor: V)
+                          -> Result<V::Value, DecodeError>
         where V: de::Visitor
     {
         match self.toml.take() {
@@ -141,7 +155,8 @@ impl de::Deserializer for Decoder {
         }
     }
 
-    fn visit_option<V>(&mut self, mut visitor: V) -> Result<V::Value, DecodeError>
+    fn deserialize_option<V>(&mut self, mut visitor: V)
+                             -> Result<V::Value, DecodeError>
         where V: de::Visitor
     {
         if self.toml.is_none() {
@@ -151,7 +166,8 @@ impl de::Deserializer for Decoder {
         }
     }
 
-    fn visit_seq<V>(&mut self, mut visitor: V) -> Result<V::Value, DecodeError>
+    fn deserialize_seq<V>(&mut self, mut visitor: V)
+                          -> Result<V::Value, DecodeError>
         where V: de::Visitor,
     {
         if self.toml.is_none() {
@@ -159,14 +175,14 @@ impl de::Deserializer for Decoder {
             let e = visitor.visit_seq(de::value::SeqDeserializer::new(iter, 0));
             e.map_err(|e| se2toml(e, "array"))
         } else {
-            self.visit(visitor)
+            self.deserialize(visitor)
         }
     }
 
-    fn visit_enum<V>(&mut self,
-                     _enum: &str,
-                     variants: &[&str],
-                     mut visitor: V) -> Result<V::Value, DecodeError>
+    fn deserialize_enum<V>(&mut self,
+                           _enum: &str,
+                           variants: &[&str],
+                           mut visitor: V) -> Result<V::Value, DecodeError>
         where V: de::EnumVisitor,
     {
         // When decoding enums, this crate takes the strategy of trying to
@@ -240,7 +256,7 @@ impl de::VariantVisitor for VariantVisitor {
                       visitor: V) -> Result<V::Value, DecodeError>
         where V: de::Visitor,
     {
-        de::Deserializer::visit(&mut self.de, visitor)
+        de::Deserializer::deserialize(&mut self.de, visitor)
     }
 
     fn visit_struct<V>(&mut self,
@@ -248,7 +264,7 @@ impl de::VariantVisitor for VariantVisitor {
                        visitor: V) -> Result<V::Value, DecodeError>
         where V: de::Visitor,
     {
-        de::Deserializer::visit(&mut self.de, visitor)
+        de::Deserializer::deserialize(&mut self.de, visitor)
     }
 }
 
@@ -283,7 +299,8 @@ impl<'a, I> de::Deserializer for SeqDeserializer<'a, I>
 {
     type Error = DecodeError;
 
-    fn visit<V>(&mut self, mut visitor: V) -> Result<V::Value, DecodeError>
+    fn deserialize<V>(&mut self, mut visitor: V)
+                      -> Result<V::Value, DecodeError>
         where V: de::Visitor,
     {
         visitor.visit_seq(self)
@@ -326,8 +343,11 @@ impl<'a, I> de::SeqVisitor for SeqDeserializer<'a, I>
 }
 
 impl de::Error for DecodeError {
-    fn syntax(_: &str) -> DecodeError {
-        DecodeError { field: None, kind: DecodeErrorKind::SyntaxError }
+    fn custom<T: Into<String>>(msg: T) -> DecodeError {
+        DecodeError {
+            field: None,
+            kind: DecodeErrorKind::CustomError(msg.into()),
+        }
     }
     fn end_of_stream() -> DecodeError {
         DecodeError { field: None, kind: DecodeErrorKind::EndOfStream }
@@ -448,13 +468,15 @@ struct UnitDeserializer;
 impl de::Deserializer for UnitDeserializer {
     type Error = DecodeError;
 
-    fn visit<V>(&mut self, mut visitor: V) -> Result<V::Value, DecodeError>
+    fn deserialize<V>(&mut self, mut visitor: V)
+                      -> Result<V::Value, DecodeError>
         where V: de::Visitor,
     {
         visitor.visit_unit()
     }
 
-    fn visit_option<V>(&mut self, mut visitor: V) -> Result<V::Value, DecodeError>
+    fn deserialize_option<V>(&mut self, mut visitor: V)
+                             -> Result<V::Value, DecodeError>
         where V: de::Visitor,
     {
         visitor.visit_none()
@@ -506,6 +528,6 @@ impl de::Deserialize for Value {
             }
         }
 
-        deserializer.visit(ValueVisitor)
+        deserializer.deserialize(ValueVisitor)
     }
 }

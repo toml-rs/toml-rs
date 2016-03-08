@@ -61,6 +61,8 @@ pub enum Error {
     /// Indicates that a type other than a string was attempted to be used as a
     /// map key type.
     InvalidMapKeyType,
+    /// A custom error type was generated
+    Custom(String),
 }
 
 #[derive(PartialEq)]
@@ -202,6 +204,7 @@ impl fmt::Display for Error {
                                                        at this location"),
             Error::InvalidMapKeyType => write!(f, "only strings can be used as \
                                                    key types"),
+            Error::Custom(ref s) => write!(f, "custom error: {}", s),
         }
     }
 }

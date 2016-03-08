@@ -53,6 +53,8 @@ pub enum DecodeErrorKind {
     NilTooLong,
     /// There was an error with the syntactical structure of the TOML.
     SyntaxError,
+    /// A custom error was generated when decoding.
+    CustomError(String),
     /// The end of the TOML input was reached too soon
     EndOfStream,
 }
@@ -195,6 +197,9 @@ impl fmt::Display for DecodeError {
             EndOfStream => {
                 write!(f, "end of stream")
             }
+            CustomError(ref s) => {
+                write!(f, "custom error: {}", s)
+            }
         });
         match self.field {
             Some(ref s) => {
@@ -218,6 +223,7 @@ impl error::Error for DecodeError {
             NilTooLong => "nonzero length string representing nil",
             SyntaxError => "syntax error",
             EndOfStream => "end of stream",
+            CustomError(..) => "custom error",
         }
     }
 }
