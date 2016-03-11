@@ -3,29 +3,6 @@ use Value;
 use super::{Decoder, DecodeError, DecodeErrorKind};
 use std::collections::BTreeMap;
 
-fn se2toml(err: de::value::Error, ty: &'static str) -> DecodeError {
-    match err {
-        de::value::Error::Custom(s) => de::Error::custom(s),
-        de::value::Error::EndOfStream => de::Error::end_of_stream(),
-        de::value::Error::MissingField(s) => {
-            DecodeError {
-                field: Some(s.to_string()),
-                kind: DecodeErrorKind::ExpectedField(Some(ty)),
-            }
-        },
-        de::value::Error::UnknownField(s) => {
-            DecodeError {
-                field: Some(s.to_string()),
-                kind: DecodeErrorKind::UnknownField,
-            }
-        },
-        de::value::Error::InvalidType(ty) => de::Error::invalid_type(ty),
-        de::value::Error::InvalidLength(l) => de::Error::invalid_length(l),
-        de::value::Error::InvalidValue(v) => de::Error::invalid_value(&v),
-        de::value::Error::UnknownVariant(v) => de::Error::unknown_variant(&v),
-    }
-}
-
 impl de::Deserializer for Decoder {
     type Error = DecodeError;
 
@@ -34,21 +11,11 @@ impl de::Deserializer for Decoder {
         where V: de::Visitor
     {
         match self.toml.take() {
-            Some(Value::String(s)) => {
-                visitor.visit_string(s).map_err(|e| se2toml(e, "string"))
-            }
-            Some(Value::Integer(i)) => {
-                visitor.visit_i64(i).map_err(|e| se2toml(e, "integer"))
-            }
-            Some(Value::Float(f)) => {
-                visitor.visit_f64(f).map_err(|e| se2toml(e, "float"))
-            }
-            Some(Value::Boolean(b)) => {
-                visitor.visit_bool(b).map_err(|e| se2toml(e, "bool"))
-            }
-            Some(Value::Datetime(s)) => {
-                visitor.visit_string(s).map_err(|e| se2toml(e, "date"))
-            }
+            Some(Value::String(s)) => visitor.visit_string(s),
+            Some(Value::Integer(i)) => visitor.visit_i64(i),
+            Some(Value::Float(f)) => visitor.visit_f64(f),
+            Some(Value::Boolean(b)) => visitor.visit_bool(b),
+            Some(Value::Datetime(s)) => visitor.visit_string(s),
             Some(Value::Array(a)) => {
                 let len = a.len();
                 let iter = a.into_iter();
@@ -62,34 +29,18 @@ impl de::Deserializer for Decoder {
                     value: None,
                 })
             }
-            None => Err(de::Error::end_of_stream()),
+            None => Err(self.err(DecodeErrorKind::EndOfStream)),
         }
     }
 
-    fn deserialize_isize<V>(&mut self, visitor: V)
-                            -> Result<V::Value, DecodeError>
+    fn deserialize_bool<V>(&mut self, mut visitor: V)
+                           -> Result<V::Value, DecodeError>
         where V: de::Visitor
     {
-        self.deserialize_i64(visitor)
-    }
-
-    fn deserialize_i8<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
-        where V: de::Visitor
-    {
-        self.deserialize_i64(visitor)
-    }
-    fn deserialize_i16<V>(&mut self, visitor: V)
-                          -> Result<V::Value, DecodeError>
-        where V: de::Visitor
-    {
-        self.deserialize_i64(visitor)
-    }
-
-    fn deserialize_i32<V>(&mut self, visitor: V)
-                          -> Result<V::Value, DecodeError>
-        where V: de::Visitor
-    {
-        self.deserialize_i64(visitor)
+        match self.toml.take() {
+            Some(Value::Boolean(b)) => visitor.visit_bool(b),
+            ref found => Err(self.mismatch("bool", found)),
+        }
     }
 
     fn deserialize_i64<V>(&mut self, mut visitor: V)
@@ -97,50 +48,15 @@ impl de::Deserializer for Decoder {
         where V: de::Visitor
     {
         match self.toml.take() {
-            Some(Value::Integer(f)) => {
-                visitor.visit_i64(f).map_err(|e| se2toml(e, "integer"))
-            }
+            Some(Value::Integer(f)) => visitor.visit_i64(f),
             ref found => Err(self.mismatch("integer", found)),
         }
     }
 
-    fn deserialize_usize<V>(&mut self, visitor: V)
-                            -> Result<V::Value, DecodeError>
+    fn deserialize_u64<V>(&mut self, v: V) -> Result<V::Value, DecodeError>
         where V: de::Visitor
     {
-        self.deserialize_i64(visitor)
-    }
-
-    fn deserialize_u8<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
-        where V: de::Visitor
-    {
-        self.deserialize_i64(visitor)
-    }
-    fn deserialize_u16<V>(&mut self, visitor: V) -> Result<V::Value, DecodeError>
-        where V: de::Visitor
-    {
-        self.deserialize_i64(visitor)
-    }
-
-    fn deserialize_u32<V>(&mut self, visitor: V)
-                          -> Result<V::Value, DecodeError>
-        where V: de::Visitor
-    {
-        self.deserialize_i64(visitor)
-    }
-
-    fn deserialize_u64<V>(&mut self, visitor: V)
-                          -> Result<V::Value, DecodeError>
-        where V: de::Visitor
-    {
-        self.deserialize_i64(visitor)
-    }
-
-    fn deserialize_f32<V>(&mut self, visitor: V)
-                          -> Result<V::Value, DecodeError>
-        where V: de::Visitor
-    {
-        self.deserialize_f64(visitor)
+        self.deserialize_i64(v)
     }
 
     fn deserialize_f64<V>(&mut self, mut visitor: V)
@@ -148,10 +64,30 @@ impl de::Deserializer for Decoder {
         where V: de::Visitor
     {
         match self.toml.take() {
-            Some(Value::Float(f)) => {
-                visitor.visit_f64(f).map_err(|e| se2toml(e, "float"))
-            }
+            Some(Value::Float(f)) => visitor.visit_f64(f),
             ref found => Err(self.mismatch("float", found)),
+        }
+    }
+
+    fn deserialize_str<V>(&mut self, mut visitor: V)
+                          -> Result<V::Value, Self::Error>
+        where V: de::Visitor,
+    {
+        match self.toml.take() {
+            Some(Value::String(s)) => visitor.visit_string(s),
+            ref found => Err(self.mismatch("string", found)),
+        }
+    }
+
+    fn deserialize_char<V>(&mut self, mut visitor: V)
+                           -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        match self.toml.take() {
+            Some(Value::String(ref s)) if s.chars().count() == 1 => {
+                visitor.visit_char(s.chars().next().unwrap())
+            }
+            ref found => return Err(self.mismatch("string", found)),
         }
     }
 
@@ -172,10 +108,26 @@ impl de::Deserializer for Decoder {
     {
         if self.toml.is_none() {
             let iter = None::<i32>.into_iter();
-            let e = visitor.visit_seq(de::value::SeqDeserializer::new(iter, 0));
-            e.map_err(|e| se2toml(e, "array"))
+            visitor.visit_seq(de::value::SeqDeserializer::new(iter, 0))
         } else {
             self.deserialize(visitor)
+        }
+    }
+
+    fn deserialize_map<V>(&mut self, mut visitor: V)
+                          -> Result<V::Value, DecodeError>
+        where V: de::Visitor,
+    {
+        match self.toml.take() {
+            Some(Value::Table(t)) => {
+                visitor.visit_map(MapVisitor {
+                    iter: t.into_iter(),
+                    de: self,
+                    key: None,
+                    value: None,
+                })
+            }
+            ref found => Err(self.mismatch("table", found)),
         }
     }
 
@@ -238,7 +190,7 @@ impl de::VariantVisitor for VariantVisitor {
 
         let mut de = self.variant.into_deserializer();
 
-        de::Deserialize::deserialize(&mut de).map_err(|e| se2toml(e, "variant"))
+        de::Deserialize::deserialize(&mut de)
     }
 
     fn visit_unit(&mut self) -> Result<(), DecodeError> {
@@ -364,6 +316,45 @@ impl de::Error for DecodeError {
             kind: DecodeErrorKind::UnknownField,
         }
     }
+    fn invalid_type(ty: de::Type) -> Self {
+        DecodeError {
+            field: None,
+            kind: DecodeErrorKind::InvalidType(match ty {
+                de::Type::Bool => "bool",
+                de::Type::Usize |
+                de::Type::U8 |
+                de::Type::U16 |
+                de::Type::U32 |
+                de::Type::U64 |
+                de::Type::Isize |
+                de::Type::I8 |
+                de::Type::I16 |
+                de::Type::I32 |
+                de::Type::I64 => "integer",
+                de::Type::F32 |
+                de::Type::F64 => "float",
+                de::Type::Char |
+                de::Type::Str |
+                de::Type::String => "string",
+                de::Type::Seq => "array",
+                de::Type::Struct |
+                de::Type::Map => "table",
+                de::Type::Unit => "Unit",
+                de::Type::Option => "Option",
+                de::Type::UnitStruct => "UnitStruct",
+                de::Type::NewtypeStruct => "NewtypeStruct",
+                de::Type::TupleStruct => "TupleStruct",
+                de::Type::FieldName => "FieldName",
+                de::Type::Tuple => "Tuple",
+                de::Type::Enum => "Enum",
+                de::Type::VariantName => "VariantName",
+                de::Type::StructVariant => "StructVariant",
+                de::Type::TupleVariant => "TupleVariant",
+                de::Type::UnitVariant => "UnitVariant",
+                de::Type::Bytes => "Bytes",
+            })
+        }
+    }
 }
 
 struct MapVisitor<'a, I> {
@@ -444,6 +435,13 @@ impl<'a, I> de::MapVisitor for MapVisitor<'a, I>
     }
 
     fn end(&mut self) -> Result<(), DecodeError> {
+        if let Some(v) = self.value.take() {
+            self.put_value_back(v);
+        }
+        while let Some((k, v)) = self.iter.next() {
+            self.key = Some(k);
+            self.put_value_back(v);
+        }
         Ok(())
     }
 
@@ -452,7 +450,7 @@ impl<'a, I> de::MapVisitor for MapVisitor<'a, I>
         // See if the type can deserialize from a unit.
         match de::Deserialize::deserialize(&mut UnitDeserializer) {
             Err(DecodeError {
-                kind: DecodeErrorKind::SyntaxError,
+                kind: DecodeErrorKind::InvalidType(..),
                 field,
             }) => Err(DecodeError {
                 field: field.or(Some(field_name.to_string())),

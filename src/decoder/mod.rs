@@ -57,6 +57,8 @@ pub enum DecodeErrorKind {
     CustomError(String),
     /// The end of the TOML input was reached too soon
     EndOfStream,
+    /// Produced by serde ...
+    InvalidType(&'static str),
 }
 
 /// Decodes a TOML value into a decodable type.
@@ -197,6 +199,9 @@ impl fmt::Display for DecodeError {
             EndOfStream => {
                 write!(f, "end of stream")
             }
+            InvalidType(s) => {
+                write!(f, "invalid type: {}", s)
+            }
             CustomError(ref s) => {
                 write!(f, "custom error: {}", s)
             }
@@ -223,6 +228,7 @@ impl error::Error for DecodeError {
             NilTooLong => "nonzero length string representing nil",
             SyntaxError => "syntax error",
             EndOfStream => "end of stream",
+            InvalidType(..) => "invalid type",
             CustomError(..) => "custom error",
         }
     }
