@@ -173,6 +173,19 @@ impl de::Deserializer for Decoder {
 
         Err(first_error.unwrap_or_else(|| self.err(DecodeErrorKind::NoEnumVariants)))
     }
+
+    // When #[derive(Deserialize)] encounters an unknown struct field it will
+    // call this method (somehow), and we want to preserve all unknown struct
+    // fields to return them upwards (to warn about unused keys), so we override
+    // that here to not tamper with our own internal state.
+    fn deserialize_ignored_any<V>(&mut self, visitor: V)
+                                  -> Result<V::Value, Self::Error>
+        where V: de::Visitor
+    {
+        use serde::de::value::ValueDeserializer;
+        let mut d = <() as ValueDeserializer<Self::Error>>::into_deserializer(());
+        d.deserialize(visitor)
+    }
 }
 
 struct VariantVisitor {
