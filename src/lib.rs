@@ -44,6 +44,7 @@
 
 use std::collections::BTreeMap;
 use std::str::FromStr;
+use std::str::Split;
 
 pub use parser::{Parser, ParserError};
 
@@ -206,6 +207,67 @@ impl Value {
 
         Some(cur_value)
     }
+
+    fn lookup_mut_recurse<'a>(&'a mut self, matches: &mut Split<'a, char>) -> Option<&'a mut Value> {
+        if let Some(key) = matches.next() {
+            match *self {
+                Value::Table(ref mut hm) => {
+                    match hm.get_mut(key) {
+                      Some(v) => return v.lookup_mut_recurse(matches),
+                      None => return None,
+                  }
+              },
+              Value::Array(ref mut v) => {
+                  match key.parse::<usize>().ok() {
+                      Some(idx) if idx < v.len()
+                          => return (&mut v[idx]).lookup_mut_recurse(matches),
+                        _ => return None,
+                    }
+                },
+            _ => return None
+            }
+        }
+        Some(self)
+    }
+
+    /// Lookups for mutable value at specified path.
+    ///
+    /// Uses '.' as a path separator.
+    ///
+    /// Note: arrays have zero-based indexes.
+    ///
+    /// Note: empty path returns self.
+    ///
+    /// ```
+    /// # #![allow(unstable)]
+    /// let toml = r#"
+    ///      [test]
+    ///      foo = "bar"
+    ///
+    ///      [[values]]
+    ///      foo = "baz"
+    ///
+    ///      [[values]]
+    ///      foo = "qux"
+    /// "#;
+    /// let mut value: toml::Value = toml.parse().unwrap();
+    /// {
+    ///    let string = value.lookup_mut("test.foo").unwrap();
+    ///    assert_eq!(string, &mut toml::Value::String(String::from("bar")));
+    ///    *string = toml::Value::String(String::from("foo"));
+    /// }
+    /// let result = value.lookup_mut("test.foo").unwrap();
+    /// assert_eq!(result.as_str().unwrap(), "foo");
+    /// ```
+    pub fn lookup_mut<'a>(&'a mut self, path: &'a str) -> Option<&'a mut Value> {
+      if path.len() == 0 {
+          return Some(self)
+      }
+
+      let mut matches = path.split('.');
+      self.lookup_mut_recurse(&mut matches)
+  }
+
 }
 
 impl FromStr for Value {
