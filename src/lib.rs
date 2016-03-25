@@ -206,6 +206,62 @@ impl Value {
 
         Some(cur_value)
     }
+
+    /// Lookups for mutable value at specified path.
+    ///
+    /// Uses '.' as a path separator.
+    ///
+    /// Note: arrays have zero-based indexes.
+    ///
+    /// Note: empty path returns self.
+    ///
+    /// ```
+    /// # #![allow(unstable)]
+    /// let toml = r#"
+    ///      [test]
+    ///      foo = "bar"
+    ///
+    ///      [[values]]
+    ///      foo = "baz"
+    ///
+    ///      [[values]]
+    ///      foo = "qux"
+    /// "#;
+    /// let mut value: toml::Value = toml.parse().unwrap();
+    /// {
+    ///    let string = value.lookup_mut("test.foo").unwrap();
+    ///    assert_eq!(string, &mut toml::Value::String(String::from("bar")));
+    ///    *string = toml::Value::String(String::from("foo"));
+    /// }
+    /// let result = value.lookup_mut("test.foo").unwrap();
+    /// assert_eq!(result.as_str().unwrap(), "foo");
+    /// ```
+    pub fn lookup_mut(&mut self, path: &str) -> Option<&mut Value> {
+        let mut cur = self;
+        if path.len() == 0 {
+            return Some(cur)
+        }
+
+        for key in path.split('.') {
+            let tmp = cur;
+            match *tmp {
+                Value::Table(ref mut hm) => {
+                    match hm.get_mut(key) {
+                        Some(v) => cur = v,
+                        None => return None
+                    }
+                }
+                Value::Array(ref mut v) => {
+                    match key.parse::<usize>().ok() {
+                        Some(idx) if idx < v.len() => cur = &mut v[idx],
+                        _ => return None
+                    }
+                }
+                _ => return None
+           }
+        }
+        Some(cur)
+    }
 }
 
 impl FromStr for Value {
@@ -222,6 +278,98 @@ impl FromStr for Value {
 #[cfg(test)]
 mod tests {
     use super::Value;
+
+    #[test]
+    fn lookup_mut_change() {
+        let toml = r#"
+              [test]
+              foo = "bar"
+
+              [[values]]
+              foo = "baz"
+
+              [[values]]
+              foo = "qux"
+        "#;
+
+        let mut value: Value = toml.parse().unwrap();
+        {
+          let foo = value.lookup_mut("values.0.foo").unwrap();
+          *foo = Value::String(String::from("bar"));
+        }
+        let foo = value.lookup("values.0.foo").unwrap();
+        assert_eq!(foo.as_str().unwrap(), "bar");
+    }
+
+    #[test]
+    fn lookup_mut_valid() {
+        let toml = r#"
+              [test]
+              foo = "bar"
+
+              [[values]]
+              foo = "baz"
+
+              [[values]]
+              foo = "qux"
+        "#;
+
+        let mut value: Value = toml.parse().unwrap();
+
+        {
+            let test_foo = value.lookup_mut("test.foo").unwrap();
+            assert_eq!(test_foo.as_str().unwrap(), "bar");
+        }
+
+        {
+            let foo1 = value.lookup_mut("values.1.foo").unwrap();
+            assert_eq!(foo1.as_str().unwrap(), "qux");
+        }
+
+        assert!(value.lookup_mut("test.bar").is_none());
+        assert!(value.lookup_mut("test.foo.bar").is_none());
+    }
+
+    #[test]
+    fn lookup_mut_invalid_index() {
+        let toml = r#"
+            [[values]]
+            foo = "baz"
+        "#;
+
+        let mut value: Value = toml.parse().unwrap();
+
+        {
+            let foo = value.lookup_mut("test.foo");
+            assert!(foo.is_none());
+        }
+
+        {
+            let foo = value.lookup_mut("values.100.foo");
+            assert!(foo.is_none());
+        }
+
+        {
+            let foo = value.lookup_mut("values.str.foo");
+            assert!(foo.is_none());
+        }
+    }
+
+    #[test]
+    fn lookup_mut_self() {
+        let mut value: Value = r#"foo = "bar""#.parse().unwrap();
+
+        {
+            let foo = value.lookup_mut("foo").unwrap();
+            assert_eq!(foo.as_str().unwrap(), "bar");
+        }
+
+        let foo = value.lookup_mut("").unwrap();
+        assert!(foo.as_table().is_some());
+
+        let baz = foo.lookup_mut("foo").unwrap();
+        assert_eq!(baz.as_str().unwrap(), "bar");
+    }
 
     #[test]
     fn lookup_valid() {
