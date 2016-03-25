@@ -280,6 +280,28 @@ mod tests {
     use super::Value;
 
     #[test]
+    fn lookup_mut_change() {
+        let toml = r#"
+              [test]
+              foo = "bar"
+
+              [[values]]
+              foo = "baz"
+
+              [[values]]
+              foo = "qux"
+        "#;
+
+        let mut value: Value = toml.parse().unwrap();
+        {
+          let foo = value.lookup_mut("values.0.foo").unwrap();
+          *foo = Value::String(String::from("bar"));
+        }
+        let foo = value.lookup("values.0.foo").unwrap();
+        assert_eq!(foo.as_str().unwrap(), "bar");
+    }
+
+    #[test]
     fn lookup_mut_valid() {
         let toml = r#"
               [test]
