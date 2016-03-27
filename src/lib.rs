@@ -445,4 +445,13 @@ mod tests {
         assert_eq!(*looked, Value::Integer(0));
     }
 
+    #[test]
+    fn lookup_mut_advanced() {
+        let mut value: Value = "[table]\n\"value\" = [0, 1, 2]".parse().unwrap();
+        let looked = value.lookup_mut("table.\"value\".1").unwrap();
+        assert_eq!(*looked, Value::Integer(1));
+    }
+
+
+
 }
