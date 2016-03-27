@@ -241,12 +241,17 @@ impl Value {
     /// assert_eq!(result.as_str().unwrap(), "foo");
     /// ```
     pub fn lookup_mut(&mut self, path: &str) -> Option<&mut Value> {
+       let ref path = match Parser::new(path).lookup() {
+            Some(path) => path,
+            None => return None,
+        };
+
         let mut cur = self;
         if path.len() == 0 {
             return Some(cur)
         }
 
-        for key in path.split('.') {
+        for key in path {
             let tmp = cur;
             match *tmp {
                 Value::Table(ref mut hm) => {
@@ -282,7 +287,6 @@ impl FromStr for Value {
 #[cfg(test)]
 mod tests {
     use super::Value;
-        use parser::Parser;
 
     #[test]
     fn lookup_mut_change() {
@@ -439,41 +443,6 @@ mod tests {
         let value: Value = "[table]\n\"value\" = 0".parse().unwrap();
         let looked = value.lookup("table.\"value\"").unwrap();
         assert_eq!(*looked, Value::Integer(0));
-    }
-
-    #[test]
-    fn lookup_internal() {
-        let mut parser = Parser::new(r#"hello."world\t".a.0.'escaped'.value"#);
-        let result = vec![
-          String::from("hello"),
-          String::from("world\t"),
-          String::from("a"),
-          String::from("0"),
-          String::from("escaped"),
-          String::from("value")
-        ];
-
-        assert_eq!(parser.lookup().unwrap(), result);
-    }
-
-    #[test]
-    fn lookup_internal_void() {
-        let mut parser = Parser::new("");
-        assert_eq!(parser.lookup().unwrap(), Vec::<String>::new());
-    }
-
-    #[test]
-    fn lookup_internal_simple() {
-        let mut parser = Parser::new("value");
-        assert_eq!(parser.lookup().unwrap(), vec![String::from("value")]);
-    }
-
-    // This is due to key_name not parsing an empty "" correctly. Disabled for now.
-    #[test]
-    #[ignore]
-    fn lookup_internal_quoted_void() {
-        let mut parser = Parser::new("\"\"");
-        assert_eq!(parser.lookup().unwrap(), vec![String::from("")]);
     }
 
 }
