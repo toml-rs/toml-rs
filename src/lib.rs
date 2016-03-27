@@ -181,12 +181,16 @@ impl Value {
     /// assert_eq!(no_bar.is_none(), true);
     /// ```
     pub fn lookup<'a>(&'a self, path: &'a str) -> Option<&'a Value> {
+        let ref path = match Parser::new(path).lookup() {
+            Some(path) => path,
+            None => return None,
+        };
         let mut cur_value = self;
         if path.len() == 0 {
             return Some(cur_value)
         }
 
-        for key in path.split('.') {
+        for key in path {
             match *cur_value {
                 Value::Table(ref hm) => {
                     match hm.get(key) {
@@ -205,8 +209,8 @@ impl Value {
         };
 
         Some(cur_value)
-    }
 
+    }
     /// Lookups for mutable value at specified path.
     ///
     /// Uses '.' as a path separator.
@@ -278,6 +282,7 @@ impl FromStr for Value {
 #[cfg(test)]
 mod tests {
     use super::Value;
+        use parser::Parser;
 
     #[test]
     fn lookup_mut_change() {
@@ -428,4 +433,47 @@ mod tests {
         let baz = foo.lookup("foo").unwrap();
         assert_eq!(baz.as_str().unwrap(), "bar");
     }
+
+    #[test]
+    fn lookup_advanced() {
+        let value: Value = "[table]\n\"value\" = 0".parse().unwrap();
+        let looked = value.lookup("table.\"value\"").unwrap();
+        assert_eq!(*looked, Value::Integer(0));
+    }
+
+    #[test]
+    fn lookup_internal() {
+        let mut parser = Parser::new(r#"hello."world\t".a.0.'escaped'.value"#);
+        let result = vec![
+          String::from("hello"),
+          String::from("world\t"),
+          String::from("a"),
+          String::from("0"),
+          String::from("escaped"),
+          String::from("value")
+        ];
+
+        assert_eq!(parser.lookup().unwrap(), result);
+    }
+
+    #[test]
+    fn lookup_internal_void() {
+        let mut parser = Parser::new("");
+        assert_eq!(parser.lookup().unwrap(), Vec::<String>::new());
+    }
+
+    #[test]
+    fn lookup_internal_simple() {
+        let mut parser = Parser::new("value");
+        assert_eq!(parser.lookup().unwrap(), vec![String::from("value")]);
+    }
+
+    // This is due to key_name not parsing an empty "" correctly. Disabled for now.
+    #[test]
+    #[ignore]
+    fn lookup_internal_quoted_void() {
+        let mut parser = Parser::new("\"\"");
+        assert_eq!(parser.lookup().unwrap(), vec![String::from("")]);
+    }
+
 }

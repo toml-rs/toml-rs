@@ -290,6 +290,46 @@ impl<'a> Parser<'a> {
         }
     }
 
+    // Parse an array index as a natural number
+    fn array_index(&mut self) -> Option<String> {
+        let mut index = String::new();
+        while let Some((_, ch)) = self.peek(0) {
+            match ch {
+                v @ '0' ... '9' => {
+                    if !self.eat(v) {
+                        return None
+                    }
+                    index.push(v);
+                }
+                _ => return Some(index),
+            }
+        }
+        if index.len() > 0 {
+            return Some(index);
+        }
+        None
+    }
+
+    /// Parse a path into a vector of paths
+    pub fn lookup(&mut self) -> Option<Vec<String>> {
+        if self.input.len() == 0 {
+            return Some(vec![]);
+        }
+        let mut keys = Vec::new();
+        loop {
+            self.ws();
+            if let Some(s) = self.key_name() {
+                keys.push(s);
+            } else if let Some(s) = self.array_index() {
+                keys.push(s);
+            } else {
+                return None
+            }
+            self.ws();
+            if !self.expect('.') { return Some(keys) }
+        }
+    }
+
     // Parse a single key name starting at `start`
     fn key_name(&mut self) -> Option<String> {
         let start = self.next_pos();
@@ -970,6 +1010,42 @@ mod tests {
     }
 
     #[test]
+    fn lookup_internal() {
+        let mut parser = Parser::new(r#"hello."world\t".a.0.'escaped'.value"#);
+        let result = vec![
+          String::from("hello"),
+          String::from("world\t"),
+          String::from("a"),
+          String::from("0"),
+          String::from("escaped"),
+          String::from("value")
+        ];
+
+        assert_eq!(parser.lookup().unwrap(), result);
+    }
+
+    #[test]
+    fn lookup_internal_void() {
+        let mut parser = Parser::new("");
+        assert_eq!(parser.lookup().unwrap(), Vec::<String>::new());
+    }
+
+    #[test]
+    fn lookup_internal_simple() {
+        let mut parser = Parser::new("value");
+        assert_eq!(parser.lookup().unwrap(), vec![String::from("value")]);
+    }
+
+    // This is due to key_name not parsing an empty "" correctly. Disabled for now.
+    #[test]
+    #[ignore]
+    fn lookup_internal_quoted_void() {
+        let mut parser = Parser::new("\"\"");
+        assert_eq!(parser.lookup().unwrap(), vec![String::from("")]);
+    }
+
+
+    #[test]
     fn crlf() {
         let mut p = Parser::new("\
 [project]\r\n\
@@ -1246,10 +1322,10 @@ trimmed in raw strings.
         assert!(table.lookup("foo_3").is_some());
         assert!(table.lookup("foo_-2--3--r23f--4-f2-4").is_some());
         assert!(table.lookup("a").is_some());
-        assert!(table.lookup("!").is_some());
-        assert!(table.lookup("\"").is_some());
-        assert!(table.lookup("character encoding").is_some());
-        assert!(table.lookup("ʎǝʞ").is_some());
+        assert!(table.lookup("\"!\"").is_some());
+        assert!(table.lookup("\"\\\"\"").is_some());
+        assert!(table.lookup("\"character encoding\"").is_some());
+        assert!(table.lookup("'ʎǝʞ'").is_some());
     }
 
     #[test]
@@ -1293,9 +1369,9 @@ trimmed in raw strings.
         ");
         let table = Table(p.parse().unwrap());
         assert!(table.lookup("a.b").is_some());
-        assert!(table.lookup("f f").is_some());
-        assert!(table.lookup("\"").is_some());
-        assert!(table.lookup("\"\"").is_some());
+        assert!(table.lookup("\"f f\"").is_some());
+        assert!(table.lookup("\"\\\"\"").is_some());
+        assert!(table.lookup("'\"\"'").is_some());
     }
 
     #[test]
