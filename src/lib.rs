@@ -445,12 +445,12 @@ mod tests {
         assert_eq!(*looked, Value::Integer(0));
     }
 
-		#[test]
-		fn lookup_advanced_table() {
+    #[test]
+    fn lookup_advanced_table() {
         let value: Value = r#"[table."name.other"] value = "my value""#.parse().unwrap();
         let looked = value.lookup(r#"table."name.other".value"#).unwrap();
         assert_eq!(*looked, Value::String(String::from("my value")));
-		}
+    }
 
     #[test]
     fn lookup_mut_advanced() {
