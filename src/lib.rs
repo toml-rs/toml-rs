@@ -459,6 +459,34 @@ mod tests {
         assert_eq!(*looked, Value::Integer(1));
     }
 
+    #[test]
+    fn single_dot() {
+        let value: Value = "[table]\n\"value\" = [0, 1, 2]".parse().unwrap();
+        assert_eq!(None, value.lookup("."));
+    }
 
+    #[test]
+    fn array_dot() {
+        let value: Value = "[table]\n\"value\" = [0, 1, 2]".parse().unwrap();
+        assert_eq!(None, value.lookup("0."));
+    }
+
+    #[test]
+    fn dot_inside() {
+        let value: Value = "[table]\n\"value\" = [0, 1, 2]".parse().unwrap();
+        assert_eq!(None, value.lookup("table.\"value.0\""));
+    }
+
+    #[test]
+    fn table_with_quotes() {
+        let value: Value = "[table.\"element\"]\n\"value\" = [0, 1, 2]".parse().unwrap();
+        assert_eq!(None, value.lookup("\"table.element\".\"value\".0"));
+    }
+
+    #[test]
+    fn table_with_quotes_2() {
+        let value: Value = "[table.\"element\"]\n\"value\" = [0, 1, 2]".parse().unwrap();
+        assert_eq!(Value::Integer(0), *value.lookup("table.\"element\".\"value\".0").unwrap());
+    }
 
 }
