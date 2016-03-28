@@ -292,22 +292,7 @@ impl<'a> Parser<'a> {
 
     // Parse an array index as a natural number
     fn array_index(&mut self) -> Option<String> {
-        let mut index = String::new();
-        while let Some((_, ch)) = self.peek(0) {
-            match ch {
-                v @ '0' ... '9' => {
-                    if !self.eat(v) {
-                        return None
-                    }
-                    index.push(v);
-                }
-                _ => return Some(index),
-            }
-        }
-        if index.len() > 0 {
-            return Some(index);
-        }
-        None
+        self.integer(0, false, false)
     }
 
     /// Parse a path into a vector of paths
