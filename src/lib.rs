@@ -181,12 +181,16 @@ impl Value {
     /// assert_eq!(no_bar.is_none(), true);
     /// ```
     pub fn lookup<'a>(&'a self, path: &'a str) -> Option<&'a Value> {
+        let ref path = match Parser::new(path).lookup() {
+            Some(path) => path,
+            None => return None,
+        };
         let mut cur_value = self;
         if path.len() == 0 {
             return Some(cur_value)
         }
 
-        for key in path.split('.') {
+        for key in path {
             match *cur_value {
                 Value::Table(ref hm) => {
                     match hm.get(key) {
@@ -205,8 +209,8 @@ impl Value {
         };
 
         Some(cur_value)
-    }
 
+    }
     /// Lookups for mutable value at specified path.
     ///
     /// Uses '.' as a path separator.
@@ -237,12 +241,17 @@ impl Value {
     /// assert_eq!(result.as_str().unwrap(), "foo");
     /// ```
     pub fn lookup_mut(&mut self, path: &str) -> Option<&mut Value> {
+       let ref path = match Parser::new(path).lookup() {
+            Some(path) => path,
+            None => return None,
+        };
+
         let mut cur = self;
         if path.len() == 0 {
             return Some(cur)
         }
 
-        for key in path.split('.') {
+        for key in path {
             let tmp = cur;
             match *tmp {
                 Value::Table(ref mut hm) => {
@@ -428,4 +437,56 @@ mod tests {
         let baz = foo.lookup("foo").unwrap();
         assert_eq!(baz.as_str().unwrap(), "bar");
     }
+
+    #[test]
+    fn lookup_advanced() {
+        let value: Value = "[table]\n\"value\" = 0".parse().unwrap();
+        let looked = value.lookup("table.\"value\"").unwrap();
+        assert_eq!(*looked, Value::Integer(0));
+    }
+
+    #[test]
+    fn lookup_advanced_table() {
+        let value: Value = r#"[table."name.other"] value = "my value""#.parse().unwrap();
+        let looked = value.lookup(r#"table."name.other".value"#).unwrap();
+        assert_eq!(*looked, Value::String(String::from("my value")));
+    }
+
+    #[test]
+    fn lookup_mut_advanced() {
+        let mut value: Value = "[table]\n\"value\" = [0, 1, 2]".parse().unwrap();
+        let looked = value.lookup_mut("table.\"value\".1").unwrap();
+        assert_eq!(*looked, Value::Integer(1));
+    }
+
+    #[test]
+    fn single_dot() {
+        let value: Value = "[table]\n\"value\" = [0, 1, 2]".parse().unwrap();
+        assert_eq!(None, value.lookup("."));
+    }
+
+    #[test]
+    fn array_dot() {
+        let value: Value = "[table]\n\"value\" = [0, 1, 2]".parse().unwrap();
+        assert_eq!(None, value.lookup("0."));
+    }
+
+    #[test]
+    fn dot_inside() {
+        let value: Value = "[table]\n\"value\" = [0, 1, 2]".parse().unwrap();
+        assert_eq!(None, value.lookup("table.\"value.0\""));
+    }
+
+    #[test]
+    fn table_with_quotes() {
+        let value: Value = "[table.\"element\"]\n\"value\" = [0, 1, 2]".parse().unwrap();
+        assert_eq!(None, value.lookup("\"table.element\".\"value\".0"));
+    }
+
+    #[test]
+    fn table_with_quotes_2() {
+        let value: Value = "[table.\"element\"]\n\"value\" = [0, 1, 2]".parse().unwrap();
+        assert_eq!(Value::Integer(0), *value.lookup("table.\"element\".\"value\".0").unwrap());
+    }
+
 }
