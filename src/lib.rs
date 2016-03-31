@@ -246,7 +246,12 @@ impl Value {
     /// assert_eq!(result.as_str().unwrap(), "foo");
     /// ```
     pub fn lookup_mut(&mut self, path: &str) -> Option<&mut Value> {
-       let ref path = match Parser::new(path).lookup() {
+        self.lookup_mut_with_sep(path, '.')
+    }
+
+    /// Same as `Value::lookup_mut()` but with custom seperator character
+    pub fn lookup_mut_with_sep(&mut self, path: &str, seperator: char) -> Option<&mut Value> {
+       let ref path = match Parser::new(path).lookup_with_sep(seperator) {
             Some(path) => path,
             None => return None,
         };
