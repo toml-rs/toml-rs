@@ -181,7 +181,12 @@ impl Value {
     /// assert_eq!(no_bar.is_none(), true);
     /// ```
     pub fn lookup<'a>(&'a self, path: &'a str) -> Option<&'a Value> {
-        let ref path = match Parser::new(path).lookup() {
+        self.lookup_with_sep(path, '.')
+    }
+
+    /// Same as `Value::lookup()`, but with custom seperator character.
+    pub fn lookup_with_sep<'a>(&'a self, path: &'a str, seperator: char) -> Option<&'a Value> {
+        let ref path = match Parser::new(path).lookup_with_sep(seperator) {
             Some(path) => path,
             None => return None,
         };
@@ -209,8 +214,8 @@ impl Value {
         };
 
         Some(cur_value)
-
     }
+
     /// Lookups for mutable value at specified path.
     ///
     /// Uses '.' as a path separator.
@@ -241,7 +246,12 @@ impl Value {
     /// assert_eq!(result.as_str().unwrap(), "foo");
     /// ```
     pub fn lookup_mut(&mut self, path: &str) -> Option<&mut Value> {
-       let ref path = match Parser::new(path).lookup() {
+        self.lookup_mut_with_sep(path, '.')
+    }
+
+    /// Same as `Value::lookup_mut()` but with custom seperator character
+    pub fn lookup_mut_with_sep(&mut self, path: &str, seperator: char) -> Option<&mut Value> {
+       let ref path = match Parser::new(path).lookup_with_sep(seperator) {
             Some(path) => path,
             None => return None,
         };

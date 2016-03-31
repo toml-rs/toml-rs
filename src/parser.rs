@@ -297,6 +297,11 @@ impl<'a> Parser<'a> {
 
     /// Parse a path into a vector of paths
     pub fn lookup(&mut self) -> Option<Vec<String>> {
+        self.lookup_with_sep('.')
+    }
+
+    /// Parse a path into a vector of paths, using a special seperator
+    pub fn lookup_with_sep(&mut self, seperator: char) -> Option<Vec<String>> {
         if self.input.len() == 0 {
             return Some(vec![]);
         }
@@ -311,7 +316,7 @@ impl<'a> Parser<'a> {
                 return None
             }
             self.ws();
-            if !self.expect('.') { return Some(keys) }
+            if !self.expect(seperator) { return Some(keys) }
         }
     }
 
