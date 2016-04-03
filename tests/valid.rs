@@ -112,6 +112,9 @@ test!(integer,
 test!(key_equals_nospace,
        include_str!("valid/key-equals-nospace.toml"),
        include_str!("valid/key-equals-nospace.json"));
+test!(key_space,
+       include_str!("valid/key-space.toml"),
+       include_str!("valid/key-space.json"));
 test!(key_special_chars,
        include_str!("valid/key-special-chars.toml"),
        include_str!("valid/key-special-chars.json"));
@@ -124,6 +127,15 @@ test!(long_float,
 test!(long_integer,
        include_str!("valid/long-integer.toml"),
        include_str!("valid/long-integer.json"));
+test!(multiline_string,
+       include_str!("valid/multiline-string.toml"),
+       include_str!("valid/multiline-string.json"));
+test!(raw_multiline_string,
+       include_str!("valid/raw-multiline-string.toml"),
+       include_str!("valid/raw-multiline-string.json"));
+test!(raw_string,
+       include_str!("valid/raw-string.toml"),
+       include_str!("valid/raw-string.json"));
 test!(string_empty,
        include_str!("valid/string-empty.toml"),
        include_str!("valid/string-empty.json"));
