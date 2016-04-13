@@ -1,4 +1,3 @@
-use std::ascii::AsciiExt;
 use std::char;
 use std::collections::BTreeMap;
 use std::error::Error;
@@ -490,7 +489,7 @@ impl<'a> Parser<'a> {
                 Some((pos, c @ 'U')) => {
                     let len = if c == 'u' {4} else {8};
                     let num = &me.input[pos+1..];
-                    let num = if num.len() >= len && num.is_ascii() {
+                    let num = if num.char_indices().nth(len).map(|(i, _)| i).unwrap_or(0) == len {
                         &num[..len]
                     } else {
                         "invalid"
