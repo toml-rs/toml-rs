@@ -271,6 +271,16 @@ impl<'a> Parser<'a> {
                     values: BTreeMap::new(),
                     defined: true,
                 };
+                self.ws();
+                self.comment();
+                if !self.newline() {
+                    self.errors.push(ParserError {
+                        lo: start,
+                        hi: start,
+                        desc: format!("expected a newline after table definition"),
+                    });
+                    return None
+                }
                 if !self.values(&mut table) { return None }
                 if array {
                     self.insert_array(&mut ret, &keys, Value::Table(table),
