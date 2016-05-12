@@ -631,9 +631,13 @@ impl<'a> Parser<'a> {
         };
         let end = self.next_pos();
         let input = &self.input[start..end];
-        let ret = if !is_float && !input.starts_with("+") &&
-                     !input.starts_with("-") && self.eat('-') {
-            self.datetime(start, end + 1)
+        let ret = if decimal.is_none() &&
+                     exponent.is_none() &&
+                     !input.starts_with("+") &&
+                     !input.starts_with("-") &&
+                     start + 4 == end &&
+                     self.eat('-') {
+            self.datetime(start)
         } else {
             let input = match (decimal, exponent) {
                 (None, None) => prefix,
@@ -658,7 +662,9 @@ impl<'a> Parser<'a> {
         ret
     }
 
-    fn integer(&mut self, start: usize, allow_leading_zeros: bool,
+    fn integer(&mut self,
+               start: usize,
+               allow_leading_zeros: bool,
                allow_sign: bool) -> Option<String> {
         let mut s = String::new();
         if allow_sign {
@@ -745,52 +751,81 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn datetime(&mut self, start: usize, end_so_far: usize) -> Option<Value> {
-        let mut date = format!("{}", &self.input[start..end_so_far]);
-        for _ in 0..15 {
-            match self.cur.next() {
-                Some((_, ch)) => date.push(ch),
-                None => {
-                    self.errors.push(ParserError {
-                        lo: start,
-                        hi: end_so_far,
-                        desc: format!("malformed date literal"),
-                    });
-                    return None
+    fn datetime(&mut self, start: usize) -> Option<Value> {
+        // Up to `start` already contains the year, and we've eaten the next
+        // `-`, so we just resume parsing from there.
+
+        let mut valid = true;
+
+        // month
+        valid = valid && digit(self.cur.next());
+        valid = valid && digit(self.cur.next());
+
+        // day
+        valid = valid && self.cur.next().map(|c| c.1) == Some('-');
+        valid = valid && digit(self.cur.next());
+        valid = valid && digit(self.cur.next());
+
+        valid = valid && self.cur.next().map(|c| c.1) == Some('T');
+
+        // hour
+        valid = valid && digit(self.cur.next());
+        valid = valid && digit(self.cur.next());
+
+        // minute
+        valid = valid && self.cur.next().map(|c| c.1) == Some(':');
+        valid = valid && digit(self.cur.next());
+        valid = valid && digit(self.cur.next());
+
+        // second
+        valid = valid && self.cur.next().map(|c| c.1) == Some(':');
+        valid = valid && digit(self.cur.next());
+        valid = valid && digit(self.cur.next());
+
+        // fractional seconds
+        if self.eat('.') {
+            valid = valid && digit(self.cur.next());
+            loop {
+                match self.cur.clone().next() {
+                    Some((_, c)) if is_digit(c) => {
+                        self.cur.next();
+                    }
+                    _ => break,
                 }
             }
         }
-        let mut it = date.chars();
-        let mut valid = true;
-        valid = valid && it.next().map(is_digit).unwrap_or(false);
-        valid = valid && it.next().map(is_digit).unwrap_or(false);
-        valid = valid && it.next().map(is_digit).unwrap_or(false);
-        valid = valid && it.next().map(is_digit).unwrap_or(false);
-        valid = valid && it.next().map(|c| c == '-').unwrap_or(false);
-        valid = valid && it.next().map(is_digit).unwrap_or(false);
-        valid = valid && it.next().map(is_digit).unwrap_or(false);
-        valid = valid && it.next().map(|c| c == '-').unwrap_or(false);
-        valid = valid && it.next().map(is_digit).unwrap_or(false);
-        valid = valid && it.next().map(is_digit).unwrap_or(false);
-        valid = valid && it.next().map(|c| c == 'T').unwrap_or(false);
-        valid = valid && it.next().map(is_digit).unwrap_or(false);
-        valid = valid && it.next().map(is_digit).unwrap_or(false);
-        valid = valid && it.next().map(|c| c == ':').unwrap_or(false);
-        valid = valid && it.next().map(is_digit).unwrap_or(false);
-        valid = valid && it.next().map(is_digit).unwrap_or(false);
-        valid = valid && it.next().map(|c| c == ':').unwrap_or(false);
-        valid = valid && it.next().map(is_digit).unwrap_or(false);
-        valid = valid && it.next().map(is_digit).unwrap_or(false);
-        valid = valid && it.next().map(|c| c == 'Z').unwrap_or(false);
-        if valid {
-            Some(Value::Datetime(date.clone()))
+
+        // time zone
+        if !self.eat('Z') {
+            valid = valid && (self.eat('+') || self.eat('-'));
+
+            // hour
+            valid = valid && digit(self.cur.next());
+            valid = valid && digit(self.cur.next());
+
+            // minute
+            valid = valid && self.cur.next().map(|c| c.1) == Some(':');
+            valid = valid && digit(self.cur.next());
+            valid = valid && digit(self.cur.next());
+        }
+
+        return if valid {
+            Some(Value::Datetime(self.input[start..self.next_pos()].to_string()))
         } else {
+            let next = self.next_pos();
             self.errors.push(ParserError {
                 lo: start,
-                hi: start + date.len(),
+                hi: start + next,
                 desc: format!("malformed date literal"),
             });
             None
+        };
+
+        fn digit(val: Option<(usize, char)>) -> bool {
+            match val {
+                Some((_, c)) => is_digit(c),
+                None => false,
+            }
         }
     }
 
@@ -1520,5 +1555,28 @@ trimmed in raw strings.
             b = {}
             [a]
         ", "redefinition of table `a`");
+    }
+
+    #[test]
+    fn datetimes() {
+        macro_rules! t {
+            ($actual:expr) => ({
+                let f = format!("foo = {}", $actual);
+                let mut p = Parser::new(&f);
+                let table = Table(p.parse().unwrap());
+                assert_eq!(table.lookup("foo").and_then(|k| k.as_datetime()),
+                           Some($actual));
+            })
+        }
+
+        t!("2016-09-09T09:09:09Z");
+        t!("2016-09-09T09:09:09.0Z");
+        t!("2016-09-09T09:09:09.0+10:00");
+        t!("2016-09-09T09:09:09.01234567890-02:00");
+        bad!("foo = 2016-09-09T09:09:09.Z", "malformed date literal");
+        bad!("foo = 2016-9-09T09:09:09Z", "malformed date literal");
+        bad!("foo = 2016-09-09T09:09:09+2:00", "malformed date literal");
+        bad!("foo = 2016-09-09T09:09:09-2:00", "malformed date literal");
+        bad!("foo = 2016-09-09T09:09:09Z-2:00", "expected");
     }
 }
