@@ -89,6 +89,7 @@ impl Value {
 pub struct Parser<'a> {
     input: &'a str,
     cur: str::CharIndices<'a>,
+    require_newline_after_table: bool,
 
     /// A list of all errors which have occurred during parsing.
     ///
@@ -138,6 +139,7 @@ impl<'a> Parser<'a> {
             input: s,
             cur: s.char_indices(),
             errors: Vec::new(),
+            require_newline_after_table: true,
         }
     }
 
@@ -153,6 +155,16 @@ impl<'a> Parser<'a> {
             cur += line.len() + 1;
         }
         (self.input.lines().count(), 0)
+    }
+
+    /// Historical versions of toml-rs accidentally allowed a newline after a
+    /// table definition, but the TOML spec requires a newline after a table
+    /// definition header.
+    ///
+    /// This option can be set to `false` (the default is `true`) to emulate
+    /// this behavior for backwards compatibility with older toml-rs versions.
+    pub fn set_require_newline_after_table(&mut self, require: bool) {
+        self.require_newline_after_table = require;
     }
 
     fn next_pos(&self) -> usize {
@@ -271,15 +283,17 @@ impl<'a> Parser<'a> {
                     values: BTreeMap::new(),
                     defined: true,
                 };
-                self.ws();
-                self.comment();
-                if !self.newline() {
-                    self.errors.push(ParserError {
-                        lo: start,
-                        hi: start,
-                        desc: format!("expected a newline after table definition"),
-                    });
-                    return None
+                if self.require_newline_after_table {
+                    self.ws();
+                    self.comment();
+                    if !self.newline() {
+                        self.errors.push(ParserError {
+                            lo: start,
+                            hi: start,
+                            desc: format!("expected a newline after table definition"),
+                        });
+                        return None
+                    }
                 }
                 if !self.values(&mut table) { return None }
                 if array {
