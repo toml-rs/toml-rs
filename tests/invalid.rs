@@ -50,6 +50,10 @@ test!(float_no_leading_zero,
       include_str!("invalid/float-no-leading-zero.toml"));
 test!(float_no_trailing_digits,
       include_str!("invalid/float-no-trailing-digits.toml"));
+test!(key_after_array,
+      include_str!("invalid/key-after-array.toml"));
+test!(key_after_table,
+      include_str!("invalid/key-after-table.toml"));
 test!(key_empty,
       include_str!("invalid/key-empty.toml"));
 test!(key_hash,

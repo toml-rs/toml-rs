@@ -447,7 +447,7 @@ mod tests {
 
     #[test]
     fn lookup_advanced_table() {
-        let value: Value = r#"[table."name.other"] value = "my value""#.parse().unwrap();
+        let value: Value = "[table.\"name.other\"]\nvalue = \"my value\"".parse().unwrap();
         let looked = value.lookup(r#"table."name.other".value"#).unwrap();
         assert_eq!(*looked, Value::String(String::from("my value")));
     }
