@@ -285,8 +285,7 @@ impl<'a> Parser<'a> {
                 };
                 if self.require_newline_after_table {
                     self.ws();
-                    self.comment();
-                    if !self.newline() {
+                    if !self.comment() && !self.newline() {
                         self.errors.push(ParserError {
                             lo: start,
                             hi: start,
@@ -1196,7 +1195,7 @@ trimmed in raw strings.
   [foo.bar]
     #…
 
-[[foo]]
+[[foo]] # ...
   #…
   [foo.bar]
     #...
