@@ -1206,6 +1206,14 @@ trimmed in raw strings.
     }
 
     #[test]
+    fn empty_table() {
+        let mut p = Parser::new(r#"
+[foo]"#);
+        let table = Table(p.parse().unwrap());
+        table.lookup("foo").unwrap().as_table().unwrap();
+    }
+
+    #[test]
     fn fruit() {
         let mut p = Parser::new(r#"
 [[fruit]]
