@@ -243,6 +243,11 @@ impl<'a> Parser<'a> {
         }
     }
 
+    // Match EOF
+    fn eof(&self) -> bool {
+        self.peek(0).is_none()
+    }
+
     /// Executes the parser, parsing the string contained within.
     ///
     /// This function will return the `TomlTable` instance if parsing is
@@ -285,7 +290,7 @@ impl<'a> Parser<'a> {
                 };
                 if self.require_newline_after_table {
                     self.ws();
-                    if !self.comment() && !self.newline() {
+                    if !self.comment() && !self.newline() && !self.eof() {
                         self.errors.push(ParserError {
                             lo: start,
                             hi: start,
@@ -1203,6 +1208,14 @@ trimmed in raw strings.
         let table = Table(p.parse().unwrap());
         table.lookup("foo.0.bar").unwrap().as_table().unwrap();
         table.lookup("foo.1.bar").unwrap().as_table().unwrap();
+    }
+
+    #[test]
+    fn empty_table() {
+        let mut p = Parser::new(r#"
+[foo]"#);
+        let table = Table(p.parse().unwrap());
+        table.lookup("foo").unwrap().as_table().unwrap();
     }
 
     #[test]
