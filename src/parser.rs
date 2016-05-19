@@ -285,7 +285,7 @@ impl<'a> Parser<'a> {
                 };
                 if self.require_newline_after_table {
                     self.ws();
-                    if !self.comment() && !self.newline() {
+                    if !self.comment() && !self.newline() && self.peek(0).is_some() {
                         self.errors.push(ParserError {
                             lo: start,
                             hi: start,
