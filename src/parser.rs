@@ -243,6 +243,11 @@ impl<'a> Parser<'a> {
         }
     }
 
+    // Match EOF
+    fn eof(&self) -> bool {
+        self.peek(0).is_none()
+    }
+
     /// Executes the parser, parsing the string contained within.
     ///
     /// This function will return the `TomlTable` instance if parsing is
@@ -285,7 +290,7 @@ impl<'a> Parser<'a> {
                 };
                 if self.require_newline_after_table {
                     self.ws();
-                    if !self.comment() && !self.newline() && self.peek(0).is_some() {
+                    if !self.comment() && !self.newline() && !self.eof() {
                         self.errors.push(ParserError {
                             lo: start,
                             hi: start,
