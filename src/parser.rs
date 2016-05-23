@@ -398,10 +398,20 @@ impl<'a> Parser<'a> {
                 Some(value) => value,
                 None => return false,
             };
+            let end = self.next_pos();
             self.insert(into, key, value, key_lo);
             self.ws();
-            self.comment();
-            self.newline();
+            if !self.comment() && !self.newline() {
+                if self.peek(0).is_none() {
+                    return true
+                }
+                self.errors.push(ParserError {
+                    lo: key_lo,
+                    hi: end,
+                    desc: format!("expected a newline after a key"),
+                });
+                return false
+            }
         }
         true
     }
@@ -1590,5 +1600,28 @@ trimmed in raw strings.
         bad!("foo = 2016-09-09T09:09:09+2:00", "malformed date literal");
         bad!("foo = 2016-09-09T09:09:09-2:00", "malformed date literal");
         bad!("foo = 2016-09-09T09:09:09Z-2:00", "expected");
+    }
+
+    #[test]
+    fn require_newline_after_value() {
+        bad!("0=0r=false", "expected a newline");
+        bad!(r#"
+0=""o=""m=""r=""00="0"q="""0"""e="""0"""
+"#, "expected a newline");
+        bad!(r#"
+[[0000l0]]
+0="0"[[0000l0]]
+0="0"[[0000l0]]
+0="0"l="0"
+"#, "expected a newline");
+        bad!(r#"
+0=[0]00=[0,0,0]t=["0","0","0"]s=[1000-00-00T00:00:00Z,2000-00-00T00:00:00Z]
+"#, "expected a newline");
+        bad!(r#"
+0=0r0=0r=false
+"#, "expected a newline");
+        bad!(r#"
+0=0r0=0r=falsefal=false
+"#, "expected a newline");
     }
 }
