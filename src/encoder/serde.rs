@@ -26,6 +26,9 @@ impl ser::Serializer for Encoder {
     fn serialize_none(&mut self) -> Result<(), Error> {
         self.emit_none()
     }
+    fn serialize_char(&mut self, c: char) -> Result<(), Error> {
+        self.serialize_str(&c.to_string())
+    }
     fn serialize_some<V>(&mut self, value: V) -> Result<(), Error>
         where V: ser::Serialize
     {
