@@ -180,7 +180,7 @@ impl Value {
     /// let no_bar = value.lookup("test.bar");
     /// assert_eq!(no_bar.is_none(), true);
     /// ```
-    pub fn lookup<'a, 'b>(&'a self, path: &'b str) -> Option<&'a Value> {
+    pub fn lookup(&self, path: &str) -> Option<&Value> {
         let ref path = match Parser::new(path).lookup() {
             Some(path) => path,
             None => return None,
@@ -240,7 +240,7 @@ impl Value {
     /// let result = value.lookup_mut("test.foo").unwrap();
     /// assert_eq!(result.as_str().unwrap(), "foo");
     /// ```
-    pub fn lookup_mut<'a, 'b>(&'a mut self, path: &'b str) -> Option<&'a mut Value> {
+    pub fn lookup_mut(&mut self, path: &str) -> Option<&mut Value> {
        let ref path = match Parser::new(path).lookup() {
             Some(path) => path,
             None => return None,
