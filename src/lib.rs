@@ -180,7 +180,7 @@ impl Value {
     /// let no_bar = value.lookup("test.bar");
     /// assert_eq!(no_bar.is_none(), true);
     /// ```
-    pub fn lookup<'a>(&'a self, path: &'a str) -> Option<&'a Value> {
+    pub fn lookup(&self, path: &str) -> Option<&Value> {
         let ref path = match Parser::new(path).lookup() {
             Some(path) => path,
             None => return None,
