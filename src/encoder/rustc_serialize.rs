@@ -47,10 +47,10 @@ impl rustc_serialize::Encoder for Encoder {
         self.emit_value(Value::Float(v))
     }
     fn emit_char(&mut self, v: char) -> Result<(), Error> {
-        self.emit_str(&*format!("{}", v))
+        self.emit_str(&v.to_string())
     }
     fn emit_str(&mut self, v: &str) -> Result<(), Error> {
-        self.emit_value(Value::String(format!("{}", v)))
+        self.emit_value(Value::String(v.to_string()))
     }
     fn emit_enum<F>(&mut self, _name: &str, f: F)
         -> Result<(), Error>
@@ -98,7 +98,7 @@ impl rustc_serialize::Encoder for Encoder {
         where F: FnOnce(&mut Encoder) -> Result<(), Error>
     {
         let old = mem::replace(&mut self.state,
-                               State::NextKey(format!("{}", f_name)));
+                               State::NextKey(f_name.to_string()));
         try!(f(self));
         if self.state != State::Start {
             return Err(NoValue)
@@ -453,7 +453,7 @@ mod tests {
         match a {
             Ok(..) => panic!("should not have decoded"),
             Err(e) => {
-                assert_eq!(format!("{}", e),
+                assert_eq!(e.to_string(),
                            "expected a value of type `integer`, but \
                             found a value of type `float` for the key `bar`");
             }
@@ -471,7 +471,7 @@ mod tests {
         match a {
             Ok(..) => panic!("should not have decoded"),
             Err(e) => {
-                assert_eq!(format!("{}", e),
+                assert_eq!(e.to_string(),
                            "expected a value of type `integer` for the key `bar`");
             }
         }

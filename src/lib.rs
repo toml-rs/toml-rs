@@ -72,10 +72,10 @@ pub enum Value {
     Table(Table),
 }
 
-/// Type representing a TOML array, payload of the Value::Array variant
+/// Type representing a TOML array, payload of the `Value::Array` variant
 pub type Array = Vec<Value>;
 
-/// Type representing a TOML table, payload of the Value::Table variant
+/// Type representing a TOML table, payload of the `Value::Table` variant
 pub type Table = BTreeMap<String, Value>;
 
 impl Value {
@@ -180,13 +180,13 @@ impl Value {
     /// let no_bar = value.lookup("test.bar");
     /// assert_eq!(no_bar.is_none(), true);
     /// ```
-    pub fn lookup<'a>(&'a self, path: &'a str) -> Option<&'a Value> {
+    pub fn lookup(&self, path: &str) -> Option<&Value> {
         let ref path = match Parser::new(path).lookup() {
             Some(path) => path,
             None => return None,
         };
         let mut cur_value = self;
-        if path.len() == 0 {
+        if path.is_empty() {
             return Some(cur_value)
         }
 
@@ -247,7 +247,7 @@ impl Value {
         };
 
         let mut cur = self;
-        if path.len() == 0 {
+        if path.is_empty() {
             return Some(cur)
         }
 

@@ -171,7 +171,7 @@ impl rustc_serialize::Decoder for Decoder {
         -> Result<T, DecodeError>
         where F: FnOnce(&mut Decoder) -> Result<T, DecodeError>
     {
-        let field = format!("{}", f_name);
+        let field = f_name.to_string();
         let toml = match self.toml {
             Some(Value::Table(ref mut table)) => {
                 table.remove(&field)
@@ -324,7 +324,7 @@ impl rustc_serialize::Decoder for Decoder {
     fn error(&mut self, err: &str) -> DecodeError {
         DecodeError {
             field: self.cur_field.clone(),
-            kind: ApplicationError(format!("{}", err))
+            kind: ApplicationError(err.to_string())
         }
     }
 }

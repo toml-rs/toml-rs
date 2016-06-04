@@ -126,11 +126,11 @@ impl Decoder {
     fn sub_decoder(&self, toml: Option<Value>, field: &str) -> Decoder {
         Decoder {
             toml: toml,
-            cur_field: if field.len() == 0 {
+            cur_field: if field.is_empty() {
                 self.cur_field.clone()
             } else {
                 match self.cur_field {
-                    None => Some(format!("{}", field)),
+                    None => Some(field.to_string()),
                     Some(ref s) => Some(format!("{}.{}", s, field))
                 }
             },
@@ -172,7 +172,7 @@ impl fmt::Display for DecodeError {
             ExpectedType(expected, found) => {
                 fn humanize(s: &str) -> String {
                     if s == "section" {
-                        format!("a section")
+                        "a section".to_string()
                     } else {
                         format!("a value of type `{}`", s)
                     }

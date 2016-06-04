@@ -35,6 +35,7 @@ use {Value, Table};
 /// assert_eq!(e.toml.get(&"foo".to_string()), Some(&Value::Integer(4)))
 /// # }
 /// ```
+#[derive(Default)]
 pub struct Encoder {
     /// Output TOML that is emitted. The current version of this encoder forces
     /// the top-level representation of a structure to be a table.
@@ -71,6 +72,10 @@ enum State {
     NextKey(String),
     NextArray(Vec<Value>),
     NextMapKey,
+}
+
+impl Default for State {
+    fn default() -> State { State::Start }
 }
 
 impl Encoder {
