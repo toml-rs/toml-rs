@@ -1,5 +1,5 @@
 use std::char;
-use std::collections::BTreeMap;
+use std::collections::btree_map::{BTreeMap, Entry};
 use std::error::Error;
 use std::fmt;
 use std::str;
@@ -294,7 +294,7 @@ impl<'a> Parser<'a> {
                         self.errors.push(ParserError {
                             lo: start,
                             hi: start,
-                            desc: format!("expected a newline after table definition"),
+                            desc: "expected a newline after table definition".to_string(),
                         });
                         return None
                     }
@@ -306,8 +306,8 @@ impl<'a> Parser<'a> {
                 } else {
                     self.insert_table(&mut ret, &keys, table, start)
                 }
-            } else {
-                if !self.values(&mut ret) { return None }
+            } else if !self.values(&mut ret) {
+                return None
             }
         }
         if !self.errors.is_empty() {
@@ -324,7 +324,7 @@ impl<'a> Parser<'a> {
 
     /// Parse a path into a vector of paths
     pub fn lookup(&mut self) -> Option<Vec<String>> {
-        if self.input.len() == 0 {
+        if self.input.is_empty() {
             return Some(vec![]);
         }
         let mut keys = Vec::new();
@@ -367,7 +367,7 @@ impl<'a> Parser<'a> {
                 self.errors.push(ParserError {
                     lo: start,
                     hi: start,
-                    desc: format!("expected a key but found an empty string"),
+                    desc: "expected a key but found an empty string".to_string(),
                 });
                 None
             }
@@ -408,7 +408,7 @@ impl<'a> Parser<'a> {
                 self.errors.push(ParserError {
                     lo: key_lo,
                     hi: end,
-                    desc: format!("expected a newline after a key"),
+                    desc: "expected a newline after a key".to_string(),
                 });
                 return false
             }
@@ -443,7 +443,7 @@ impl<'a> Parser<'a> {
                 self.errors.push(ParserError {
                     lo: lo,
                     hi: hi,
-                    desc: format!("expected a value"),
+                    desc: "expected a value".to_string(),
                 });
                 None
             }
@@ -503,7 +503,7 @@ impl<'a> Parser<'a> {
                     self.errors.push(ParserError {
                         lo: start,
                         hi: self.input.len(),
-                        desc: format!("unterminated string literal"),
+                        desc: "unterminated string literal".to_string(),
                     });
                     return None
                 }
@@ -569,7 +569,7 @@ impl<'a> Parser<'a> {
                     me.errors.push(ParserError {
                         lo: pos,
                         hi: pos + 1,
-                        desc: format!("unterminated escape sequence"),
+                        desc: "unterminated escape sequence".to_string(),
                     });
                     None
                 }
@@ -603,7 +603,7 @@ impl<'a> Parser<'a> {
                 self.errors.push(ParserError {
                     lo: start,
                     hi: next,
-                    desc: format!("literal strings cannot contain newlines"),
+                    desc: "literal strings cannot contain newlines".to_string(),
                 });
                 return None
             }
@@ -620,7 +620,7 @@ impl<'a> Parser<'a> {
                     self.errors.push(ParserError {
                         lo: start,
                         hi: self.input.len(),
-                        desc: format!("unterminated string literal"),
+                        desc: "unterminated string literal".to_string(),
                     });
                     return None
                 }
@@ -647,8 +647,8 @@ impl<'a> Parser<'a> {
         let input = &self.input[start..end];
         let ret = if decimal.is_none() &&
                      exponent.is_none() &&
-                     !input.starts_with("+") &&
-                     !input.starts_with("-") &&
+                     !input.starts_with('+') &&
+                     !input.starts_with('-') &&
                      start + 4 == end &&
                      self.eat('-') {
             self.datetime(start)
@@ -670,7 +670,7 @@ impl<'a> Parser<'a> {
             self.errors.push(ParserError {
                 lo: start,
                 hi: end,
-                desc: format!("invalid numeric literal"),
+                desc: "invalid numeric literal".to_string(),
             });
         }
         ret
@@ -693,7 +693,7 @@ impl<'a> Parser<'a> {
                         self.errors.push(ParserError {
                             lo: start,
                             hi: pos,
-                            desc: format!("leading zeroes are not allowed"),
+                            desc: "leading zeroes are not allowed".to_string(),
                         });
                         return None
                     }
@@ -708,7 +708,7 @@ impl<'a> Parser<'a> {
                 self.errors.push(ParserError {
                     lo: pos,
                     hi: pos,
-                    desc: format!("expected start of a numeric literal"),
+                    desc: "expected start of a numeric literal".to_string(),
                 });
                 return None;
             }
@@ -733,7 +733,7 @@ impl<'a> Parser<'a> {
             self.errors.push(ParserError {
                 lo: pos,
                 hi: pos,
-                desc: format!("numeral cannot end with an underscore"),
+                desc: "numeral cannot end with an underscore".to_string(),
             });
             None
         } else {
@@ -830,7 +830,7 @@ impl<'a> Parser<'a> {
             self.errors.push(ParserError {
                 lo: start,
                 hi: start + next,
-                desc: format!("malformed date literal"),
+                desc: "malformed date literal".to_string(),
             });
             None
         };
@@ -907,14 +907,14 @@ impl<'a> Parser<'a> {
 
     fn insert(&mut self, into: &mut TomlTable, key: String, value: Value,
               key_lo: usize) {
-        if into.values.contains_key(&key) {
+        if let Entry::Vacant(entry) = into.values.entry(key.clone()) {
+            entry.insert(value);
+        } else {
             self.errors.push(ParserError {
                 lo: key_lo,
                 hi: key_lo + key.len(),
                 desc: format!("duplicate key: `{}`", key),
-            })
-        } else {
-            into.values.insert(key, value);
+            });
         }
     }
 
