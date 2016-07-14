@@ -1,9 +1,11 @@
 use serde::ser;
 use Value;
-use super::{Encoder, Error};
+use super::{Encoder, Error, State};
 
 impl ser::Serializer for Encoder {
     type Error = Error;
+    type MapState = Self;
+    type SeqState = State;
 
     fn serialize_bool(&mut self, v: bool) -> Result<(), Error> {
         self.emit_value(Value::Boolean(v))
@@ -34,26 +36,19 @@ impl ser::Serializer for Encoder {
     {
         value.serialize(self)
     }
-    fn serialize_seq<V>(&mut self, mut visitor: V) -> Result<(), Error>
-        where V: ser::SeqVisitor
-    {
-        self.seq(|me| {
-            while try!(visitor.visit(me)).is_some() {}
-            Ok(())
-        })
+    fn serialize_seq(&mut self, _len: Option<usize>) -> Result<State, Error> {
+        self.seq_begin()
     }
     fn serialize_seq_elt<T>(&mut self, value: T) -> Result<(), Error>
         where T: ser::Serialize
     {
         value.serialize(self)
     }
-    fn serialize_map<V>(&mut self, mut visitor: V) -> Result<(), Error>
-        where V: ser::MapVisitor
-    {
-        self.table(|me| {
-            while try!(visitor.visit(me)).is_some() {}
-            Ok(())
-        })
+    fn serialize_seq_end(&mut self, _len: Option<usize>, state: State) -> Result<(), Error> {
+        self.seq_end(state)
+    }
+    fn serialize_map(&mut self, _len: Option<usize>) -> Result<Self, Error> {
+        self.table_begin()
     }
     fn serialize_map_elt<K, V>(&mut self, key: K, value: V) -> Result<(), Error>
         where K: ser::Serialize, V: ser::Serialize
@@ -61,6 +56,9 @@ impl ser::Serializer for Encoder {
         try!(self.table_key(|me| key.serialize(me)));
         try!(value.serialize(self));
         Ok(())
+    }
+    fn serialize_map_end(&mut self, _len: Option<usize>, state: Self) -> Result<(), Error> {
+        self.table_end(state)
     }
     fn serialize_newtype_struct<T>(&mut self,
                                    _name: &'static str,
@@ -93,12 +91,18 @@ impl ser::Serialize for Value {
             Value::Boolean(b) => e.serialize_bool(b),
             Value::Datetime(ref s) => e.serialize_str(s),
             Value::Array(ref a) => {
-                e.serialize_seq(ser::impls::SeqIteratorVisitor::new(a.iter(),
-                                                                Some(a.len())))
+                let state = try!(e.serialize_seq(Some(a.len())));
+                for el in a.iter() {
+                    try!(e.serialize_seq_elt(el));
+                }
+                e.serialize_seq_end(Some(a.len()), state)
             }
             Value::Table(ref t) => {
-                e.serialize_map(ser::impls::MapIteratorVisitor::new(t.iter(),
-                                                                Some(t.len())))
+                let state = try!(e.serialize_map(Some(t.len())));
+                for (k, v) in t.iter() {
+                    try!(e.serialize_map_elt(k, v));
+                }
+                e.serialize_map_end(Some(t.len()), state)
             }
         }
     }
