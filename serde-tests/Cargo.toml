@@ -9,7 +9,6 @@ serde = "0.7"
 toml = { path = "..", features = ["serde"] }
 
 [build-dependencies]
-syntex = "0.33"
 serde_codegen = "0.7"
 
 [lib]
