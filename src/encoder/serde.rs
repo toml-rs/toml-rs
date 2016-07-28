@@ -128,12 +128,15 @@ impl ser::Serializer for Encoder {
     fn serialize_map(&mut self, _len: Option<usize>) -> Result<Self, Error> {
         self.table_begin()
     }
-    fn serialize_map_elt<K, V>(&mut self, _state: &mut Encoder, key: K, value: V) -> Result<(), Error>
-        where K: ser::Serialize, V: ser::Serialize
+    fn serialize_map_key<K>(&mut self, _state: &mut Encoder, key: K) -> Result<(), Error>
+        where K: ser::Serialize
     {
-        try!(self.table_key(|me| key.serialize(me)));
-        try!(value.serialize(self));
-        Ok(())
+        self.table_key(|me| key.serialize(me))
+    }
+    fn serialize_map_value<V>(&mut self, _state: &mut Encoder, value: V) -> Result<(), Error>
+        where V: ser::Serialize
+    {
+        value.serialize(self)
     }
     fn serialize_map_end(&mut self, state: Self) -> Result<(), Error> {
         self.table_end(state)
@@ -144,7 +147,8 @@ impl ser::Serializer for Encoder {
     fn serialize_struct_elt<V>(&mut self, state: &mut Encoder, key: &'static str, value: V) -> Result<(), Error>
         where V: ser::Serialize
     {
-        self.serialize_map_elt(state, key, value)
+        try!(self.serialize_map_key(state, key));
+        self.serialize_map_value(state, value)
     }
     fn serialize_struct_end(&mut self, state: Self) -> Result<(), Error> {
         self.serialize_map_end(state)
@@ -155,7 +159,8 @@ impl ser::Serializer for Encoder {
     fn serialize_struct_variant_elt<V>(&mut self, state: &mut Encoder, key: &'static str, value: V) -> Result<(), Error>
         where V: ser::Serialize
     {
-        self.serialize_map_elt(state, key, value)
+        try!(self.serialize_map_key(state, key));
+        self.serialize_map_value(state, value)
     }
     fn serialize_struct_variant_end(&mut self, state: Self) -> Result<(), Error> {
         self.serialize_map_end(state)
@@ -208,7 +213,8 @@ impl ser::Serialize for Value {
             Value::Table(ref t) => {
                 let mut state = try!(e.serialize_map(Some(t.len())));
                 for (k, v) in t.iter() {
-                    try!(e.serialize_map_elt(&mut state, k, v));
+                    try!(e.serialize_map_key(&mut state, k));
+                    try!(e.serialize_map_value(&mut state, v));
                 }
                 e.serialize_map_end(state)
             }
