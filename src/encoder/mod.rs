@@ -113,6 +113,7 @@ impl Encoder {
         }
     }
 
+    #[cfg(feature = "rustc-serialize")]
     fn seq<F>(&mut self, f: F) -> Result<(), Error>
         where F: FnOnce(&mut Encoder) -> Result<(), Error>
     {
@@ -132,6 +133,7 @@ impl Encoder {
         }
     }
 
+    #[cfg(feature = "rustc-serialize")]
     fn table<F>(&mut self, f: F) -> Result<(), Error>
         where F: FnOnce(&mut Encoder) -> Result<(), Error>
     {
@@ -154,6 +156,7 @@ impl Encoder {
         }
     }
 
+    #[cfg(feature = "serde")]
     fn table_begin(&mut self) -> Result<Self, Error> {
         match self.state {
             State::NextMapKey => Err(Error::InvalidMapKeyLocation),
@@ -161,6 +164,7 @@ impl Encoder {
         }
     }
 
+    #[cfg(feature = "serde")]
     fn table_end(&mut self, mut state: Self) -> Result<(), Error> {
         match state.state {
             State::NextKey(key) => {
