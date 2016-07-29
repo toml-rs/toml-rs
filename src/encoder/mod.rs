@@ -66,9 +66,14 @@ pub enum Error {
     Custom(String),
 }
 
+/// Internal state of the encoder when encoding transitions
+#[derive(Debug)]
+pub struct EncoderState {
+    inner: State,
+}
+
 #[derive(PartialEq, Debug)]
-#[doc(hidden)]
-pub enum State {
+enum State {
     Start,
     NextKey(String),
     NextArray(Vec<Value>),
@@ -113,15 +118,6 @@ impl Encoder {
         }
     }
 
-    #[cfg(feature = "rustc-serialize")]
-    fn seq<F>(&mut self, f: F) -> Result<(), Error>
-        where F: FnOnce(&mut Encoder) -> Result<(), Error>
-    {
-        let old = try!(self.seq_begin());
-        try!(f(self));
-        self.seq_end(old)
-    }
-
     fn seq_begin(&mut self) -> Result<State, Error> {
         Ok(mem::replace(&mut self.state, State::NextArray(Vec::new())))
     }
@@ -131,55 +127,6 @@ impl Encoder {
             State::NextArray(v) => self.emit_value(Value::Array(v)),
             _ => unreachable!(),
         }
-    }
-
-    #[cfg(feature = "rustc-serialize")]
-    fn table<F>(&mut self, f: F) -> Result<(), Error>
-        where F: FnOnce(&mut Encoder) -> Result<(), Error>
-    {
-        match mem::replace(&mut self.state, State::Start) {
-            State::NextKey(key) => {
-                let mut nested = Encoder::new();
-                try!(f(&mut nested));
-                self.toml.insert(key, Value::Table(nested.toml));
-                Ok(())
-            }
-            State::NextArray(mut arr) => {
-                let mut nested = Encoder::new();
-                try!(f(&mut nested));
-                arr.push(Value::Table(nested.toml));
-                self.state = State::NextArray(arr);
-                Ok(())
-            }
-            State::Start => f(self),
-            State::NextMapKey => Err(Error::InvalidMapKeyLocation),
-        }
-    }
-
-    #[cfg(feature = "serde")]
-    fn table_begin(&mut self) -> Result<Self, Error> {
-        match self.state {
-            State::NextMapKey => Err(Error::InvalidMapKeyLocation),
-            _ => Ok(mem::replace(self, Encoder::new()))
-        }
-    }
-
-    #[cfg(feature = "serde")]
-    fn table_end(&mut self, mut state: Self) -> Result<(), Error> {
-        match state.state {
-            State::NextKey(key) => {
-                mem::swap(&mut self.toml, &mut state.toml);
-                self.toml.insert(key, Value::Table(state.toml));
-            },
-            State::NextArray(mut arr) => {
-                mem::swap(&mut self.toml, &mut state.toml);
-                arr.push(Value::Table(state.toml));
-                self.state = State::NextArray(arr);
-            },
-            State::Start => {},
-            State::NextMapKey => unreachable!(),
-        }
-        Ok(())
     }
 
     fn table_key<F>(&mut self, f: F) -> Result<(), Error>

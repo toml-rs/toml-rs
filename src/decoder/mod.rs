@@ -1,9 +1,7 @@
 use std::error;
 use std::fmt;
 
-#[cfg(feature = "rustc-serialize")]
 use std::collections::{btree_map, BTreeMap};
-#[cfg(feature = "rustc-serialize")]
 use std::iter::Peekable;
 
 use Value;
@@ -22,9 +20,11 @@ pub struct Decoder {
     /// whether fields were decoded or not.
     pub toml: Option<Value>,
     cur_field: Option<String>,
-    #[cfg(feature = "rustc-serialize")]
+
+    // These aren't used if serde is in use
+    #[cfg_attr(feature = "serde", allow(dead_code))]
     cur_map: Peekable<btree_map::IntoIter<String, Value>>,
-    #[cfg(feature = "rustc-serialize")]
+    #[cfg_attr(feature = "serde", allow(dead_code))]
     leftover_map: ::Table,
 }
 
@@ -135,21 +135,12 @@ impl Decoder {
         Decoder::new_empty(toml, cur_field)
     }
 
-    #[cfg(feature = "rustc-serialize")]
     fn new_empty(toml: Option<Value>, cur_field: Option<String>) -> Decoder {
         Decoder {
             toml: toml,
             cur_field: cur_field,
             leftover_map: BTreeMap::new(),
             cur_map: BTreeMap::new().into_iter().peekable(),
-        }
-    }
-
-    #[cfg(not(feature = "rustc-serialize"))]
-    fn new_empty(toml: Option<Value>, cur_field: Option<String>) -> Decoder {
-        Decoder {
-            toml: toml,
-            cur_field: cur_field,
         }
     }
 

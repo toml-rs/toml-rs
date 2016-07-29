@@ -48,7 +48,7 @@ use std::str::FromStr;
 pub use parser::{Parser, ParserError};
 
 #[cfg(any(feature = "rustc-serialize", feature = "serde"))]
-pub use self::encoder::{Encoder, Error, encode, encode_str};
+pub use self::encoder::{Encoder, Error, EncoderState, encode, encode_str};
 #[cfg(any(feature = "rustc-serialize", feature = "serde"))]
 pub use self::decoder::{Decoder, DecodeError, DecodeErrorKind, decode, decode_str};
 

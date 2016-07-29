@@ -5,6 +5,38 @@ use Value;
 use super::{Encoder, Error, State};
 use super::Error::*;
 
+impl Encoder {
+    fn table<F>(&mut self, f: F) -> Result<(), Error>
+        where F: FnOnce(&mut Encoder) -> Result<(), Error>
+    {
+        match mem::replace(&mut self.state, State::Start) {
+            State::NextKey(key) => {
+                let mut nested = Encoder::new();
+                try!(f(&mut nested));
+                self.toml.insert(key, Value::Table(nested.toml));
+                Ok(())
+            }
+            State::NextArray(mut arr) => {
+                let mut nested = Encoder::new();
+                try!(f(&mut nested));
+                arr.push(Value::Table(nested.toml));
+                self.state = State::NextArray(arr);
+                Ok(())
+            }
+            State::Start => f(self),
+            State::NextMapKey => Err(Error::InvalidMapKeyLocation),
+        }
+    }
+
+    fn seq<F>(&mut self, f: F) -> Result<(), Error>
+        where F: FnOnce(&mut Encoder) -> Result<(), Error>
+    {
+        let old = try!(self.seq_begin());
+        try!(f(self));
+        self.seq_end(old)
+    }
+}
+
 impl rustc_serialize::Encoder for Encoder {
     type Error = Error;
 
