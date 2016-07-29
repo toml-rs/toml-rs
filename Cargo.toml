@@ -17,7 +17,7 @@ facilitate deserializing and serializing Rust structures.
 
 [dependencies]
 rustc-serialize = { optional = true, version = "0.3.0" }
-serde = { optional = true, version = "0.7" }
+serde = { optional = true, version = "0.8" }
 
 [features]
 default = ["rustc-serialize"]

@@ -1,6 +1,9 @@
 use std::error;
 use std::fmt;
+
+#[cfg(feature = "rustc-serialize")]
 use std::collections::{btree_map, BTreeMap};
+#[cfg(feature = "rustc-serialize")]
 use std::iter::Peekable;
 
 use Value;
@@ -19,7 +22,9 @@ pub struct Decoder {
     /// whether fields were decoded or not.
     pub toml: Option<Value>,
     cur_field: Option<String>,
+    #[cfg(feature = "rustc-serialize")]
     cur_map: Peekable<btree_map::IntoIter<String, Value>>,
+    #[cfg(feature = "rustc-serialize")]
     leftover_map: ::Table,
 }
 
@@ -115,27 +120,36 @@ impl Decoder {
     /// This decoder can be passed to the `Decodable` methods or driven
     /// manually.
     pub fn new(toml: Value) -> Decoder {
+        Decoder::new_empty(Some(toml), None)
+    }
+
+    fn sub_decoder(&self, toml: Option<Value>, field: &str) -> Decoder {
+        let cur_field = if field.is_empty() {
+            self.cur_field.clone()
+        } else {
+            match self.cur_field {
+                None => Some(field.to_string()),
+                Some(ref s) => Some(format!("{}.{}", s, field))
+            }
+        };
+        Decoder::new_empty(toml, cur_field)
+    }
+
+    #[cfg(feature = "rustc-serialize")]
+    fn new_empty(toml: Option<Value>, cur_field: Option<String>) -> Decoder {
         Decoder {
-            toml: Some(toml),
-            cur_field: None,
+            toml: toml,
+            cur_field: cur_field,
             leftover_map: BTreeMap::new(),
             cur_map: BTreeMap::new().into_iter().peekable(),
         }
     }
 
-    fn sub_decoder(&self, toml: Option<Value>, field: &str) -> Decoder {
+    #[cfg(not(feature = "rustc-serialize"))]
+    fn new_empty(toml: Option<Value>, cur_field: Option<String>) -> Decoder {
         Decoder {
             toml: toml,
-            cur_field: if field.is_empty() {
-                self.cur_field.clone()
-            } else {
-                match self.cur_field {
-                    None => Some(field.to_string()),
-                    Some(ref s) => Some(format!("{}.{}", s, field))
-                }
-            },
-            leftover_map: BTreeMap::new(),
-            cur_map: BTreeMap::new().into_iter().peekable(),
+            cur_field: cur_field,
         }
     }
 

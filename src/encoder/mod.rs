@@ -35,7 +35,7 @@ use {Value, Table};
 /// assert_eq!(e.toml.get(&"foo".to_string()), Some(&Value::Integer(4)))
 /// # }
 /// ```
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Encoder {
     /// Output TOML that is emitted. The current version of this encoder forces
     /// the top-level representation of a structure to be a table.
@@ -66,8 +66,9 @@ pub enum Error {
     Custom(String),
 }
 
-#[derive(PartialEq)]
-enum State {
+#[derive(PartialEq, Debug)]
+#[doc(hidden)]
+pub enum State {
     Start,
     NextKey(String),
     NextArray(Vec<Value>),
@@ -112,17 +113,27 @@ impl Encoder {
         }
     }
 
+    #[cfg(feature = "rustc-serialize")]
     fn seq<F>(&mut self, f: F) -> Result<(), Error>
         where F: FnOnce(&mut Encoder) -> Result<(), Error>
     {
-        let old = mem::replace(&mut self.state, State::NextArray(Vec::new()));
+        let old = try!(self.seq_begin());
         try!(f(self));
+        self.seq_end(old)
+    }
+
+    fn seq_begin(&mut self) -> Result<State, Error> {
+        Ok(mem::replace(&mut self.state, State::NextArray(Vec::new())))
+    }
+
+    fn seq_end(&mut self, old: State) -> Result<(), Error> {
         match mem::replace(&mut self.state, old) {
             State::NextArray(v) => self.emit_value(Value::Array(v)),
             _ => unreachable!(),
         }
     }
 
+    #[cfg(feature = "rustc-serialize")]
     fn table<F>(&mut self, f: F) -> Result<(), Error>
         where F: FnOnce(&mut Encoder) -> Result<(), Error>
     {
@@ -143,6 +154,32 @@ impl Encoder {
             State::Start => f(self),
             State::NextMapKey => Err(Error::InvalidMapKeyLocation),
         }
+    }
+
+    #[cfg(feature = "serde")]
+    fn table_begin(&mut self) -> Result<Self, Error> {
+        match self.state {
+            State::NextMapKey => Err(Error::InvalidMapKeyLocation),
+            _ => Ok(mem::replace(self, Encoder::new()))
+        }
+    }
+
+    #[cfg(feature = "serde")]
+    fn table_end(&mut self, mut state: Self) -> Result<(), Error> {
+        match state.state {
+            State::NextKey(key) => {
+                mem::swap(&mut self.toml, &mut state.toml);
+                self.toml.insert(key, Value::Table(state.toml));
+            },
+            State::NextArray(mut arr) => {
+                mem::swap(&mut self.toml, &mut state.toml);
+                arr.push(Value::Table(state.toml));
+                self.state = State::NextArray(arr);
+            },
+            State::Start => {},
+            State::NextMapKey => unreachable!(),
+        }
+        Ok(())
     }
 
     fn table_key<F>(&mut self, f: F) -> Result<(), Error>

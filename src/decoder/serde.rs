@@ -3,6 +3,43 @@ use Value;
 use super::{Decoder, DecodeError, DecodeErrorKind};
 use std::collections::BTreeMap;
 
+macro_rules! forward_to_deserialize {
+    ($(
+        $name:ident ( $( $arg:ident : $ty:ty ),* );
+    )*) => {
+        $(
+            forward_to_deserialize!{
+                func: $name ( $( $arg: $ty ),* );
+            }
+        )*
+    };
+
+    (func: deserialize_enum ( $( $arg:ident : $ty:ty ),* );) => {
+        fn deserialize_enum<V>(
+            &mut self,
+            $(_: $ty,)*
+            _visitor: V,
+        ) -> ::std::result::Result<V::Value, Self::Error>
+            where V: ::serde::de::EnumVisitor
+        {
+            Err(::serde::de::Error::invalid_type(::serde::de::Type::Enum))
+        }
+    };
+
+    (func: $name:ident ( $( $arg:ident : $ty:ty ),* );) => {
+        #[inline]
+        fn $name<V>(
+            &mut self,
+            $(_: $ty,)*
+            visitor: V,
+        ) -> ::std::result::Result<V::Value, Self::Error>
+            where V: ::serde::de::Visitor
+        {
+            self.deserialize(visitor)
+        }
+    };
+}
+
 impl de::Deserializer for Decoder {
     type Error = DecodeError;
 
@@ -43,6 +80,27 @@ impl de::Deserializer for Decoder {
         }
     }
 
+    fn deserialize_i8<V>(&mut self, visitor: V)
+                         -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        self.deserialize_i64(visitor)
+    }
+
+    fn deserialize_i16<V>(&mut self, visitor: V)
+                          -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        self.deserialize_i64(visitor)
+    }
+
+    fn deserialize_i32<V>(&mut self, visitor: V)
+                          -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        self.deserialize_i64(visitor)
+    }
+
     fn deserialize_i64<V>(&mut self, mut visitor: V)
                           -> Result<V::Value, DecodeError>
         where V: de::Visitor
@@ -53,10 +111,53 @@ impl de::Deserializer for Decoder {
         }
     }
 
-    fn deserialize_u64<V>(&mut self, v: V) -> Result<V::Value, DecodeError>
+    fn deserialize_isize<V>(&mut self, visitor: V)
+                            -> Result<V::Value, DecodeError>
         where V: de::Visitor
     {
-        self.deserialize_i64(v)
+        self.deserialize_i64(visitor)
+    }
+
+    fn deserialize_u8<V>(&mut self, visitor: V)
+                         -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        self.deserialize_i64(visitor)
+    }
+
+    fn deserialize_u16<V>(&mut self, visitor: V)
+                          -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        self.deserialize_i64(visitor)
+    }
+
+    fn deserialize_u32<V>(&mut self, visitor: V)
+                          -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        self.deserialize_i64(visitor)
+    }
+
+    fn deserialize_u64<V>(&mut self, visitor: V)
+                          -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        self.deserialize_i64(visitor)
+    }
+
+    fn deserialize_usize<V>(&mut self, visitor: V)
+                            -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        self.deserialize_i64(visitor)
+    }
+
+    fn deserialize_f32<V>(&mut self, visitor: V)
+                          -> Result<V::Value, DecodeError>
+        where V: de::Visitor
+    {
+        self.deserialize_f64(visitor)
     }
 
     fn deserialize_f64<V>(&mut self, mut visitor: V)
@@ -77,6 +178,13 @@ impl de::Deserializer for Decoder {
             Some(Value::String(s)) => visitor.visit_string(s),
             ref found => Err(self.mismatch("string", found)),
         }
+    }
+
+    fn deserialize_string<V>(&mut self, visitor: V)
+                             -> Result<V::Value, Self::Error>
+        where V: de::Visitor,
+    {
+        self.deserialize_str(visitor)
     }
 
     fn deserialize_char<V>(&mut self, mut visitor: V)
@@ -186,6 +294,62 @@ impl de::Deserializer for Decoder {
         let mut d = <() as ValueDeserializer<Self::Error>>::into_deserializer(());
         d.deserialize(visitor)
     }
+
+    fn deserialize_bytes<V>(&mut self, visitor: V)
+                            -> Result<V::Value, Self::Error>
+        where V: de::Visitor
+    {
+        self.deserialize_seq(visitor)
+    }
+
+    fn deserialize_seq_fixed_size<V>(&mut self, _len: usize, visitor: V)
+                                     -> Result<V::Value, Self::Error>
+        where V: de::Visitor
+    {
+        self.deserialize_seq(visitor)
+    }
+
+    fn deserialize_newtype_struct<V>(&mut self, _name: &'static str, visitor: V)
+                                     -> Result<V::Value, Self::Error>
+        where V: de::Visitor
+    {
+        self.deserialize_seq(visitor)
+    }
+
+    fn deserialize_tuple_struct<V>(&mut self,
+                                   _name: &'static str,
+                                   _len: usize,
+                                   visitor: V)
+                                   -> Result<V::Value, Self::Error>
+        where V: de::Visitor
+    {
+        self.deserialize_seq(visitor)
+    }
+
+    fn deserialize_struct<V>(&mut self,
+                             _name: &'static str,
+                             _fields: &'static [&'static str],
+                             visitor: V)
+                             -> Result<V::Value, Self::Error>
+        where V: de::Visitor
+    {
+        self.deserialize_map(visitor)
+    }
+
+    fn deserialize_tuple<V>(&mut self,
+                            _len: usize,
+                            visitor: V)
+                            -> Result<V::Value, Self::Error>
+        where V: de::Visitor
+    {
+        self.deserialize_seq(visitor)
+    }
+
+    forward_to_deserialize!{
+        deserialize_unit();
+        deserialize_unit_struct(name: &'static str);
+        deserialize_struct_field();
+    }
 }
 
 struct VariantVisitor {
@@ -269,6 +433,39 @@ impl<'a, I> de::Deserializer for SeqDeserializer<'a, I>
         where V: de::Visitor,
     {
         visitor.visit_seq(self)
+    }
+
+    forward_to_deserialize!{
+        deserialize_bool();
+        deserialize_usize();
+        deserialize_u8();
+        deserialize_u16();
+        deserialize_u32();
+        deserialize_u64();
+        deserialize_isize();
+        deserialize_i8();
+        deserialize_i16();
+        deserialize_i32();
+        deserialize_i64();
+        deserialize_f32();
+        deserialize_f64();
+        deserialize_char();
+        deserialize_str();
+        deserialize_string();
+        deserialize_unit();
+        deserialize_option();
+        deserialize_seq();
+        deserialize_seq_fixed_size(len: usize);
+        deserialize_bytes();
+        deserialize_map();
+        deserialize_unit_struct(name: &'static str);
+        deserialize_newtype_struct(name: &'static str);
+        deserialize_tuple_struct(name: &'static str, len: usize);
+        deserialize_struct(name: &'static str, fields: &'static [&'static str]);
+        deserialize_struct_field();
+        deserialize_tuple(len: usize);
+        deserialize_enum(name: &'static str, variants: &'static [&'static str]);
+        deserialize_ignored_any();
     }
 }
 
@@ -491,6 +688,38 @@ impl de::Deserializer for UnitDeserializer {
         where V: de::Visitor,
     {
         visitor.visit_none()
+    }
+
+    forward_to_deserialize!{
+        deserialize_bool();
+        deserialize_usize();
+        deserialize_u8();
+        deserialize_u16();
+        deserialize_u32();
+        deserialize_u64();
+        deserialize_isize();
+        deserialize_i8();
+        deserialize_i16();
+        deserialize_i32();
+        deserialize_i64();
+        deserialize_f32();
+        deserialize_f64();
+        deserialize_char();
+        deserialize_str();
+        deserialize_string();
+        deserialize_unit();
+        deserialize_seq();
+        deserialize_seq_fixed_size(len: usize);
+        deserialize_bytes();
+        deserialize_map();
+        deserialize_unit_struct(name: &'static str);
+        deserialize_newtype_struct(name: &'static str);
+        deserialize_tuple_struct(name: &'static str, len: usize);
+        deserialize_struct(name: &'static str, fields: &'static [&'static str]);
+        deserialize_struct_field();
+        deserialize_tuple(len: usize);
+        deserialize_enum(name: &'static str, variants: &'static [&'static str]);
+        deserialize_ignored_any();
     }
 }
 
