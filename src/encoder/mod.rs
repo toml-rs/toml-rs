@@ -54,7 +54,7 @@ pub enum Error {
     /// Indication that a key was needed when a value was emitted, but no key
     /// was previously emitted.
     NeedsKey,
-    /// Indication that a key was emitted, but not value was emitted.
+    /// Indication that a key was emitted, but no value was emitted.
     NoValue,
     /// Indicates that a map key was attempted to be emitted at an invalid
     /// location.
