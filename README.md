@@ -14,7 +14,7 @@ date with the TOML specification as changes happen.
 ```toml
 # Cargo.toml
 [dependencies]
-toml = "0.1"
+toml = "0.2"
 ```
 
 # License
