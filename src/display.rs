@@ -57,6 +57,7 @@ fn write_str(f: &mut fmt::Formatter, s: &str) -> fmt::Result {
 
 impl<'a, 'b> Printer<'a, 'b> {
     fn print(&mut self, table: &'a TomlTable) -> fmt::Result {
+        let mut space_out_first = false;
         for (k, v) in table.iter() {
             match *v {
                 Table(..) => continue,
@@ -67,13 +68,17 @@ impl<'a, 'b> Printer<'a, 'b> {
                 }
                 _ => {}
             }
+            space_out_first = true;
             try!(writeln!(self.output, "{} = {}", Key(&[k]), v));
         }
-        for (k, v) in table.iter() {
+        for (i, (k, v)) in table.iter().enumerate() {
             match *v {
                 Table(ref inner) => {
                     self.stack.push(k);
-                    try!(writeln!(self.output, "\n[{}]", Key(&self.stack)));
+                    if space_out_first || i != 0 {
+                        try!(write!(self.output, "\n"));
+                    }
+                    try!(writeln!(self.output, "[{}]", Key(&self.stack)));
                     try!(self.print(inner));
                     self.stack.pop();
                 }
@@ -83,8 +88,11 @@ impl<'a, 'b> Printer<'a, 'b> {
                         _ => continue
                     }
                     self.stack.push(k);
-                    for inner in inner.iter() {
-                        try!(writeln!(self.output, "\n[[{}]]", Key(&self.stack)));
+                    for (j, inner) in inner.iter().enumerate() {
+                        if space_out_first || i != 0 || j != 0 {
+                            try!(write!(self.output, "\n"));
+                        }
+                        try!(writeln!(self.output, "[[{}]]", Key(&self.stack)));
                         match *inner {
                             Table(ref inner) => try!(self.print(inner)),
                             _ => panic!("non-heterogeneous toml array"),
