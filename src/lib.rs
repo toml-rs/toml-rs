@@ -573,6 +573,35 @@ mod tests {
     }
 
     #[test]
+    fn query_valid() {
+        use super::ValueQueryError;
+
+        let toml = r#"
+              [test]
+              foo = "bar"
+
+              [[values]]
+              foo = "baz"
+
+              [[values]]
+              foo = "qux"
+        "#;
+
+        let value: Value = toml.parse().unwrap();
+
+        let test_foo = value.query("test.foo").unwrap();
+        assert_eq!(test_foo.as_str().unwrap(), "bar");
+
+        let foo1 = value.query("values.1.foo").unwrap();
+        assert_eq!(foo1.as_str().unwrap(), "qux");
+
+        assert!(match value.query("test.bar")
+                { Err(ValueQueryError::KeyNotFound) => true, _ => false });
+        assert!(match value.query("test.foo.bar")
+                { Err(ValueQueryError::PathTypeError) => true, _ => false });
+    }
+
+    #[test]
     fn single_dot() {
         let value: Value = "[table]\n\"value\" = [0, 1, 2]".parse().unwrap();
         assert_eq!(None, value.lookup("."));
