@@ -44,6 +44,8 @@
 
 use std::collections::BTreeMap;
 use std::str::FromStr;
+use std::error::Error as StdError;
+use std::fmt::{Formatter, Display, Error as FmtError};
 
 pub use parser::{Parser, ParserError};
 
@@ -270,6 +272,117 @@ impl Value {
            }
         }
         Some(cur)
+    }
+
+    /// Convenience function for calling `Value::query_with_sep(path, '.')`.
+    ///
+    /// For more comprehensive documentation, see `Value::query_with_sep()`.
+    pub fn query(&self, path: &str) -> Result<&Value, ValueQueryError> {
+        self.query_with_sep(path, '.')
+    }
+
+    /// Query a value at a certain path using a string that indicates the path to the entry.
+    ///
+    /// This is `Value::lookup()` on steroids, basically. It compiles the `path`, which consists
+    /// out of tokens seperated by `sep` and walks it, returning the `Value` found at the end of
+    /// the path.
+    ///
+    /// # Return value
+    ///
+    /// If the `path` is empty, `&self` is returned.
+    pub fn query_with_sep(&self, path: &str, sep: char) -> Result<&Value, ValueQueryError> {
+        Value::walk(&self, try!(Value::tokenize(path, sep)))
+    }
+
+    fn tokenize(path: &str, sep: char) -> Result<Vec<Token>, ValueQueryError> {
+        use std::str::FromStr;
+
+        path.split(sep)
+            .map(|s| {
+                usize::from_str(s)
+                    .map(Token::Index)
+                    .or_else(|_| Ok(Token::Key(String::from(s))))
+            })
+            .collect()
+    }
+
+    fn walk(v: &Value, tokens: Vec<Token>) -> Result<&Value, ValueQueryError> {
+        use std::vec::IntoIter;
+
+        fn walk_iter<'a>(v: Result<&'a Value, ValueQueryError>, i: &mut IntoIter<Token>) -> Result<&'a Value, ValueQueryError> {
+            let next = i.next();
+            v.and_then(move |value| {
+                if let Some(token) = next {
+                    walk_iter(Value::extract(value, &token), i)
+                } else {
+                    Ok(value)
+                }
+            })
+        }
+
+        walk_iter(Ok(v), &mut tokens.into_iter())
+    }
+
+    fn extract<'a>(v: &'a Value, token: &Token) -> Result<&'a Value, ValueQueryError> {
+        fn extract_from_table<'a>(v: &'a Value, s: &str) -> Result<&'a Value, ValueQueryError> {
+            match *v {
+                Value::Table(ref t) => t.get(&s[..]).ok_or(ValueQueryError::KeyNotFound),
+                _ => Err(ValueQueryError::PathTypeError),
+            }
+        }
+
+        fn extract_from_array(v: &Value, i: usize) -> Result<&Value, ValueQueryError> {
+            match *v {
+                Value::Array(ref a) => {
+                    if a.len() < i {
+                        Err(ValueQueryError::KeyNotFound)
+                    } else {
+                        Ok(&a[i])
+                    }
+                },
+                _ => Err(ValueQueryError::PathTypeError),
+            }
+        }
+
+        match *token {
+            Token::Key(ref s)  => extract_from_table(v, s),
+            Token::Index(i)    => extract_from_array(v, i),
+        }
+    }
+
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum Token {
+    Key(String),
+    Index(usize),
+}
+
+/// Error indicator for Value::query_with_sep() and Value::query() functions
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ValueQueryError {
+
+    /// An error kind that is returned if the path runs into a type error.
+    /// For example if one tries to query an array index when we are in a table
+    PathTypeError,
+
+    /// A error kind that is returned if a key cannot be found in a table or an index cannot be
+    /// found in an array (index out of bounds).
+    KeyNotFound,
+}
+
+impl Display for ValueQueryError {
+    fn fmt(&self, fmt: &mut Formatter) -> Result<(), FmtError> {
+        write!(fmt, "{}", self.description())
+    }
+}
+
+impl StdError for ValueQueryError {
+    fn description(&self) -> &str {
+        match *self {
+            ValueQueryError::PathTypeError => "Path type error",
+            ValueQueryError::KeyNotFound   => "Key not found",
+        }
     }
 }
 
