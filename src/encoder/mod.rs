@@ -159,8 +159,8 @@ pub fn encode<T: ::rustc_serialize::Encodable>(t: &T) -> Value {
 ///
 /// This function expects the type given to represent a TOML table in some form.
 /// If encoding encounters an error, then this function will fail the task.
-#[cfg(all(not(feature = "rustc-serialize"), feature = "serde"))]
-pub fn encode<T: ::serde::Serialize>(t: &T) -> Value {
+#[cfg(feature = "serde")]
+pub fn serialize<T: ::serde::Serialize>(t: &T) -> Value {
     let mut e = Encoder::new();
     t.serialize(&mut e).unwrap();
     Value::Table(e.toml)
@@ -179,9 +179,9 @@ pub fn encode_str<T: ::rustc_serialize::Encodable>(t: &T) -> String {
 ///
 /// This function expects the type given to represent a TOML table in some form.
 /// If encoding encounters an error, then this function will fail the task.
-#[cfg(all(not(feature = "rustc-serialize"), feature = "serde"))]
-pub fn encode_str<T: ::serde::Serialize>(t: &T) -> String {
-    encode(t).to_string()
+#[cfg(feature = "serde")]
+pub fn serialize_str<T: ::serde::Serialize>(t: &T) -> String {
+    serialize(t).to_string()
 }
 
 impl fmt::Display for Error {

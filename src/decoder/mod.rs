@@ -83,8 +83,8 @@ pub fn decode<T: ::rustc_serialize::Decodable>(toml: Value) -> Option<T> {
 /// into the type specified. If decoding fails, `None` will be returned. If a
 /// finer-grained error is desired, then it is recommended to use `Decodable`
 /// directly.
-#[cfg(all(not(feature = "rustc-serialize"), feature = "serde"))]
-pub fn decode<T: ::serde::Deserialize>(toml: Value) -> Option<T> {
+#[cfg(feature = "serde")]
+pub fn deserialize<T: ::serde::Deserialize>(toml: Value) -> Option<T> {
     ::serde::Deserialize::deserialize(&mut Decoder::new(toml)).ok()
 }
 
@@ -109,9 +109,9 @@ pub fn decode_str<T: ::rustc_serialize::Decodable>(s: &str) -> Option<T> {
 ///
 /// If more fine-grained errors are desired, these steps should be driven
 /// manually.
-#[cfg(all(not(feature = "rustc-serialize"), feature = "serde"))]
-pub fn decode_str<T: ::serde::Deserialize>(s: &str) -> Option<T> {
-    ::Parser::new(s).parse().and_then(|t| decode(Value::Table(t)))
+#[cfg(feature = "serde")]
+pub fn deserialize_str<T: ::serde::Deserialize>(s: &str) -> Option<T> {
+    ::Parser::new(s).parse().and_then(|t| deserialize(Value::Table(t)))
 }
 
 impl Decoder {
