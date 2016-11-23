@@ -51,6 +51,7 @@ pub use parser::{Parser, ParserError};
 pub use self::encoder::{Encoder, Error, EncoderState, encode, encode_str};
 #[cfg(any(feature = "rustc-serialize", feature = "serde"))]
 pub use self::decoder::{Decoder, DecodeError, DecodeErrorKind, decode, decode_str};
+pub use self::display::encode_str_pretty;
 
 mod parser;
 mod display;
