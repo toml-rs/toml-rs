@@ -62,6 +62,12 @@ pub enum Error {
     /// Indicates that a type other than a string was attempted to be used as a
     /// map key type.
     InvalidMapKeyType,
+    /// An error returned whenever a `NaN` value for a float is attempted to be
+    /// encoded
+    NanEncoded,
+    /// An error returned whenever an infinity value for a float is attempted to
+    /// be encoded
+    InfinityEncoded,
     /// A custom error type was generated
     Custom(String),
 }
@@ -91,6 +97,17 @@ impl Encoder {
     }
 
     fn emit_value(&mut self, v: Value) -> Result<(), Error> {
+        match v {
+            Value::Float(f) => {
+                if f.is_nan() {
+                    return Err(Error::NanEncoded)
+                }
+                if f.is_infinite() {
+                    return Err(Error::InfinityEncoded)
+                }
+            }
+            _ => {}
+        }
         match mem::replace(&mut self.state, State::Start) {
             State::NextKey(key) => { self.toml.insert(key, v); Ok(()) }
             State::NextArray(mut vec) => {
@@ -193,6 +210,8 @@ impl fmt::Display for Error {
                                                        at this location"),
             Error::InvalidMapKeyType => write!(f, "only strings can be used as \
                                                    key types"),
+            Error::NanEncoded => write!(f, "cannot encode NaN"),
+            Error::InfinityEncoded => write!(f, "cannot encode infinity"),
             Error::Custom(ref s) => write!(f, "custom error: {}", s),
         }
     }
