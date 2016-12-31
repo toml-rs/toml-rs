@@ -489,4 +489,10 @@ mod tests {
         assert_eq!(Value::Integer(0), *value.lookup("table.\"element\".\"value\".0").unwrap());
     }
 
+    #[test]
+    fn control_characters() {
+        let value = Value::String("\x05".to_string());
+        assert_eq!(value.to_string(), r#""\u0005""#);
+    }
+
 }

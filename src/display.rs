@@ -49,6 +49,9 @@ fn write_str(f: &mut fmt::Formatter, s: &str) -> fmt::Result {
             '\u{d}' => try!(write!(f, "\\r")),
             '\u{22}' => try!(write!(f, "\\\"")),
             '\u{5c}' => try!(write!(f, "\\\\")),
+            c if c < '\u{1f}' => {
+                try!(write!(f, "\\u{:04}", ch as u32))
+            }
             ch => try!(write!(f, "{}", ch)),
         }
     }
