@@ -17,6 +17,37 @@ date with the TOML specification as changes happen.
 toml = "0.2"
 ```
 
+By default this crate supports [`rustc-serialize`] style serialization. This can
+be disabled though by disabling the default feature set:
+
+[`rustc-serialize`]: http://github.com/rust-lang/rustc-serialize
+
+```toml
+# Cargo.toml
+[dependencies]
+toml = { version = "0.2", default-features = false }
+```
+
+If you'd like to enable support for [serde] you can enable the `serde` feature:
+
+[serde]: https://github.com/serde-rs/serde
+
+```toml
+# Cargo.toml
+[dependencies]
+toml = { version = "0.2", features = ["serde"] }
+```
+
+If you'd like to *only* support serde, you can also write:
+
+[serde]: https://github.com/serde-rs/serde
+
+```toml
+# Cargo.toml
+[dependencies]
+toml = { version = "0.2", features = ["serde"], default-features = false }
+```
+
 # License
 
 `toml-rs` is primarily distributed under the terms of both the MIT license and

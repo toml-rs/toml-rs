@@ -34,6 +34,15 @@
 //!
 //! [1]: https://github.com/mojombo/toml
 //! [2]: https://github.com/BurntSushi/toml-test
+//!
+//! # Encoding support
+//!
+//! This crate optionally supports the [`rustc-serialize`] crate and also the
+//! [`serde`] crate through respective feature names. The `rustc-serialize`
+//! feature is enabled by default.
+//!
+//! [`rustc-serialize`]: http://github.com/rust-lang/rustc-serialize
+//! [`serde`]: http://github.com/serde-rs/serde
 
 #![doc(html_root_url = "http://alexcrichton.com/toml-rs")]
 #![deny(missing_docs)]
