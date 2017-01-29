@@ -176,6 +176,7 @@ impl de::Deserializer for Decoder {
     {
         match self.toml.take() {
             Some(Value::String(s)) => visitor.visit_string(s),
+            Some(Value::Datetime(s)) => visitor.visit_string(s),
             ref found => Err(self.mismatch("string", found)),
         }
     }
