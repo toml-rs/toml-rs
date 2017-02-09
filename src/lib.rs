@@ -67,7 +67,6 @@
 //! * `Serialize for Value`
 //! * `Deserialize for Datetime`
 //! * `Serialize for Datetime`
-//!
 //! * `Deserializer for de::Deserializer`
 //! * `Serializer for ser::Serializer`
 //! * `Deserializer for Value`
