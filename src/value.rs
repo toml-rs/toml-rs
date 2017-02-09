@@ -103,7 +103,7 @@ impl Value {
         match *self { Value::Float(f) => Some(f), _ => None }
     }
 
-    /// Tests whether this value is an float
+    /// Tests whether this value is a float
     pub fn is_float(&self) -> bool {
         self.as_float().is_some()
     }
@@ -113,7 +113,7 @@ impl Value {
         match *self { Value::Boolean(b) => Some(b), _ => None }
     }
 
-    /// Tests whether this value is an boolg
+    /// Tests whether this value is a boolean
     pub fn is_bool(&self) -> bool {
         self.as_bool().is_some()
     }
@@ -140,7 +140,7 @@ impl Value {
         match *self { Value::Datetime(ref s) => Some(s), _ => None }
     }
 
-    /// Tests whether this value is an datetime
+    /// Tests whether this value is a datetime
     pub fn is_datetime(&self) -> bool {
         self.as_datetime().is_some()
     }
