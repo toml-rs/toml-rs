@@ -7,11 +7,7 @@ sudo: false
 before_script:
   - pip install 'travis-cargo<0.2' --user && export PATH=$HOME/.local/bin:$PATH
 script:
-  - cargo build --verbose
-  - cargo build --verbose --no-default-features
-  - cargo build --verbose --features serde --no-default-features
-  - cargo test --verbose --features serde
-  - cargo test --verbose --manifest-path serde-tests/Cargo.toml
+  - cargo test
   - rustdoc --test README.md -L target
   - cargo doc --no-deps
 after_success:

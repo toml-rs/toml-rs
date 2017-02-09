@@ -1,5 +1,4 @@
 [package]
-
 name = "toml"
 version = "0.2.1"
 authors = ["Alex Crichton <alex@alexcrichton.com>"]
@@ -16,11 +15,8 @@ facilitate deserializing and serializing Rust structures.
 """
 
 [dependencies]
-rustc-serialize = { optional = true, version = "0.3.0" }
-serde = { optional = true, version = "0.8" }
-
-[features]
-default = ["rustc-serialize"]
+serde = "0.9.6"
 
 [dev-dependencies]
-rustc-serialize = "0.3"
+serde_derive = "0.9"
+serde_json = "0.9"
