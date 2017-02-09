@@ -581,7 +581,7 @@ impl<'a> Deserializer<'a> {
         Deserializer {
             tokens: Tokenizer::new(input),
             input: input,
-            require_newline_after_table: false,
+            require_newline_after_table: true,
         }
     }
 
@@ -626,8 +626,22 @@ impl<'a> Deserializer<'a> {
         let start = self.tokens.current();
         self.expect(Token::LeftBracket)?;
         let array = self.eat(Token::LeftBracket)?;
-        let ret = Header::new(self.tokens.clone(), array);
-        self.tokens.skip_to_newline();
+        let ret = Header::new(self.tokens.clone(),
+                              array,
+                              self.require_newline_after_table);
+        if self.require_newline_after_table {
+            self.tokens.skip_to_newline();
+        } else {
+            loop {
+                match self.next()? {
+                    Some(Token::RightBracket) |
+                    Some(Token::Newline) |
+                    None => break,
+                    _ => {}
+                }
+            }
+            self.eat_whitespace()?;
+        }
         Ok(Line::Table { at: start, header: ret, array: array })
     }
 
@@ -1134,15 +1148,19 @@ enum Line<'a> {
 struct Header<'a> {
     first: bool,
     array: bool,
+    require_newline_after_table: bool,
     tokens: Tokenizer<'a>,
 }
 
 impl<'a> Header<'a> {
-    fn new(tokens: Tokenizer<'a>, array: bool) -> Header<'a> {
+    fn new(tokens: Tokenizer<'a>,
+           array: bool,
+           require_newline_after_table: bool) -> Header<'a> {
         Header {
             first: true,
             array: array,
             tokens: tokens,
+            require_newline_after_table: require_newline_after_table,
         }
     }
 
@@ -1160,8 +1178,10 @@ impl<'a> Header<'a> {
             }
 
             self.tokens.eat_whitespace()?;
-            if !self.tokens.eat_comment()? {
-                self.tokens.eat_newline_or_eof()?;
+            if self.require_newline_after_table {
+                if !self.tokens.eat_comment()? {
+                    self.tokens.eat_newline_or_eof()?;
+                }
             }
             Ok(None)
         }
