@@ -4,50 +4,24 @@
 [![Coverage Status](https://coveralls.io/repos/alexcrichton/toml-rs/badge.svg?branch=master&service=github)](https://coveralls.io/github/alexcrichton/toml-rs?branch=master)
 [![Latest Version](https://img.shields.io/crates/v/toml.svg)](https://crates.io/crates/toml)
 
-[Documentation](http://alexcrichton.com/toml-rs)
+[Documentation](https://docs.rs/toml)
 
-A [TOML][toml] decoder and encoder for Rust. This library is currently compliant with
-the v0.4.0 version of TOML. This library will also likely continue to stay up to
-date with the TOML specification as changes happen.
+A [TOML][toml] decoder and encoder for Rust. This library is currently compliant
+with the v0.4.0 version of TOML. This library will also likely continue to stay
+up to date with the TOML specification as changes happen.
 
 [toml]: https://github.com/toml-lang/toml
 
 ```toml
 # Cargo.toml
 [dependencies]
-toml = "0.2"
+toml = "0.3"
 ```
 
-By default this crate supports [`rustc-serialize`] style serialization. This can
-be disabled though by disabling the default feature set:
-
-[`rustc-serialize`]: http://github.com/rust-lang/rustc-serialize
-
-```toml
-# Cargo.toml
-[dependencies]
-toml = { version = "0.2", default-features = false }
-```
-
-If you'd like to enable support for [serde] you can enable the `serde` feature:
-
-[serde]: https://github.com/serde-rs/serde
-
-```toml
-# Cargo.toml
-[dependencies]
-toml = { version = "0.2", features = ["serde"] }
-```
-
-If you'd like to *only* support serde, you can also write:
-
-[serde]: https://github.com/serde-rs/serde
-
-```toml
-# Cargo.toml
-[dependencies]
-toml = { version = "0.2", features = ["serde"], default-features = false }
-```
+This crate also supports serialization/deserialization through the
+[serde](serde.rs) crate on crates.io. Currently the older `rustc-serialize`
+crate is not supported in the 0.3+ series of the `toml` crate, but 0.2 can be
+used for that support.
 
 # License
 

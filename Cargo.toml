@@ -7,12 +7,16 @@ readme = "README.md"
 keywords = ["encoding"]
 repository = "https://github.com/alexcrichton/toml-rs"
 homepage = "https://github.com/alexcrichton/toml-rs"
-documentation = "http://alexcrichton.com/toml-rs"
+documentation = "https://docs.rs/toml"
 description = """
 A native Rust encoder and decoder of TOML-formatted files and streams. Provides
-implementations of the standard Encodable/Decodable traits for TOML data to
+implementations of the standard Serialize/Deserialize traits for TOML data to
 facilitate deserializing and serializing Rust structures.
 """
+categories = ["config", "encoding", "parser-implementations"]
+
+[badges]
+travis-ci = { repository = "alexcrichton/toml-rs" }
 
 [dependencies]
 serde = "0.9.6"
