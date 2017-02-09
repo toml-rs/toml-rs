@@ -2,8 +2,8 @@
 //!
 //! [TOML]: https://github.com/toml-lang/toml
 //!
-//! This library implements a [TOML] v0.4.0 compatible parser. This crate also
-//! primarily supports the [`serde`] library for encoding/decoding support to
+//! This library implements a [TOML] v0.4.0 compatible parser,
+//! primarily supporting the [`serde`] library for encoding/decoding
 //! various types in Rust.
 //!
 //! TOML itself is a simple, ergonomic, and readable configuration format:
@@ -37,8 +37,8 @@
 //! }
 //! ```
 //!
-//! You'll note that TOML is very similar to JSON with the notable addition of a
-//! `Datetime` type. In general TOML and JSON are interchangeable in terms of
+//! TOML is similar to JSON with the notable addition of a `Datetime`
+//! type. In general, TOML and JSON are interchangeable in terms of
 //! formats.
 //!
 //! ## Parsing TOML
@@ -53,14 +53,15 @@
 //! assert_eq!(value["foo"].as_str(), Some("bar"));
 //! ```
 //!
-//! The `Value` type implements a number of convenience methods and traits,
-//! where the example above is using `FromStr` to parse a `str` into a `Value`.
+//! The `Value` type implements a number of convenience methods and
+//! traits; the example above uses `FromStr` to parse a `str` into a
+//! `Value`.
 //!
 //! ## Deserialization and Serialization
 //!
-//! This crate currently supports [`serde`] 0.9 with a number of
+//! This crate supports [`serde`] 0.9 with a number of
 //! implementations of the `Deserialize`, `Serialize`, `Deserializer`, and
-//! `Serializer` traits. Namely, you'll find in this crate:
+//! `Serializer` traits. Namely, you'll find:
 //!
 //! * `Deserialize for Value`
 //! * `Serialize for Value`
@@ -71,8 +72,8 @@
 //! * `Serializer for ser::Serializer`
 //! * `Deserializer for Value`
 //!
-//! This notably means that you can use Serde to deserialize/serialize the
-//! `Value` type as well as the `Datetime` type in this crate. Similarly you can
+//! This means that you can use Serde to deserialize/serialize the
+//! `Value` type as well as the `Datetime` type in this crate. You can also
 //! use the `Deserializer`, `Serializer`, or `Value` type itself to act as
 //! a deserializer/serializer for arbitrary types.
 //!
@@ -112,7 +113,7 @@
 //! }
 //! ```
 //!
-//! Similarly you can serialize types in a similar fashion:
+//! You can serialize types in a similar fashion:
 //!
 //! ```rust
 //! #[macro_use]
