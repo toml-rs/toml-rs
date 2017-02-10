@@ -36,7 +36,7 @@ pub fn to_string<T: ?Sized>(value: &T) -> Result<String, Error>
 }
 
 /// Errors that can occur when serializing a type.
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Error {
     /// Indicates that a Rust type was requested to be serialized but it was not
     /// supported.
