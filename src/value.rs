@@ -366,21 +366,19 @@ impl ser::Serialize for Value {
                 // Be sure to visit non-tables first (and also non
                 // array-of-tables) as all keys must be emitted first.
                 for (k, v) in t {
-                    if !v.is_array() && !v.is_table() {
-                        map.serialize_key(k)?;
-                        map.serialize_value(v)?;
+                    if !v.is_table() && !v.is_array() ||
+                       (v.as_array().map(|a| a.len() == 0).unwrap_or(false)) {
+                        map.serialize_entry(k, v)?;
                     }
                 }
                 for (k, v) in t {
-                    if v.is_array() {
-                        map.serialize_key(k)?;
-                        map.serialize_value(v)?;
+                    if v.as_array().map(|a| a.len() > 0).unwrap_or(false) {
+                        map.serialize_entry(k, v)?;
                     }
                 }
                 for (k, v) in t {
                     if v.is_table() {
-                        map.serialize_key(k)?;
-                        map.serialize_value(v)?;
+                        map.serialize_entry(k, v)?;
                     }
                 }
                 map.end()
