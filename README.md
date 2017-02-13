@@ -19,7 +19,7 @@ toml = "0.3"
 ```
 
 This crate also supports serialization/deserialization through the
-[serde](serde.rs) crate on crates.io. Currently the older `rustc-serialize`
+[serde](https://serde.rs) crate on crates.io. Currently the older `rustc-serialize`
 crate is not supported in the 0.3+ series of the `toml` crate, but 0.2 can be
 used for that support.
 
