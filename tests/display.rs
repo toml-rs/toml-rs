@@ -94,4 +94,10 @@ fn table() {
                 \n\
                 [[test2]]\n\
                 test = [[2, 3], [\"foo\", \"bar\"]]\n");
+    assert_eq!(Table(map! {
+                    "test" => Array(vec![Integer(2)]),
+                    "test2" => Integer(2)
+               }).to_string(),
+               "test = [2]\n\
+                test2 = 2\n");
 }
