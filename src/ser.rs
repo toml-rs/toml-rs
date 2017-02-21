@@ -393,8 +393,9 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
         Ok(())
     }
 
-    fn serialize_bytes(self, _value: &[u8]) -> Result<(), Self::Error> {
-        Err(Error::UnsupportedType)
+    fn serialize_bytes(self, value: &[u8]) -> Result<(), Self::Error> {
+        use serde::ser::Serialize;
+        value.serialize(self)
     }
 
     fn serialize_none(self) -> Result<(), Self::Error> {
@@ -1155,7 +1156,7 @@ impl<E: ser::Error> ser::Serializer for Categorize<E> {
     }
 
     fn serialize_bytes(self, _: &[u8]) -> Result<Self::Ok, Self::Error> {
-        Err(ser::Error::custom("unsupported"))
+        Ok(Category::Array)
     }
 
     fn serialize_none(self) -> Result<Self::Ok, Self::Error> {
