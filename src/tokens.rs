@@ -380,7 +380,7 @@ impl<'a> Tokenizer<'a> {
     }
 
     pub fn substr_offset(&self, s: &'a str) -> usize {
-        assert!(s.len() < self.input.len());
+        assert!(s.len() <= self.input.len());
         let a = self.input.as_ptr() as usize;
         let b = s.as_ptr() as usize;
         assert!(a <= b);
