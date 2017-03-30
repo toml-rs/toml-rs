@@ -470,7 +470,7 @@ impl<'a> de::Deserializer for ValueDeserializer<'a> {
         where V: de::Visitor,
     {
         if name == SERDE_STRUCT_NAME && fields == &[SERDE_STRUCT_FIELD_NAME] {
-            if let Value::Datetime(ref s) = self.value {
+            if let Value::Datetime(s) = self.value {
                 return visitor.visit_map(DatetimeDeserializer {
                     date: s,
                     visited: false,
@@ -783,7 +783,7 @@ impl<'a> Deserializer<'a> {
             if suffix != "" {
                 return Err(self.error(start, ErrorKind::NumberInvalid))
             }
-            let (a, b) = self.parse_integer(&after, false, true)?;
+            let (a, b) = self.parse_integer(after, false, true)?;
             fraction = Some(a);
             suffix = b;
         }
