@@ -66,7 +66,7 @@ impl<'a> Tokenizer<'a> {
         };
         // Eat utf-8 BOM
         t.eatc('\u{feff}');
-        return t
+        t
     }
 
     pub fn next(&mut self) -> Result<Option<Token<'a>>, Error> {

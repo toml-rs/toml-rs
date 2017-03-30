@@ -38,7 +38,7 @@ pub fn from_str<T>(s: &str) -> Result<T, Error>
     let mut d = Deserializer::new(s);
     let ret = T::deserialize(&mut d)?;
     d.end()?;
-    return Ok(ret)
+    Ok(ret)
 }
 
 /// Errors that can occur when deserializing a type.
@@ -357,7 +357,7 @@ impl<'a, 'b> de::SeqVisitor for MapVisitor<'a, 'b> {
             de: &mut self.de,
         })?;
         self.cur_parent = next;
-        return Ok(Some(ret))
+        Ok(Some(ret))
     }
 }
 
@@ -1003,7 +1003,7 @@ impl<'a> Deserializer<'a> {
         let (line, col) = self.to_linecol(at);
         err.inner.line = Some(line);
         err.inner.col = col;
-        return err
+        err
     }
 
     /// Converts a byte offset from an error message to a (line, column) pair
