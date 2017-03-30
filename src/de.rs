@@ -687,7 +687,7 @@ impl<'a> Deserializer<'a> {
     }
 
     fn number_or_date(&mut self, s: &'a str) -> Result<Value<'a>, Error> {
-        if s.contains("T") || (s.len() > 1 && s[1..].contains("-")) &&
+        if s.contains('T') || (s.len() > 1 && s[1..].contains('-')) &&
            !s.contains("e-") {
             self.datetime(s, false).map(Value::Datetime)
         } else if self.eat(Token::Colon)? {
@@ -698,7 +698,7 @@ impl<'a> Deserializer<'a> {
     }
 
     fn number(&mut self, s: &'a str) -> Result<Value<'a>, Error> {
-        if s.contains("e") || s.contains("E") {
+        if s.contains('e') || s.contains('E') {
             self.float(s, None).map(Value::Float)
         } else if self.eat(Token::Period)? {
             let at = self.tokens.current();
@@ -727,7 +727,7 @@ impl<'a> Deserializer<'a> {
         if suffix != "" {
             return Err(self.error(start, ErrorKind::NumberInvalid))
         }
-        prefix.replace("_", "").trim_left_matches("+").parse().map_err(|_e| {
+        prefix.replace("_", "").trim_left_matches('+').parse().map_err(|_e| {
             self.error(start, ErrorKind::NumberInvalid)
         })
     }
@@ -789,7 +789,7 @@ impl<'a> Deserializer<'a> {
         }
 
         let mut exponent = None;
-        if suffix.starts_with("e") || suffix.starts_with("E") {
+        if suffix.starts_with('e') || suffix.starts_with('E') {
             let (a, b) = if suffix.len() == 1 {
                 self.eat(Token::Plus)?;
                 match self.next()? {
@@ -807,7 +807,7 @@ impl<'a> Deserializer<'a> {
             exponent = Some(a);
         }
 
-        let mut number = integral.trim_left_matches("+")
+        let mut number = integral.trim_left_matches('+')
                                  .chars()
                                  .filter(|c| *c != '_')
                                  .collect::<String>();

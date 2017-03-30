@@ -141,7 +141,7 @@ impl<'a> Tokenizer<'a> {
                 if val == "" {
                     return Err(Error::EmptyTableKey(offset))
                 }
-                match src.find("\n") {
+                match src.find('\n') {
                     None => Ok(val),
                     Some(i) => Err(Error::NewlineInTableKey(offset + i)),
                 }

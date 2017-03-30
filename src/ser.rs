@@ -563,7 +563,7 @@ impl<'a, 'b> ser::SerializeMap for SerializeTable<'a, 'b> {
             SerializeTable::Table { ref mut key, .. } => {
                 key.truncate(0);
                 *key = input.serialize(StringExtractor)?;
-                if key.contains("\n") {
+                if key.contains('\n') {
                     return Err(Error::KeyNewline)
                 }
             }

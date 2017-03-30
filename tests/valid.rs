@@ -18,7 +18,7 @@ fn to_json(toml: toml::Value) -> Json {
         Toml::Float(f) => doit("float", Json::String({
             let s = format!("{:.15}", f);
             let s = format!("{}", s.trim_right_matches('0'));
-            if s.ends_with(".") {format!("{}0", s)} else {s}
+            if s.ends_with('.') {format!("{}0", s)} else {s}
         })),
         Toml::Boolean(b) => doit("bool", Json::String(format!("{}", b))),
         Toml::Datetime(s) => doit("datetime", Json::String(s.to_string())),
