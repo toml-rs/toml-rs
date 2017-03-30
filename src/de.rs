@@ -148,7 +148,7 @@ impl<'a, 'b> de::Deserializer for &'b mut Deserializer<'a> {
         while let Some(line) = self.line()? {
             match line {
                 Line::Table { at, mut header, array } => {
-                    if cur_table.header.len() > 0 || cur_table.values.is_some() {
+                    if !cur_table.header.is_empty() || cur_table.values.is_some() {
                         tables.push(cur_table);
                     }
                     cur_table = Table {
@@ -175,7 +175,7 @@ impl<'a, 'b> de::Deserializer for &'b mut Deserializer<'a> {
                 }
             }
         }
-        if cur_table.header.len() > 0 || cur_table.values.is_some() {
+        if !cur_table.header.is_empty() || cur_table.values.is_some() {
             tables.push(cur_table);
         }
 
@@ -1095,7 +1095,7 @@ impl fmt::Display for Error {
             ErrorKind::__Nonexhaustive => panic!(),
         }
 
-        if self.inner.key.len() > 0 {
+        if !self.inner.key.is_empty() {
             write!(f, " for key `")?;
             for (i, k) in self.inner.key.iter().enumerate() {
                 if i > 0 {
