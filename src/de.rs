@@ -634,7 +634,12 @@ impl<'a> Deserializer<'a> {
         } else {
             loop {
                 match self.next()? {
-                    Some(Token::RightBracket) |
+                    Some(Token::RightBracket) => {
+                        if array {
+                            self.eat(Token::RightBracket)?;
+                        }
+                        break
+                    }
                     Some(Token::Newline) |
                     None => break,
                     _ => {}
