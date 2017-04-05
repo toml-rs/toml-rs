@@ -285,7 +285,7 @@ impl<'a, 'b> de::MapVisitor for MapVisitor<'a, 'b> {
                 return Err(self.de.error(table.at, kind))
             }
 
-            self.values = table.values.take().unwrap().into_iter();
+            self.values = table.values.take().expect("Unable to read table values").into_iter();
         }
     }
 
@@ -346,7 +346,7 @@ impl<'a, 'b> de::SeqVisitor for MapVisitor<'a, 'b> {
             .unwrap_or(self.max);
 
         let ret = seed.deserialize(MapVisitor {
-            values: self.tables[self.cur_parent].values.take().unwrap().into_iter(),
+            values: self.tables[self.cur_parent].values.take().expect("Unable to read table values").into_iter(),
             next_value: None,
             depth: self.depth + 1,
             cur_parent: self.cur_parent,
@@ -569,7 +569,7 @@ impl<'a> de::MapVisitor for InlineTableDeserializer<'a> {
     fn visit_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Error>
         where V: de::DeserializeSeed,
     {
-        let value = self.next_value.take().unwrap();
+        let value = self.next_value.take().expect("Unable to read table values");
         seed.deserialize(ValueDeserializer::new(value))
     }
 }
