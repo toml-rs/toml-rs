@@ -155,9 +155,9 @@
 extern crate serde;
 
 pub mod value;
-mod datetime;
 #[doc(no_inline)]
 pub use value::Value;
+mod datetime;
 
 pub mod ser;
 #[doc(no_inline)]
