@@ -337,7 +337,7 @@ impl<'s, T: ?Sized> Index for &'s T where T: Index {
 
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        ::ser::to_string(self).unwrap().fmt(f)
+        ::ser::to_string(self).expect("Unable to represent value as string").fmt(f)
     }
 }
 
