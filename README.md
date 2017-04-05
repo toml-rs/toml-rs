@@ -3,8 +3,7 @@
 [![Build Status](https://travis-ci.org/alexcrichton/toml-rs.svg?branch=master)](https://travis-ci.org/alexcrichton/toml-rs)
 [![Coverage Status](https://coveralls.io/repos/alexcrichton/toml-rs/badge.svg?branch=master&service=github)](https://coveralls.io/github/alexcrichton/toml-rs?branch=master)
 [![Latest Version](https://img.shields.io/crates/v/toml.svg)](https://crates.io/crates/toml)
-
-[Documentation](https://docs.rs/toml)
+[![Documentation](https://docs.rs/toml/badge.svg)](https://docs.rs/toml)
 
 A [TOML][toml] decoder and encoder for Rust. This library is currently compliant
 with the v0.4.0 version of TOML. This library will also likely continue to stay
