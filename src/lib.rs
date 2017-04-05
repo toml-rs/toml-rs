@@ -1,7 +1,5 @@
 //! A [TOML]-parsing library
 //!
-//! [TOML]: https://github.com/toml-lang/toml
-//!
 //! This library implements a [TOML] v0.4.0 compatible parser,
 //! primarily supporting the [`serde`] library for encoding/decoding
 //! various types in Rust.
@@ -146,6 +144,7 @@
 //! }
 //! ```
 //!
+//! [TOML]: https://github.com/toml-lang/toml
 //! [Cargo]: https://crates.io/
 //! [`serde`]: https://serde.rs/
 
@@ -156,9 +155,9 @@
 extern crate serde;
 
 pub mod value;
-mod datetime;
 #[doc(no_inline)]
 pub use value::Value;
+mod datetime;
 
 pub mod ser;
 #[doc(no_inline)]
