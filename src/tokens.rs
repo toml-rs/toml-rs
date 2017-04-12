@@ -66,7 +66,7 @@ impl<'a> Tokenizer<'a> {
         };
         // Eat utf-8 BOM
         t.eatc('\u{feff}');
-        return t
+        t
     }
 
     pub fn next(&mut self) -> Result<Option<Token<'a>>, Error> {
@@ -141,7 +141,7 @@ impl<'a> Tokenizer<'a> {
                 if val == "" {
                     return Err(Error::EmptyTableKey(offset))
                 }
-                match src.find("\n") {
+                match src.find('\n') {
                     None => Ok(val),
                     Some(i) => Err(Error::NewlineInTableKey(offset + i)),
                 }
@@ -422,7 +422,7 @@ impl MaybeString {
         }
     }
 
-    fn into_cow<'a>(self, input: &'a str) -> Cow<'a, str> {
+    fn into_cow(self, input: &str) -> Cow<str> {
         match self {
             MaybeString::NotEscaped(start) => Cow::Borrowed(&input[start..]),
             MaybeString::Owned(s) => Cow::Owned(s),

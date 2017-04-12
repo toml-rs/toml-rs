@@ -38,7 +38,7 @@ pub fn from_str<T>(s: &str) -> Result<T, Error>
     let mut d = Deserializer::new(s);
     let ret = T::deserialize(&mut d)?;
     d.end()?;
-    return Ok(ret)
+    Ok(ret)
 }
 
 /// Errors that can occur when deserializing a type.
@@ -148,7 +148,7 @@ impl<'a, 'b> de::Deserializer for &'b mut Deserializer<'a> {
         while let Some(line) = self.line()? {
             match line {
                 Line::Table { at, mut header, array } => {
-                    if cur_table.header.len() > 0 || cur_table.values.is_some() {
+                    if !cur_table.header.is_empty() || cur_table.values.is_some() {
                         tables.push(cur_table);
                     }
                     cur_table = Table {
@@ -175,7 +175,7 @@ impl<'a, 'b> de::Deserializer for &'b mut Deserializer<'a> {
                 }
             }
         }
-        if cur_table.header.len() > 0 || cur_table.values.is_some() {
+        if !cur_table.header.is_empty() || cur_table.values.is_some() {
             tables.push(cur_table);
         }
 
@@ -357,7 +357,7 @@ impl<'a, 'b> de::SeqVisitor for MapVisitor<'a, 'b> {
             de: &mut self.de,
         })?;
         self.cur_parent = next;
-        return Ok(Some(ret))
+        Ok(Some(ret))
     }
 }
 
@@ -470,7 +470,7 @@ impl<'a> de::Deserializer for ValueDeserializer<'a> {
         where V: de::Visitor,
     {
         if name == SERDE_STRUCT_NAME && fields == &[SERDE_STRUCT_FIELD_NAME] {
-            if let Value::Datetime(ref s) = self.value {
+            if let Value::Datetime(s) = self.value {
                 return visitor.visit_map(DatetimeDeserializer {
                     date: s,
                     visited: false,
@@ -687,7 +687,7 @@ impl<'a> Deserializer<'a> {
     }
 
     fn number_or_date(&mut self, s: &'a str) -> Result<Value<'a>, Error> {
-        if s.contains("T") || (s.len() > 1 && s[1..].contains("-")) &&
+        if s.contains('T') || (s.len() > 1 && s[1..].contains('-')) &&
            !s.contains("e-") {
             self.datetime(s, false).map(Value::Datetime)
         } else if self.eat(Token::Colon)? {
@@ -698,7 +698,7 @@ impl<'a> Deserializer<'a> {
     }
 
     fn number(&mut self, s: &'a str) -> Result<Value<'a>, Error> {
-        if s.contains("e") || s.contains("E") {
+        if s.contains('e') || s.contains('E') {
             self.float(s, None).map(Value::Float)
         } else if self.eat(Token::Period)? {
             let at = self.tokens.current();
@@ -727,7 +727,7 @@ impl<'a> Deserializer<'a> {
         if suffix != "" {
             return Err(self.error(start, ErrorKind::NumberInvalid))
         }
-        prefix.replace("_", "").trim_left_matches("+").parse().map_err(|_e| {
+        prefix.replace("_", "").trim_left_matches('+').parse().map_err(|_e| {
             self.error(start, ErrorKind::NumberInvalid)
         })
     }
@@ -783,13 +783,13 @@ impl<'a> Deserializer<'a> {
             if suffix != "" {
                 return Err(self.error(start, ErrorKind::NumberInvalid))
             }
-            let (a, b) = self.parse_integer(&after, false, true)?;
+            let (a, b) = self.parse_integer(after, false, true)?;
             fraction = Some(a);
             suffix = b;
         }
 
         let mut exponent = None;
-        if suffix.starts_with("e") || suffix.starts_with("E") {
+        if suffix.starts_with('e') || suffix.starts_with('E') {
             let (a, b) = if suffix.len() == 1 {
                 self.eat(Token::Plus)?;
                 match self.next()? {
@@ -807,7 +807,7 @@ impl<'a> Deserializer<'a> {
             exponent = Some(a);
         }
 
-        let mut number = integral.trim_left_matches("+")
+        let mut number = integral.trim_left_matches('+')
                                  .chars()
                                  .filter(|c| *c != '_')
                                  .collect::<String>();
@@ -1003,7 +1003,7 @@ impl<'a> Deserializer<'a> {
         let (line, col) = self.to_linecol(at);
         err.inner.line = Some(line);
         err.inner.col = col;
-        return err
+        err
     }
 
     /// Converts a byte offset from an error message to a (line, column) pair
@@ -1095,7 +1095,7 @@ impl fmt::Display for Error {
             ErrorKind::__Nonexhaustive => panic!(),
         }
 
-        if self.inner.key.len() > 0 {
+        if !self.inner.key.is_empty() {
             write!(f, " for key `")?;
             for (i, k) in self.inner.key.iter().enumerate() {
                 if i > 0 {

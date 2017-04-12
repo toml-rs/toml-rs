@@ -283,7 +283,7 @@ impl<'a> Serializer<'a> {
         if array_of_tables {
             self.dst.push_str("[");
         }
-        self.emit_key_part(&state)?;
+        self.emit_key_part(state)?;
         if array_of_tables {
             self.dst.push_str("]");
         }
@@ -563,7 +563,7 @@ impl<'a, 'b> ser::SerializeMap for SerializeTable<'a, 'b> {
             SerializeTable::Table { ref mut key, .. } => {
                 key.truncate(0);
                 *key = input.serialize(StringExtractor)?;
-                if key.contains("\n") {
+                if key.contains('\n') {
                     return Err(Error::KeyNewline)
                 }
             }
@@ -586,10 +586,10 @@ impl<'a, 'b> ser::SerializeMap for SerializeTable<'a, 'b> {
                 let res = value.serialize(&mut Serializer {
                     dst: &mut *ser.dst,
                     state: State::Table {
-                        key: &key,
+                        key: key,
                         parent: &ser.state,
-                        first: &first,
-                        table_emitted: &table_emitted,
+                        first: first,
+                        table_emitted: table_emitted,
                     },
                 });
                 match res {

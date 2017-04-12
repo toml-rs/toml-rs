@@ -179,11 +179,10 @@ impl FromStr for Datetime {
                               chars.clone().next() == Some('T') {
             chars.next();
             true
-        } else if full_date.is_none() {
-            true
         } else {
-            false
+            full_date.is_none()
         };
+
         let time = if partial_time {
             let h1 = digit(&mut chars)?;
             let h2 = digit(&mut chars)?;
@@ -299,7 +298,7 @@ impl FromStr for Datetime {
 
 fn digit(chars: &mut str::Chars) -> Result<u8, DatetimeParseError> {
     match chars.next() {
-        Some(c) if '0' <= c && c <= '9' => Ok(c as u8 - '0' as u8),
+        Some(c) if '0' <= c && c <= '9' => Ok(c as u8 - b'0'),
         _ => Err(DatetimeParseError { _private: () }),
     }
 }
