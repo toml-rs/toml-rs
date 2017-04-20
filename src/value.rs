@@ -58,8 +58,8 @@ impl Value {
     /// something is wrong with the data, for example required struct fields are
     /// missing from the TOML map or some number is too big to fit in the expected
     /// primitive type.
-    pub fn try_into<T>(self) -> Result<T, ::de::Error>
-        where T: de::Deserialize,
+    pub fn try_into<'de, T>(self) -> Result<T, ::de::Error>
+        where T: de::Deserialize<'de>,
     {
         de::Deserialize::deserialize(self)
     }
@@ -387,13 +387,13 @@ impl ser::Serialize for Value {
     }
 }
 
-impl de::Deserialize for Value {
+impl<'de> de::Deserialize<'de> for Value {
     fn deserialize<D>(deserializer: D) -> Result<Value, D::Error>
-        where D: de::Deserializer
+        where D: de::Deserializer<'de>,
     {
         struct ValueVisitor;
 
-        impl de::Visitor for ValueVisitor {
+        impl<'de> de::Visitor<'de> for ValueVisitor {
             type Value = Value;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -421,55 +421,58 @@ impl de::Deserialize for Value {
             }
 
             fn visit_some<D>(self, deserializer: D) -> Result<Value, D::Error>
-                where D: de::Deserializer,
+                where D: de::Deserializer<'de>,
             {
                 de::Deserialize::deserialize(deserializer)
             }
 
-            fn visit_seq<V>(self, visitor: V) -> Result<Value, V::Error>
-                where V: de::SeqVisitor
+            fn visit_seq<V>(self, mut visitor: V) -> Result<Value, V::Error>
+                where V: de::SeqAccess<'de>,
             {
-                let values = de::impls::VecVisitor::new().visit_seq(visitor)?;
-                Ok(Value::Array(values))
+                let mut vec = Vec::new();
+                while let Some(elem) = try!(visitor.next_element()) {
+                    vec.push(elem);
+                }
+                Ok(Value::Array(vec))
             }
 
             fn visit_map<V>(self, mut visitor: V) -> Result<Value, V::Error>
-                where V: de::MapVisitor
+                where V: de::MapAccess<'de>,
             {
                 let mut key = String::new();
-                let datetime = visitor.visit_key_seed(DatetimeOrTable {
+                let datetime = visitor.next_key_seed(DatetimeOrTable {
                     key: &mut key,
                 })?;
                 match datetime {
                     Some(true) => {
-                        let date: DatetimeFromString = visitor.visit_value()?;
+                        let date: DatetimeFromString = visitor.next_value()?;
                         return Ok(Value::Datetime(date.value))
                     }
                     None => return Ok(Value::Table(BTreeMap::new())),
                     Some(false) => {}
                 }
                 let mut map = BTreeMap::new();
-                map.insert(key, visitor.visit_value()?);
-                while let Some(key) = visitor.visit_key()? {
+                map.insert(key, visitor.next_value()?);
+                while let Some(key) = visitor.next_key()? {
                     if map.contains_key(&key) {
                         let msg = format!("duplicate key: `{}`", key);
                         return Err(de::Error::custom(msg))
                     }
-                    map.insert(key, visitor.visit_value()?);
+                    map.insert(key, visitor.next_value()?);
                 }
                 Ok(Value::Table(map))
             }
         }
 
-        deserializer.deserialize(ValueVisitor)
+        deserializer.deserialize_any(ValueVisitor)
     }
 }
 
-impl de::Deserializer for Value {
+impl<'de> de::Deserializer<'de> for Value {
     type Error = ::de::Error;
 
-    fn deserialize<V>(self, visitor: V) -> Result<V::Value, ::de::Error>
-        where V: de::Visitor,
+    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, ::de::Error>
+        where V: de::Visitor<'de>,
     {
         match self {
             Value::Boolean(v) => visitor.visit_bool(v),
@@ -505,15 +508,15 @@ impl de::Deserializer for Value {
     // `None` is interpreted as a missing field so be sure to implement `Some`
     // as a present field.
     fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, ::de::Error>
-        where V: de::Visitor
+        where V: de::Visitor<'de>,
     {
         visitor.visit_some(self)
     }
 
-    forward_to_deserialize! {
+    forward_to_deserialize_any! {
         bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string unit seq
-        seq_fixed_size bytes byte_buf map unit_struct tuple_struct struct
-        struct_field tuple ignored_any enum newtype_struct
+        bytes byte_buf map unit_struct tuple_struct struct
+        tuple ignored_any enum newtype_struct identifier
     }
 }
 
@@ -529,11 +532,12 @@ impl SeqDeserializer {
     }
 }
 
-impl de::SeqVisitor for SeqDeserializer {
+impl<'de> de::SeqAccess<'de> for SeqDeserializer {
     type Error = ::de::Error;
 
-    fn visit_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, ::de::Error>
-        where T: de::DeserializeSeed,
+    fn next_element_seed<T>(&mut self, seed: T)
+                            -> Result<Option<T::Value>, ::de::Error>
+        where T: de::DeserializeSeed<'de>,
     {
         match self.iter.next() {
             Some(value) => seed.deserialize(value).map(Some),
@@ -541,8 +545,11 @@ impl de::SeqVisitor for SeqDeserializer {
         }
     }
 
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.iter.size_hint()
+    fn size_hint(&self) -> Option<usize> {
+        match self.iter.size_hint() {
+            (lower, Some(upper)) if lower == upper => Some(upper),
+            _ => None,
+        }
     }
 }
 
@@ -560,11 +567,11 @@ impl MapDeserializer {
     }
 }
 
-impl de::MapVisitor for MapDeserializer {
+impl<'de> de::MapAccess<'de> for MapDeserializer {
     type Error = ::de::Error;
 
-    fn visit_key_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, ::de::Error>
-        where T: de::DeserializeSeed,
+    fn next_key_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, ::de::Error>
+        where T: de::DeserializeSeed<'de>,
     {
         match self.iter.next() {
             Some((key, value)) => {
@@ -575,8 +582,8 @@ impl de::MapVisitor for MapDeserializer {
         }
     }
 
-    fn visit_value_seed<T>(&mut self, seed: T) -> Result<T::Value, ::de::Error>
-        where T: de::DeserializeSeed,
+    fn next_value_seed<T>(&mut self, seed: T) -> Result<T::Value, ::de::Error>
+        where T: de::DeserializeSeed<'de>,
     {
         let (key, res) = match self.value.take() {
             Some((key, value)) => (key, seed.deserialize(value)),
@@ -588,8 +595,11 @@ impl de::MapVisitor for MapDeserializer {
         })
     }
 
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        self.iter.size_hint()
+    fn size_hint(&self) -> Option<usize> {
+        match self.iter.size_hint() {
+            (lower, Some(upper)) if lower == upper => Some(upper),
+            _ => None,
+        }
     }
 }
 
@@ -681,7 +691,7 @@ impl ser::Serializer for Serializer {
 
     fn serialize_unit_variant(self,
                               _name: &'static str,
-                              _variant_index: usize,
+                              _variant_index: u32,
                               _variant: &'static str)
                               -> Result<Value, ::ser::Error> {
         Err(::ser::Error::UnsupportedType)
@@ -698,7 +708,7 @@ impl ser::Serializer for Serializer {
 
     fn serialize_newtype_variant<T: ?Sized>(self,
                                             _name: &'static str,
-                                            _variant_index: usize,
+                                            _variant_index: u32,
                                             _variant: &'static str,
                                             _value: &T)
                                             -> Result<Value, ::ser::Error>
@@ -725,11 +735,6 @@ impl ser::Serializer for Serializer {
         })
     }
 
-    fn serialize_seq_fixed_size(self, size: usize)
-                                -> Result<Self::SerializeSeq, ::ser::Error> {
-        self.serialize_seq(Some(size))
-    }
-
     fn serialize_tuple(self, _len: usize) -> Result<Self::SerializeTuple, ::ser::Error> {
         Err(::ser::Error::UnsupportedType)
     }
@@ -741,7 +746,7 @@ impl ser::Serializer for Serializer {
 
     fn serialize_tuple_variant(self,
                                _name: &'static str,
-                               _variant_index: usize,
+                               _variant_index: u32,
                                _variant: &'static str,
                                _len: usize)
                                -> Result<Self::SerializeTupleVariant, ::ser::Error>
@@ -765,7 +770,7 @@ impl ser::Serializer for Serializer {
 
     fn serialize_struct_variant(self,
                                 _name: &'static str,
-                                _variant_index: usize,
+                                _variant_index: u32,
                                 _variant: &'static str,
                                 _len: usize)
                                 -> Result<Self::SerializeStructVariant, ::ser::Error>
@@ -851,17 +856,17 @@ struct DatetimeOrTable<'a> {
     key: &'a mut String,
 }
 
-impl<'a> de::DeserializeSeed for DatetimeOrTable<'a> {
+impl<'a, 'de> de::DeserializeSeed<'de> for DatetimeOrTable<'a> {
     type Value = bool;
 
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
-        where D: de::Deserializer
+        where D: de::Deserializer<'de>
     {
-        deserializer.deserialize(self)
+        deserializer.deserialize_any(self)
     }
 }
 
-impl<'a> de::Visitor for DatetimeOrTable<'a> {
+impl<'a, 'de> de::Visitor<'de> for DatetimeOrTable<'a> {
     type Value = bool;
 
     fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {

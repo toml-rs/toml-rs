@@ -315,13 +315,13 @@ impl ser::Serialize for Datetime {
     }
 }
 
-impl de::Deserialize for Datetime {
+impl<'de> de::Deserialize<'de> for Datetime {
     fn deserialize<D>(deserializer: D) -> Result<Datetime, D::Error>
-        where D: de::Deserializer
+        where D: de::Deserializer<'de>
     {
         struct DatetimeVisitor;
 
-        impl de::Visitor for DatetimeVisitor {
+        impl<'de> de::Visitor<'de> for DatetimeVisitor {
             type Value = Datetime;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -329,13 +329,13 @@ impl de::Deserialize for Datetime {
             }
 
             fn visit_map<V>(self, mut visitor: V) -> Result<Datetime, V::Error>
-                where V: de::MapVisitor
+                where V: de::MapAccess<'de>
             {
-                let value = visitor.visit_key::<DatetimeKey>()?;
+                let value = visitor.next_key::<DatetimeKey>()?;
                 if value.is_none() {
                     return Err(de::Error::custom("datetime key not found"))
                 }
-                let v: DatetimeFromString = visitor.visit_value()?;
+                let v: DatetimeFromString = visitor.next_value()?;
                 Ok(v.value)
 
             }
@@ -350,13 +350,13 @@ impl de::Deserialize for Datetime {
 
 struct DatetimeKey;
 
-impl de::Deserialize for DatetimeKey {
+impl<'de> de::Deserialize<'de> for DatetimeKey {
     fn deserialize<D>(deserializer: D) -> Result<DatetimeKey, D::Error>
-        where D: de::Deserializer
+        where D: de::Deserializer<'de>
     {
         struct FieldVisitor;
 
-        impl de::Visitor for FieldVisitor {
+        impl<'de> de::Visitor<'de> for FieldVisitor {
             type Value = ();
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
@@ -374,7 +374,7 @@ impl de::Deserialize for DatetimeKey {
             }
         }
 
-        deserializer.deserialize_struct_field(FieldVisitor)?;
+        deserializer.deserialize_identifier(FieldVisitor)?;
         Ok(DatetimeKey)
     }
 }
@@ -383,13 +383,13 @@ pub struct DatetimeFromString {
     pub value: Datetime,
 }
 
-impl de::Deserialize for DatetimeFromString {
+impl<'de> de::Deserialize<'de> for DatetimeFromString {
     fn deserialize<D>(deserializer: D) -> Result<DatetimeFromString, D::Error>
-        where D: de::Deserializer
+        where D: de::Deserializer<'de>
     {
         struct Visitor;
 
-        impl de::Visitor for Visitor {
+        impl<'de> de::Visitor<'de> for Visitor {
             type Value = DatetimeFromString;
 
             fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {

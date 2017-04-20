@@ -19,8 +19,8 @@ use datetime::{SERDE_STRUCT_FIELD_NAME, SERDE_STRUCT_NAME};
 ///
 /// This function will attempt to interpret `bytes` as UTF-8 data and then
 /// deserialize `T` from the TOML document provided.
-pub fn from_slice<T>(bytes: &[u8]) -> Result<T, Error>
-    where T: de::Deserialize,
+pub fn from_slice<'de, T>(bytes: &'de [u8]) -> Result<T, Error>
+    where T: de::Deserialize<'de>,
 {
     match str::from_utf8(bytes) {
         Ok(s) => from_str(s),
@@ -32,8 +32,8 @@ pub fn from_slice<T>(bytes: &[u8]) -> Result<T, Error>
 ///
 /// This function will attempt to interpret `s` as a TOML document and
 /// deserialize `T` from the document.
-pub fn from_str<T>(s: &str) -> Result<T, Error>
-    where T: de::Deserialize,
+pub fn from_str<'de, T>(s: &'de str) -> Result<T, Error>
+    where T: de::Deserialize<'de>,
 {
     let mut d = Deserializer::new(s);
     let ret = T::deserialize(&mut d)?;
@@ -132,11 +132,11 @@ pub struct Deserializer<'a> {
     tokens: Tokenizer<'a>,
 }
 
-impl<'a, 'b> de::Deserializer for &'b mut Deserializer<'a> {
+impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
     type Error = Error;
 
-    fn deserialize<V>(self, visitor: V) -> Result<V::Value, Error>
-        where V: de::Visitor,
+    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Error>
+        where V: de::Visitor<'de>,
     {
         let mut tables = Vec::new();
         let mut cur_table = Table {
@@ -192,10 +192,10 @@ impl<'a, 'b> de::Deserializer for &'b mut Deserializer<'a> {
         })
     }
 
-    forward_to_deserialize! {
+    forward_to_deserialize_any! {
         bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string seq
-        seq_fixed_size bytes byte_buf map struct unit enum newtype_struct
-        struct_field ignored_any unit_struct tuple_struct tuple option
+        bytes byte_buf map struct unit enum newtype_struct
+        ignored_any unit_struct tuple_struct tuple option identifier
     }
 }
 
@@ -207,23 +207,23 @@ struct Table<'a> {
 }
 
 #[doc(hidden)]
-pub struct MapVisitor<'a: 'b, 'b> {
-    values: vec::IntoIter<(Cow<'a, str>, Value<'a>)>,
-    next_value: Option<(Cow<'a, str>, Value<'a>)>,
+pub struct MapVisitor<'de: 'b, 'b> {
+    values: vec::IntoIter<(Cow<'de, str>, Value<'de>)>,
+    next_value: Option<(Cow<'de, str>, Value<'de>)>,
     depth: usize,
     cur: usize,
     cur_parent: usize,
     max: usize,
-    tables: &'b mut [Table<'a>],
+    tables: &'b mut [Table<'de>],
     array: bool,
-    de: &'b mut Deserializer<'a>,
+    de: &'b mut Deserializer<'de>,
 }
 
-impl<'a, 'b> de::MapVisitor for MapVisitor<'a, 'b> {
+impl<'de, 'b> de::MapAccess<'de> for MapVisitor<'de, 'b> {
     type Error = Error;
 
-    fn visit_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>, Error>
-        where K: de::DeserializeSeed,
+    fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>, Error>
+        where K: de::DeserializeSeed<'de>,
     {
         if self.cur_parent == self.max || self.cur == self.max {
             return Ok(None)
@@ -268,11 +268,11 @@ impl<'a, 'b> de::MapVisitor for MapVisitor<'a, 'b> {
             let table = &mut self.tables[pos];
 
             // If we're not yet at the appropriate depth for this table then we
-            // just visit the next portion of its header and then continue
+            // just next the next portion of its header and then continue
             // decoding.
             if self.depth != table.header.len() {
                 let key = &table.header[self.depth];
-                let key = seed.deserialize(StrDeserializer::new(key[..].into()))?;
+                let key = seed.deserialize(StrDeserializer::new(key.clone()))?;
                 return Ok(Some(key))
             }
 
@@ -289,8 +289,8 @@ impl<'a, 'b> de::MapVisitor for MapVisitor<'a, 'b> {
         }
     }
 
-    fn visit_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Error>
-        where V: de::DeserializeSeed,
+    fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Error>
+        where V: de::DeserializeSeed<'de>,
     {
         if let Some((k, v)) = self.next_value.take() {
             match seed.deserialize(ValueDeserializer::new(v)) {
@@ -323,11 +323,11 @@ impl<'a, 'b> de::MapVisitor for MapVisitor<'a, 'b> {
     }
 }
 
-impl<'a, 'b> de::SeqVisitor for MapVisitor<'a, 'b> {
+impl<'de, 'b> de::SeqAccess<'de> for MapVisitor<'de, 'b> {
     type Error = Error;
 
-    fn visit_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>, Error>
-        where K: de::DeserializeSeed,
+    fn next_element_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>, Error>
+        where K: de::DeserializeSeed<'de>,
     {
         assert!(self.next_value.is_none());
         assert!(self.values.next().is_none());
@@ -361,11 +361,11 @@ impl<'a, 'b> de::SeqVisitor for MapVisitor<'a, 'b> {
     }
 }
 
-impl<'a, 'b> de::Deserializer for MapVisitor<'a, 'b> {
+impl<'de, 'b> de::Deserializer<'de> for MapVisitor<'de, 'b> {
     type Error = Error;
 
-    fn deserialize<V>(self, visitor: V) -> Result<V::Value, Error>
-        where V: de::Visitor,
+    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Error>
+        where V: de::Visitor<'de>,
     {
         if self.array  {
             visitor.visit_seq(self)
@@ -377,15 +377,15 @@ impl<'a, 'b> de::Deserializer for MapVisitor<'a, 'b> {
     // `None` is interpreted as a missing field so be sure to implement `Some`
     // as a present field.
     fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, Error>
-        where V: de::Visitor
+        where V: de::Visitor<'de>,
     {
         visitor.visit_some(self)
     }
 
-    forward_to_deserialize! {
+    forward_to_deserialize_any! {
         bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string seq
-        seq_fixed_size bytes byte_buf map struct unit newtype_struct
-        struct_field ignored_any unit_struct tuple_struct tuple enum
+        bytes byte_buf map struct unit newtype_struct identifier
+        ignored_any unit_struct tuple_struct tuple enum
     }
 }
 
@@ -401,22 +401,22 @@ impl<'a> StrDeserializer<'a> {
     }
 }
 
-impl<'a> de::Deserializer for StrDeserializer<'a> {
+impl<'de> de::Deserializer<'de> for StrDeserializer<'de> {
     type Error = Error;
 
-    fn deserialize<V>(self, visitor: V) -> Result<V::Value, Error>
-        where V: de::Visitor,
+    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Error>
+        where V: de::Visitor<'de>,
     {
         match self.key {
-            Cow::Borrowed(s) => visitor.visit_str(s),
+            Cow::Borrowed(s) => visitor.visit_borrowed_str(s),
             Cow::Owned(s) => visitor.visit_string(s),
         }
     }
 
-    forward_to_deserialize! {
+    forward_to_deserialize_any! {
         bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string seq
-        seq_fixed_size bytes byte_buf map struct option unit newtype_struct
-        struct_field ignored_any unit_struct tuple_struct tuple enum
+        bytes byte_buf map struct option unit newtype_struct
+        ignored_any unit_struct tuple_struct tuple enum identifier
     }
 }
 
@@ -432,17 +432,17 @@ impl<'a> ValueDeserializer<'a> {
     }
 }
 
-impl<'a> de::Deserializer for ValueDeserializer<'a> {
+impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
     type Error = Error;
 
-    fn deserialize<V>(self, visitor: V) -> Result<V::Value, Error>
-        where V: de::Visitor,
+    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Error>
+        where V: de::Visitor<'de>,
     {
         match self.value {
             Value::Integer(i) => visitor.visit_i64(i),
             Value::Boolean(b) => visitor.visit_bool(b),
             Value::Float(f) => visitor.visit_f64(f),
-            Value::String(Cow::Borrowed(s)) => visitor.visit_str(s),
+            Value::String(Cow::Borrowed(s)) => visitor.visit_borrowed_str(s),
             Value::String(Cow::Owned(s)) => visitor.visit_string(s),
             Value::Datetime(s) => visitor.visit_map(DatetimeDeserializer {
                 date: s,
@@ -467,7 +467,7 @@ impl<'a> de::Deserializer for ValueDeserializer<'a> {
                              name: &'static str,
                              fields: &'static [&'static str],
                              visitor: V) -> Result<V::Value, Error>
-        where V: de::Visitor,
+        where V: de::Visitor<'de>,
     {
         if name == SERDE_STRUCT_NAME && fields == &[SERDE_STRUCT_FIELD_NAME] {
             if let Value::Datetime(s) = self.value {
@@ -478,26 +478,26 @@ impl<'a> de::Deserializer for ValueDeserializer<'a> {
             }
         }
 
-        self.deserialize(visitor)
+        self.deserialize_any(visitor)
     }
 
     // `None` is interpreted as a missing field so be sure to implement `Some`
     // as a present field.
     fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, Error>
-        where V: de::Visitor
+        where V: de::Visitor<'de>,
     {
         visitor.visit_some(self)
     }
 
-    forward_to_deserialize! {
+    forward_to_deserialize_any! {
         bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string seq
-        seq_fixed_size bytes byte_buf map unit newtype_struct
-        struct_field ignored_any unit_struct tuple_struct tuple enum
+        bytes byte_buf map unit newtype_struct identifier
+        ignored_any unit_struct tuple_struct tuple enum
     }
 }
 
-impl<'a> de::value::ValueDeserializer<Error> for Value<'a> {
-    type Deserializer = ValueDeserializer<'a>;
+impl<'de> de::IntoDeserializer<'de, Error> for Value<'de> {
+    type Deserializer = ValueDeserializer<'de>;
 
     fn into_deserializer(self) -> Self::Deserializer {
         ValueDeserializer::new(self)
@@ -509,11 +509,11 @@ struct DatetimeDeserializer<'a> {
     date: &'a str,
 }
 
-impl<'a> de::MapVisitor for DatetimeDeserializer<'a> {
+impl<'de> de::MapAccess<'de> for DatetimeDeserializer<'de> {
     type Error = Error;
 
-    fn visit_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>, Error>
-        where K: de::DeserializeSeed,
+    fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>, Error>
+        where K: de::DeserializeSeed<'de>,
     {
         if self.visited {
             return Ok(None)
@@ -522,8 +522,8 @@ impl<'a> de::MapVisitor for DatetimeDeserializer<'a> {
         seed.deserialize(DatetimeFieldDeserializer).map(Some)
     }
 
-    fn visit_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Error>
-        where V: de::DeserializeSeed,
+    fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Error>
+        where V: de::DeserializeSeed<'de>,
     {
         seed.deserialize(StrDeserializer::new(self.date.into()))
     }
@@ -531,19 +531,19 @@ impl<'a> de::MapVisitor for DatetimeDeserializer<'a> {
 
 struct DatetimeFieldDeserializer;
 
-impl de::Deserializer for DatetimeFieldDeserializer {
+impl<'de> de::Deserializer<'de> for DatetimeFieldDeserializer {
     type Error = Error;
 
-    fn deserialize<V>(self, visitor: V) -> Result<V::Value, Error>
-        where V: de::Visitor,
+    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Error>
+        where V: de::Visitor<'de>,
     {
-        visitor.visit_str(SERDE_STRUCT_FIELD_NAME)
+        visitor.visit_borrowed_str(SERDE_STRUCT_FIELD_NAME)
     }
 
-    forward_to_deserialize! {
+    forward_to_deserialize_any! {
         bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string seq
-        seq_fixed_size bytes byte_buf map struct option unit newtype_struct
-        struct_field ignored_any unit_struct tuple_struct tuple enum
+        bytes byte_buf map struct option unit newtype_struct
+        ignored_any unit_struct tuple_struct tuple enum identifier
     }
 }
 
@@ -552,11 +552,11 @@ struct InlineTableDeserializer<'a> {
     next_value: Option<Value<'a>>,
 }
 
-impl<'a> de::MapVisitor for InlineTableDeserializer<'a> {
+impl<'de> de::MapAccess<'de> for InlineTableDeserializer<'de> {
     type Error = Error;
 
-    fn visit_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>, Error>
-        where K: de::DeserializeSeed,
+    fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>, Error>
+        where K: de::DeserializeSeed<'de>,
     {
         let (key, value) = match self.values.next() {
             Some(pair) => pair,
@@ -566,8 +566,8 @@ impl<'a> de::MapVisitor for InlineTableDeserializer<'a> {
         seed.deserialize(StrDeserializer::new(key)).map(Some)
     }
 
-    fn visit_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Error>
-        where V: de::DeserializeSeed,
+    fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Error>
+        where V: de::DeserializeSeed<'de>,
     {
         let value = self.next_value.take().expect("Unable to read table values");
         seed.deserialize(ValueDeserializer::new(value))

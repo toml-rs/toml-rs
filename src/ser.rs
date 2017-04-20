@@ -420,7 +420,7 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
 
     fn serialize_unit_variant(self,
                               _name: &'static str,
-                              _variant_index: usize,
+                              _variant_index: u32,
                               _variant: &'static str)
                               -> Result<(), Self::Error> {
         Err(Error::UnsupportedType)
@@ -435,7 +435,7 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
 
     fn serialize_newtype_variant<T: ?Sized>(self,
                                             _name: &'static str,
-                                            _variant_index: usize,
+                                            _variant_index: u32,
                                             _variant: &'static str,
                                             _value: &T)
                                             -> Result<(), Self::Error>
@@ -454,11 +454,6 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
         })
     }
 
-    fn serialize_seq_fixed_size(self, size: usize)
-                                -> Result<Self::SerializeSeq, Self::Error> {
-        self.serialize_seq(Some(size))
-    }
-
     fn serialize_tuple(self, _len: usize)
                        -> Result<Self::SerializeTuple, Self::Error> {
         Err(Error::UnsupportedType)
@@ -471,7 +466,7 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
 
     fn serialize_tuple_variant(self,
                                _name: &'static str,
-                               _variant_index: usize,
+                               _variant_index: u32,
                                _variant: &'static str,
                                _len: usize)
                                -> Result<Self::SerializeTupleVariant, Self::Error> {
@@ -507,7 +502,7 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
 
     fn serialize_struct_variant(self,
                                 _name: &'static str,
-                                _variant_index: usize,
+                                _variant_index: u32,
                                 _variant: &'static str,
                                 _len: usize)
                                 -> Result<Self::SerializeStructVariant, Self::Error> {
@@ -754,7 +749,7 @@ impl<'a, 'b> ser::Serializer for DateStrEmitter<'a, 'b> {
 
     fn serialize_unit_variant(self,
                               _name: &'static str,
-                              _variant_index: usize,
+                              _variant_index: u32,
                               _variant: &'static str)
                               -> Result<(), Self::Error> {
         Err(Error::DateInvalid)
@@ -769,7 +764,7 @@ impl<'a, 'b> ser::Serializer for DateStrEmitter<'a, 'b> {
 
     fn serialize_newtype_variant<T: ?Sized>(self,
                                             _name: &'static str,
-                                            _variant_index: usize,
+                                            _variant_index: u32,
                                             _variant: &'static str,
                                             _value: &T)
                                             -> Result<(), Self::Error>
@@ -780,11 +775,6 @@ impl<'a, 'b> ser::Serializer for DateStrEmitter<'a, 'b> {
 
     fn serialize_seq(self, _len: Option<usize>)
                      -> Result<Self::SerializeSeq, Self::Error> {
-        Err(Error::DateInvalid)
-    }
-
-    fn serialize_seq_fixed_size(self, _size: usize)
-                                -> Result<Self::SerializeSeq, Self::Error> {
         Err(Error::DateInvalid)
     }
 
@@ -800,7 +790,7 @@ impl<'a, 'b> ser::Serializer for DateStrEmitter<'a, 'b> {
 
     fn serialize_tuple_variant(self,
                                _name: &'static str,
-                               _variant_index: usize,
+                               _variant_index: u32,
                                _variant: &'static str,
                                _len: usize)
                                -> Result<Self::SerializeTupleVariant, Self::Error> {
@@ -819,7 +809,7 @@ impl<'a, 'b> ser::Serializer for DateStrEmitter<'a, 'b> {
 
     fn serialize_struct_variant(self,
                                 _name: &'static str,
-                                _variant_index: usize,
+                                _variant_index: u32,
                                 _variant: &'static str,
                                 _len: usize)
                                 -> Result<Self::SerializeStructVariant, Self::Error> {
@@ -918,7 +908,7 @@ impl ser::Serializer for StringExtractor {
 
     fn serialize_unit_variant(self,
                               _name: &'static str,
-                              _variant_index: usize,
+                              _variant_index: u32,
                               _variant: &'static str)
                               -> Result<String, Self::Error> {
         Err(Error::KeyNotString)
@@ -933,7 +923,7 @@ impl ser::Serializer for StringExtractor {
 
     fn serialize_newtype_variant<T: ?Sized>(self,
                                             _name: &'static str,
-                                            _variant_index: usize,
+                                            _variant_index: u32,
                                             _variant: &'static str,
                                             _value: &T)
                                             -> Result<String, Self::Error>
@@ -944,11 +934,6 @@ impl ser::Serializer for StringExtractor {
 
     fn serialize_seq(self, _len: Option<usize>)
                      -> Result<Self::SerializeSeq, Self::Error> {
-        Err(Error::KeyNotString)
-    }
-
-    fn serialize_seq_fixed_size(self, _size: usize)
-                                -> Result<Self::SerializeSeq, Self::Error> {
         Err(Error::KeyNotString)
     }
 
@@ -964,7 +949,7 @@ impl ser::Serializer for StringExtractor {
 
     fn serialize_tuple_variant(self,
                                _name: &'static str,
-                               _variant_index: usize,
+                               _variant_index: u32,
                                _variant: &'static str,
                                _len: usize)
                                -> Result<Self::SerializeTupleVariant, Self::Error> {
@@ -983,7 +968,7 @@ impl ser::Serializer for StringExtractor {
 
     fn serialize_struct_variant(self,
                                 _name: &'static str,
-                                _variant_index: usize,
+                                _variant_index: u32,
                                 _variant: &'static str,
                                 _len: usize)
                                 -> Result<Self::SerializeStructVariant, Self::Error> {
@@ -1175,7 +1160,7 @@ impl<E: ser::Error> ser::Serializer for Categorize<E> {
         Err(ser::Error::custom("unsupported"))
     }
 
-    fn serialize_unit_variant(self, _: &'static str, _: usize, _: &'static str) -> Result<Self::Ok, Self::Error> {
+    fn serialize_unit_variant(self, _: &'static str, _: u32, _: &'static str) -> Result<Self::Ok, Self::Error> {
         Err(ser::Error::custom("unsupported"))
     }
 
@@ -1183,15 +1168,11 @@ impl<E: ser::Error> ser::Serializer for Categorize<E> {
         v.serialize(self)
     }
 
-    fn serialize_newtype_variant<T: ?Sized + ser::Serialize>(self, _: &'static str, _: usize, _: &'static str, _: &T) -> Result<Self::Ok, Self::Error> {
+    fn serialize_newtype_variant<T: ?Sized + ser::Serialize>(self, _: &'static str, _: u32, _: &'static str, _: &T) -> Result<Self::Ok, Self::Error> {
         Err(ser::Error::custom("unsupported"))
     }
 
     fn serialize_seq(self, _: Option<usize>) -> Result<Self, Self::Error> {
-        Ok(self)
-    }
-
-    fn serialize_seq_fixed_size(self, _: usize) -> Result<Self, Self::Error> {
         Ok(self)
     }
 
@@ -1203,7 +1184,7 @@ impl<E: ser::Error> ser::Serializer for Categorize<E> {
         Err(ser::Error::custom("unsupported"))
     }
 
-    fn serialize_tuple_variant(self, _: &'static str, _: usize, _: &'static str, _: usize) -> Result<Self::SerializeTupleVariant, Self::Error> {
+    fn serialize_tuple_variant(self, _: &'static str, _: u32, _: &'static str, _: usize) -> Result<Self::SerializeTupleVariant, Self::Error> {
         Err(ser::Error::custom("unsupported"))
     }
 
@@ -1215,7 +1196,7 @@ impl<E: ser::Error> ser::Serializer for Categorize<E> {
         Ok(self)
     }
 
-    fn serialize_struct_variant(self, _: &'static str, _: usize, _: &'static str, _: usize) -> Result<Self::SerializeStructVariant, Self::Error> {
+    fn serialize_struct_variant(self, _: &'static str, _: u32, _: &'static str, _: usize) -> Result<Self::SerializeStructVariant, Self::Error> {
         Err(ser::Error::custom("unsupported"))
     }
 }
