@@ -694,7 +694,7 @@ impl ser::Serializer for Serializer {
                               _variant_index: u32,
                               _variant: &'static str)
                               -> Result<Value, ::ser::Error> {
-        Err(::ser::Error::UnsupportedType)
+        self.serialize_str(_variant)
     }
 
     fn serialize_newtype_struct<T: ?Sized>(self,
