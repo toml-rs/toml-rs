@@ -13,7 +13,7 @@
 //! authors = ["Alex Crichton <alex@alexcrichton.com>"]
 //!
 //! [dependencies]
-//! serde = "0.9"
+//! serde = "1.0"
 //! ```
 //!
 //! The TOML format tends to be relatively common throughout the Rust community
