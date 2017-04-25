@@ -8,6 +8,7 @@ use std::vec;
 
 use serde::ser;
 use serde::de;
+use serde::de::IntoDeserializer;
 
 pub use datetime::{Datetime, DatetimeParseError};
 use datetime::{DatetimeFromString, SERDE_STRUCT_FIELD_NAME};
@@ -505,6 +506,31 @@ impl<'de> de::Deserializer<'de> for Value {
         }
     }
 
+    #[inline]
+    fn deserialize_enum<V>(
+        self,
+        _name: &str,
+        _variants: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value, ::de::Error>
+    where
+        V: de::Visitor<'de>,
+    {
+        let (variant, value) = match self {
+            Value::String(variant) => (variant, None),
+            _ => {
+                return Err(de::Error::invalid_type(de::Unexpected::UnitVariant, &"string only"),);
+            }
+        };
+
+        visitor.visit_enum(
+            EnumDeserializer {
+                variant: variant,
+                value: value,
+            },
+        )
+}
+
     // `None` is interpreted as a missing field so be sure to implement `Some`
     // as a present field.
     fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, ::de::Error>
@@ -516,9 +542,68 @@ impl<'de> de::Deserializer<'de> for Value {
     forward_to_deserialize_any! {
         bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string unit seq
         bytes byte_buf map unit_struct tuple_struct struct
-        tuple ignored_any enum newtype_struct identifier
+        tuple ignored_any newtype_struct identifier
     }
 }
+struct EnumDeserializer {
+    variant: String,
+    value: Option<Value>,
+}
+
+impl<'de> de::EnumAccess<'de> for EnumDeserializer {
+    type Error = ::de::Error;
+    type Variant = VariantDeserializer;
+
+    fn variant_seed<V>(self, seed: V) -> Result<(V::Value, VariantDeserializer), Self::Error>
+    where
+        V: de::DeserializeSeed<'de>,
+    {
+        let variant = self.variant.into_deserializer();
+        let visitor = VariantDeserializer { value: self.value };
+        seed.deserialize(variant).map(|v| (v, visitor))
+    }
+}
+
+struct VariantDeserializer {
+    value: Option<Value>,
+}
+
+impl<'de> de::VariantAccess<'de> for VariantDeserializer {
+    type Error = ::de::Error;
+
+    fn unit_variant(self) -> Result<(), Self::Error> {
+        match self.value {
+            Some(value) => de::Deserialize::deserialize(value),
+            None => Ok(()),
+        }
+    }
+
+    fn newtype_variant_seed<T>(self, _: T) -> Result<T::Value, Self::Error>
+    where
+        T: de::DeserializeSeed<'de>,
+    {
+         Err(de::Error::invalid_type(de::Unexpected::UnitVariant, &"newtype variant"))
+    }
+
+    fn tuple_variant<V>(self, _len: usize, _: V) -> Result<V::Value, Self::Error>
+    where
+        V: de::Visitor<'de>,
+    {
+        Err(de::Error::invalid_type(de::Unexpected::UnitVariant, &"tuple variant"))
+    }
+
+    fn struct_variant<V>(
+        self,
+        _fields: &'static [&'static str],
+        _: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: de::Visitor<'de>,
+    {
+        Err(de::Error::invalid_type(de::Unexpected::UnitVariant, &"struct variant"))
+    }
+}
+
 
 struct SeqDeserializer {
     iter: vec::IntoIter<Value>,

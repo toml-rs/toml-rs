@@ -209,7 +209,7 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
         if self.peek_char()? == '"' {
             // Visit a unit variant.
             match self.next()?.unwrap() {
-                Token::String { ref val, ..} => {
+                Token::String { ref val, .. } => {
                     visitor.visit_enum(val.clone().into_deserializer())
                 },
                 _ => Err(Error::from_kind(ErrorKind::ExpectedString))
@@ -601,6 +601,7 @@ impl<'de> de::MapAccess<'de> for InlineTableDeserializer<'de> {
         seed.deserialize(ValueDeserializer::new(value))
     }
 }
+
 
 impl<'a> Deserializer<'a> {
     /// Creates a new deserializer which will be deserializing the string
@@ -1229,6 +1230,7 @@ impl<'a> Header<'a> {
     }
 }
 
+#[derive(Debug)]
 enum Value<'a> {
     Integer(i64),
     Float(f64),
