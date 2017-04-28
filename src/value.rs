@@ -8,6 +8,7 @@ use std::vec;
 
 use serde::ser;
 use serde::de;
+use serde::de::IntoDeserializer;
 
 pub use datetime::{Datetime, DatetimeParseError};
 use datetime::{DatetimeFromString, SERDE_STRUCT_FIELD_NAME};
@@ -505,6 +506,22 @@ impl<'de> de::Deserializer<'de> for Value {
         }
     }
 
+    #[inline]
+    fn deserialize_enum<V>(
+        self,
+        _name: &str,
+        _variants: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value, ::de::Error>
+    where
+        V: de::Visitor<'de>,
+    {
+        match self {
+            Value::String(variant) => visitor.visit_enum(variant.into_deserializer()),
+            _ => Err(de::Error::invalid_type(de::Unexpected::UnitVariant, &"string only")),
+        }
+    }
+
     // `None` is interpreted as a missing field so be sure to implement `Some`
     // as a present field.
     fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, ::de::Error>
@@ -516,7 +533,7 @@ impl<'de> de::Deserializer<'de> for Value {
     forward_to_deserialize_any! {
         bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string unit seq
         bytes byte_buf map unit_struct tuple_struct struct
-        tuple ignored_any enum newtype_struct identifier
+        tuple ignored_any newtype_struct identifier
     }
 }
 
@@ -694,7 +711,7 @@ impl ser::Serializer for Serializer {
                               _variant_index: u32,
                               _variant: &'static str)
                               -> Result<Value, ::ser::Error> {
-        Err(::ser::Error::UnsupportedType)
+        self.serialize_str(_variant)
     }
 
     fn serialize_newtype_struct<T: ?Sized>(self,

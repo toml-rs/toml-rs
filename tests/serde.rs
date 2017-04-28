@@ -329,6 +329,25 @@ fn parse_enum() {
     }
 }
 
+#[test]
+fn parse_enum_string() {
+    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+    struct Foo { a: Sort }
+
+    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+    #[serde(rename_all = "lowercase")]
+    enum Sort {
+        Asc,
+        Desc,
+    }
+
+    equivalent! {
+        Foo { a: Sort::Desc },
+        Table(map! { a: Value::String("desc".to_string()) }),
+    }
+
+}
+
 // #[test]
 // fn unused_fields() {
 //     #[derive(Serialize, Deserialize, PartialEq, Debug)]

@@ -11,6 +11,7 @@ use std::str;
 use std::vec;
 
 use serde::de;
+use serde::de::IntoDeserializer;
 
 use tokens::{Tokenizer, Token, Error as TokenError};
 use datetime::{SERDE_STRUCT_FIELD_NAME, SERDE_STRUCT_NAME};
@@ -121,6 +122,9 @@ enum ErrorKind {
     /// type.
     Custom,
 
+    /// A struct was expected but something else was found
+    ExpectedString,
+
     #[doc(hidden)]
     __Nonexhaustive,
 }
@@ -145,6 +149,7 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
             values: None,
             array: false,
         };
+
         while let Some(line) = self.line()? {
             match line {
                 Line::Table { at, mut header, array } => {
@@ -192,9 +197,30 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
         })
     }
 
+    fn deserialize_enum<V>(
+        self,
+        _name: &'static str,
+        _variants: &'static [&'static str],
+        visitor: V
+    ) -> Result<V::Value, Error>
+        where V: de::Visitor<'de>
+    {
+        if let Some(next) = self.next()? {
+            match next {
+                Token::String { val, .. } => {
+                    visitor.visit_enum(val.into_deserializer())
+                },
+                _ => Err(Error::from_kind(ErrorKind::ExpectedString))
+            }
+        } else {
+            Err(Error::from_kind(ErrorKind::UnexpectedEof))
+        }
+    }
+
+
     forward_to_deserialize_any! {
         bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string seq
-        bytes byte_buf map struct unit enum newtype_struct
+        bytes byte_buf map struct unit newtype_struct
         ignored_any unit_struct tuple_struct tuple option identifier
     }
 }
@@ -489,10 +515,24 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
         visitor.visit_some(self)
     }
 
+    fn deserialize_enum<V>(
+        self,
+        _name: &'static str,
+        _variants: &'static [&'static str],
+        visitor: V
+    ) -> Result<V::Value, Error>
+        where V: de::Visitor<'de>
+    {
+        match self.value {
+            Value::String(val) => visitor.visit_enum(val.into_deserializer()),
+            _ => Err(Error::from_kind(ErrorKind::ExpectedString))
+        }
+    }
+
     forward_to_deserialize_any! {
         bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string seq
         bytes byte_buf map unit newtype_struct identifier
-        ignored_any unit_struct tuple_struct tuple enum
+        ignored_any unit_struct tuple_struct tuple
     }
 }
 
@@ -573,6 +613,7 @@ impl<'de> de::MapAccess<'de> for InlineTableDeserializer<'de> {
         seed.deserialize(ValueDeserializer::new(value))
     }
 }
+
 
 impl<'a> Deserializer<'a> {
     /// Creates a new deserializer which will be deserializing the string
@@ -1092,6 +1133,7 @@ impl fmt::Display for Error {
             ErrorKind::RedefineAsArray => "table redefined as array".fmt(f)?,
             ErrorKind::EmptyTableKey => "empty table key found".fmt(f)?,
             ErrorKind::Custom => self.inner.message.fmt(f)?,
+            ErrorKind::ExpectedString => "expected string".fmt(f)?,
             ErrorKind::__Nonexhaustive => panic!(),
         }
 
@@ -1134,6 +1176,7 @@ impl error::Error for Error {
             ErrorKind::RedefineAsArray => "table redefined as array",
             ErrorKind::EmptyTableKey => "empty table key found",
             ErrorKind::Custom => "a custom error",
+            ErrorKind::ExpectedString => "expected string",
             ErrorKind::__Nonexhaustive => panic!(),
         }
     }
@@ -1193,6 +1236,7 @@ impl<'a> Header<'a> {
     }
 }
 
+#[derive(Debug)]
 enum Value<'a> {
     Integer(i64),
     Float(f64),
