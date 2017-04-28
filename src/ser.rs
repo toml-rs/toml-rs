@@ -421,9 +421,9 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
     fn serialize_unit_variant(self,
                               _name: &'static str,
                               _variant_index: u32,
-                              _variant: &'static str)
+                              variant: &'static str)
                               -> Result<(), Self::Error> {
-        self.serialize_str(_variant)
+        self.serialize_str(variant)
     }
 
     fn serialize_newtype_struct<T: ?Sized>(self, _name: &'static str, value: &T)

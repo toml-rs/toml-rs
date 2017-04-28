@@ -516,20 +516,11 @@ impl<'de> de::Deserializer<'de> for Value {
     where
         V: de::Visitor<'de>,
     {
-        let (variant, value) = match self {
-            Value::String(variant) => (variant, None),
-            _ => {
-                return Err(de::Error::invalid_type(de::Unexpected::UnitVariant, &"string only"),);
-            }
-        };
-
-        visitor.visit_enum(
-            EnumDeserializer {
-                variant: variant,
-                value: value,
-            },
-        )
-}
+        match self {
+            Value::String(variant) => visitor.visit_enum(variant.into_deserializer()),
+            _ => Err(de::Error::invalid_type(de::Unexpected::UnitVariant, &"string only")),
+        }
+    }
 
     // `None` is interpreted as a missing field so be sure to implement `Some`
     // as a present field.
@@ -545,65 +536,6 @@ impl<'de> de::Deserializer<'de> for Value {
         tuple ignored_any newtype_struct identifier
     }
 }
-struct EnumDeserializer {
-    variant: String,
-    value: Option<Value>,
-}
-
-impl<'de> de::EnumAccess<'de> for EnumDeserializer {
-    type Error = ::de::Error;
-    type Variant = VariantDeserializer;
-
-    fn variant_seed<V>(self, seed: V) -> Result<(V::Value, VariantDeserializer), Self::Error>
-    where
-        V: de::DeserializeSeed<'de>,
-    {
-        let variant = self.variant.into_deserializer();
-        let visitor = VariantDeserializer { value: self.value };
-        seed.deserialize(variant).map(|v| (v, visitor))
-    }
-}
-
-struct VariantDeserializer {
-    value: Option<Value>,
-}
-
-impl<'de> de::VariantAccess<'de> for VariantDeserializer {
-    type Error = ::de::Error;
-
-    fn unit_variant(self) -> Result<(), Self::Error> {
-        match self.value {
-            Some(value) => de::Deserialize::deserialize(value),
-            None => Ok(()),
-        }
-    }
-
-    fn newtype_variant_seed<T>(self, _: T) -> Result<T::Value, Self::Error>
-    where
-        T: de::DeserializeSeed<'de>,
-    {
-         Err(de::Error::invalid_type(de::Unexpected::UnitVariant, &"newtype variant"))
-    }
-
-    fn tuple_variant<V>(self, _len: usize, _: V) -> Result<V::Value, Self::Error>
-    where
-        V: de::Visitor<'de>,
-    {
-        Err(de::Error::invalid_type(de::Unexpected::UnitVariant, &"tuple variant"))
-    }
-
-    fn struct_variant<V>(
-        self,
-        _fields: &'static [&'static str],
-        _: V,
-    ) -> Result<V::Value, Self::Error>
-    where
-        V: de::Visitor<'de>,
-    {
-        Err(de::Error::invalid_type(de::Unexpected::UnitVariant, &"struct variant"))
-    }
-}
-
 
 struct SeqDeserializer {
     iter: vec::IntoIter<Value>,

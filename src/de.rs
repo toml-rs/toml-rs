@@ -122,8 +122,7 @@ enum ErrorKind {
     /// type.
     Custom,
 
-    /// TODO
-    ExpectedEnum,
+    /// A struct was expected but something else was found
     ExpectedString,
 
     #[doc(hidden)]
@@ -206,16 +205,15 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
     ) -> Result<V::Value, Error>
         where V: de::Visitor<'de>
     {
-        if self.peek_char()? == '"' {
-            // Visit a unit variant.
-            match self.next()?.unwrap() {
-                Token::String { ref val, .. } => {
-                    visitor.visit_enum(val.clone().into_deserializer())
+        if let Some(next) = self.next()? {
+            match next {
+                Token::String { val, .. } => {
+                    visitor.visit_enum(val.into_deserializer())
                 },
                 _ => Err(Error::from_kind(ErrorKind::ExpectedString))
             }
         } else {
-            Err(Error::from_kind(ErrorKind::ExpectedEnum))
+            Err(Error::from_kind(ErrorKind::UnexpectedEof))
         }
     }
 
@@ -517,10 +515,24 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
         visitor.visit_some(self)
     }
 
+    fn deserialize_enum<V>(
+        self,
+        _name: &'static str,
+        _variants: &'static [&'static str],
+        visitor: V
+    ) -> Result<V::Value, Error>
+        where V: de::Visitor<'de>
+    {
+        match self.value {
+            Value::String(val) => visitor.visit_enum(val.into_deserializer()),
+            _ => Err(Error::from_kind(ErrorKind::ExpectedString))
+        }
+    }
+
     forward_to_deserialize_any! {
         bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string seq
         bytes byte_buf map unit newtype_struct identifier
-        ignored_any unit_struct tuple_struct tuple enum
+        ignored_any unit_struct tuple_struct tuple
     }
 }
 
@@ -988,10 +1000,6 @@ impl<'a> Deserializer<'a> {
         self.tokens.peek().map_err(|e| self.token_error(e))
     }
 
-    fn peek_char(&mut self) -> Result<char, Error> {
-        self.input.chars().next().ok_or(Error::from_kind(ErrorKind::UnexpectedEof))
-    }
-
     fn eof(&self) -> Error {
         self.error(self.input.len(), ErrorKind::UnexpectedEof)
     }
@@ -1125,7 +1133,6 @@ impl fmt::Display for Error {
             ErrorKind::RedefineAsArray => "table redefined as array".fmt(f)?,
             ErrorKind::EmptyTableKey => "empty table key found".fmt(f)?,
             ErrorKind::Custom => self.inner.message.fmt(f)?,
-            ErrorKind::ExpectedEnum => "expected enum".fmt(f)?,
             ErrorKind::ExpectedString => "expected string".fmt(f)?,
             ErrorKind::__Nonexhaustive => panic!(),
         }
@@ -1169,7 +1176,6 @@ impl error::Error for Error {
             ErrorKind::RedefineAsArray => "table redefined as array",
             ErrorKind::EmptyTableKey => "empty table key found",
             ErrorKind::Custom => "a custom error",
-            ErrorKind::ExpectedEnum => "expected enum",
             ErrorKind::ExpectedString => "expected string",
             ErrorKind::__Nonexhaustive => panic!(),
         }
