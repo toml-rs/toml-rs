@@ -14,7 +14,7 @@ up to date with the TOML specification as changes happen.
 ```toml
 # Cargo.toml
 [dependencies]
-toml = "0.3"
+toml = "0.4"
 ```
 
 This crate also supports serialization/deserialization through the

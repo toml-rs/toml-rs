@@ -57,7 +57,7 @@
 //!
 //! ## Deserialization and Serialization
 //!
-//! This crate supports [`serde`] 0.9 with a number of
+//! This crate supports [`serde`] 1.0 with a number of
 //! implementations of the `Deserialize`, `Serialize`, `Deserializer`, and
 //! `Serializer` traits. Namely, you'll find:
 //!
@@ -148,7 +148,7 @@
 //! [Cargo]: https://crates.io/
 //! [`serde`]: https://serde.rs/
 
-#![doc(html_root_url = "https://docs.rs/toml/0.3")]
+#![doc(html_root_url = "https://docs.rs/toml/0.4")]
 #![deny(missing_docs)]
 
 #[macro_use]
