@@ -1064,6 +1064,8 @@ impl<'a> Deserializer<'a> {
 
 impl Error {
     /// Produces a (line, column) pair of the position of the error if available
+    ///
+    /// All indexes are 0-based.
     pub fn line_col(&self) -> Option<(usize, usize)> {
         self.inner.line.map(|line| (line, self.inner.col))
     }
