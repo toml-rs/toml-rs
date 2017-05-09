@@ -1063,6 +1063,11 @@ impl<'a> Deserializer<'a> {
 }
 
 impl Error {
+    /// Produces a (line, column) pair of the position of the error if available
+    pub fn line_col(&self) -> Option<(usize, usize)> {
+        self.inner.line.map(|line| (line, self.inner.col))
+    }
+
     fn from_kind(kind: ErrorKind) -> Error {
         Error {
             inner: Box::new(ErrorInner {
