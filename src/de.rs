@@ -33,6 +33,37 @@ pub fn from_slice<'de, T>(bytes: &'de [u8]) -> Result<T, Error>
 ///
 /// This function will attempt to interpret `s` as a TOML document and
 /// deserialize `T` from the document.
+///
+/// # Examples
+///
+/// ```no_run
+/// #[macro_use]
+/// extern crate serde_derive;
+/// extern crate toml;
+///
+/// #[derive(Deserialize)]
+/// struct Config {
+///     title: String,
+///     owner: Owner,
+/// }
+///
+/// #[derive(Deserialize)]
+/// struct Owner {
+///     name: String,
+/// }
+///
+/// fn main() {
+///     let config: Config = toml::from_str(r#"
+///         title = 'TOML Example'
+///
+///         [owner]
+///         name = 'Lisa'
+///     "#).unwrap();
+///
+///     assert_eq!(config.title, "TOML Example");
+///     assert_eq!(config.owner.name, "Lisa");
+/// }
+/// ```
 pub fn from_str<'de, T>(s: &'de str) -> Result<T, Error>
     where T: de::Deserialize<'de>,
 {
