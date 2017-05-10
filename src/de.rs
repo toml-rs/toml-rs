@@ -36,7 +36,7 @@ pub fn from_slice<'de, T>(bytes: &'de [u8]) -> Result<T, Error>
 ///
 /// # Examples
 ///
-/// ```no_run
+/// ```
 /// #[macro_use]
 /// extern crate serde_derive;
 /// extern crate toml;
