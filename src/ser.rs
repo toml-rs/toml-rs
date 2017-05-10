@@ -50,6 +50,41 @@ pub fn to_vec<T: ?Sized>(value: &T) -> Result<Vec<u8>, Error>
 /// Serialization can fail if `T`'s implementation of `Serialize` decides to
 /// fail, if `T` contains a map with non-string keys, or if `T` attempts to
 /// serialize an unsupported datatype such as an enum, tuple, or tuple struct.
+///
+/// # Examples
+///
+/// ```
+/// #[macro_use]
+/// extern crate serde_derive;
+/// extern crate toml;
+///
+/// #[derive(Serialize)]
+/// struct Config {
+///     database: Database,
+/// }
+///
+/// #[derive(Serialize)]
+/// struct Database {
+///     ip: String,
+///     port: Vec<u16>,
+///     connection_max: u32,
+///     enabled: bool,
+/// }
+///
+/// fn main() {
+///     let config = Config {
+///         database: Database {
+///             ip: "192.168.1.1".to_string(),
+///             port: vec![8001, 8002, 8003],
+///             connection_max: 5000,
+///             enabled: false,
+///         },
+///     };
+/// 
+///     let toml = toml::to_string(&config).unwrap();
+///     println!("{}", toml)
+/// }
+/// ```
 pub fn to_string<T: ?Sized>(value: &T) -> Result<String, Error>
     where T: ser::Serialize,
 {
