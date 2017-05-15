@@ -1,11 +1,10 @@
 //! An example showing off the usage of `Deserialize` to automatically decode
 //! TOML into a Rust `struct`
-//!
-//! Note that this works similarly with `serde` as well.
 
 #![deny(warnings)]
 
 extern crate toml;
+extern crate serde;
 #[macro_use]
 extern crate serde_derive;
 
