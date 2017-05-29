@@ -437,6 +437,7 @@ impl MaybeString {
 fn is_keylike(ch: char) -> bool {
     ch.is_letter() || 
         ch.is_number() ||
+        ch.is_mark_nonspacing() || // this is necessary for dependent vowels
         ch == '-' ||
         ch == '_'
 }
