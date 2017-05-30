@@ -80,7 +80,7 @@ pub fn to_vec<T: ?Sized>(value: &T) -> Result<Vec<u8>, Error>
 ///             enabled: false,
 ///         },
 ///     };
-/// 
+///
 ///     let toml = toml::to_string(&config).unwrap();
 ///     println!("{}", toml)
 /// }
@@ -121,6 +121,9 @@ pub enum Error {
 
     /// A serialized date was invalid.
     DateInvalid,
+
+    /// A serialized number was invalid.
+    NumberInvalid,
 
     /// None was attempted to be serialized, but it's not supported.
     UnsupportedNone,
@@ -391,6 +394,10 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
     }
 
     fn serialize_f32(mut self, v: f32) -> Result<(), Self::Error> {
+        if !v.is_finite() {
+            return Err(Error::NumberInvalid);
+        }
+
         self.emit_key("float")?;
         drop(write!(self.dst, "{}", v));
         if v % 1.0 == 0.0 {
@@ -403,6 +410,10 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
     }
 
     fn serialize_f64(mut self, v: f64) -> Result<(), Self::Error> {
+        if !v.is_finite() {
+            return Err(Error::NumberInvalid);
+        }
+
         self.emit_key("float")?;
         drop(write!(self.dst, "{}", v));
         if v % 1.0 == 0.0 {
@@ -1019,7 +1030,8 @@ impl fmt::Display for Error {
             Error::KeyNewline => "map keys cannot contain newlines".fmt(f),
             Error::ArrayMixedType => "arrays cannot have mixed types".fmt(f),
             Error::ValueAfterTable => "values must be emitted before tables".fmt(f),
-            Error::DateInvalid => "a serialize date was invalid".fmt(f),
+            Error::DateInvalid => "a serialized date was invalid".fmt(f),
+            Error::NumberInvalid => "a serialized number was invalid".fmt(f),
             Error::UnsupportedNone => "unsupported None value".fmt(f),
             Error::Custom(ref s) => s.fmt(f),
             Error::__Nonexhaustive => panic!(),
@@ -1036,6 +1048,7 @@ impl error::Error for Error {
             Error::ArrayMixedType => "arrays cannot have mixed types",
             Error::ValueAfterTable => "values must be emitted before tables",
             Error::DateInvalid => "a serialized date was invalid",
+            Error::NumberInvalid => "a serialized number was invalid",
             Error::UnsupportedNone => "unsupported None value",
             Error::Custom(_) => "custom error",
             Error::__Nonexhaustive => panic!(),
