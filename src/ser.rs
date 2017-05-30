@@ -290,7 +290,7 @@ impl<'a> Serializer<'a> {
                 '\u{22}' => drop(write!(self.dst, "\\\"")),
                 '\u{5c}' => drop(write!(self.dst, "\\\\")),
                 c if c < '\u{1f}' => {
-                    drop(write!(self.dst, "\\u{:04}", ch as u32))
+                    drop(write!(self.dst, "\\u{:04X}", ch as u32))
                 }
                 ch => drop(write!(self.dst, "{}", ch)),
             }
