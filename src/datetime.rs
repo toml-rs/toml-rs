@@ -55,7 +55,7 @@ struct Time {
     hour: u8,
     minute: u8,
     second: u8,
-    secfract: Option<f64>,
+    secfract: f64,
 }
 
 #[derive(PartialEq, Clone)]
@@ -97,8 +97,8 @@ impl fmt::Display for Date {
 impl fmt::Display for Time {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:02}:{:02}:{:02}", self.hour, self.minute, self.second)?;
-        if let Some(i) = self.secfract {
-            let s = format!("{}", i);
+        if self.secfract != 0.0 {
+            let s = format!("{}", self.secfract);
             write!(f, "{}", s.trim_left_matches("0"))?;
         }
         Ok(())
@@ -219,11 +219,11 @@ impl FromStr for Datetime {
                 }
                 chars = whole[end..].chars();
                 match format!("0.{}", &whole[..end]).parse() {
-                    Ok(f) => Some(f),
+                    Ok(f) => f,
                     Err(_) => return Err(DatetimeParseError { _private: () }),
                 }
             } else {
-                None
+                0.0
             };
 
             let time = Time {
