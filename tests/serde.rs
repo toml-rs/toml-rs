@@ -61,10 +61,6 @@ macro_rules! error {
     })
 }
 
-macro_rules! decode( ($t:expr) => ({
-    t!($t.try_into())
-}) );
-
 macro_rules! map( ($($k:ident: $v:expr),*) => ({
     let mut _m = BTreeMap::new();
     $(_m.insert(stringify!($k).to_string(), $v);)*
