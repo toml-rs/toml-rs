@@ -893,6 +893,12 @@ impl<'a> Deserializer<'a> {
         }
         number.parse().map_err(|_e| {
             self.error(start, ErrorKind::NumberInvalid)
+        }).and_then(|n: f64| {
+            if n.is_finite() {
+                Ok(n)
+            } else {
+                Err(self.error(start, ErrorKind::NumberInvalid))
+            }
         })
     }
 
