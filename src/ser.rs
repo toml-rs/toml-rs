@@ -107,7 +107,8 @@ pub enum Error {
     /// attempted where the key of a map was not a string.
     KeyNotString,
 
-    /// Keys in maps are not allowed to have newlines.
+    /// An error that we never omit but keep for backwards compatibility
+    #[doc(hidden)]
     KeyNewline,
 
     /// Arrays in TOML must have a homogenous type, but a heterogeneous array
@@ -624,9 +625,6 @@ impl<'a, 'b> ser::SerializeMap for SerializeTable<'a, 'b> {
             SerializeTable::Table { ref mut key, .. } => {
                 key.truncate(0);
                 *key = input.serialize(StringExtractor)?;
-                if key.contains('\n') {
-                    return Err(Error::KeyNewline)
-                }
             }
         }
         Ok(())
@@ -1047,13 +1045,13 @@ impl fmt::Display for Error {
         match *self {
             Error::UnsupportedType => "unsupported Rust type".fmt(f),
             Error::KeyNotString => "map key was not a string".fmt(f),
-            Error::KeyNewline => "map keys cannot contain newlines".fmt(f),
             Error::ArrayMixedType => "arrays cannot have mixed types".fmt(f),
             Error::ValueAfterTable => "values must be emitted before tables".fmt(f),
             Error::DateInvalid => "a serialized date was invalid".fmt(f),
             Error::NumberInvalid => "a serialized number was invalid".fmt(f),
             Error::UnsupportedNone => "unsupported None value".fmt(f),
             Error::Custom(ref s) => s.fmt(f),
+            Error::KeyNewline => unreachable!(),
             Error::__Nonexhaustive => panic!(),
         }
     }
@@ -1064,13 +1062,13 @@ impl error::Error for Error {
         match *self {
             Error::UnsupportedType => "unsupported Rust type",
             Error::KeyNotString => "map key was not a string",
-            Error::KeyNewline => "map keys cannot contain newlines",
             Error::ArrayMixedType => "arrays cannot have mixed types",
             Error::ValueAfterTable => "values must be emitted before tables",
             Error::DateInvalid => "a serialized date was invalid",
             Error::NumberInvalid => "a serialized number was invalid",
             Error::UnsupportedNone => "unsupported None value",
             Error::Custom(_) => "custom error",
+            Error::KeyNewline => unreachable!(),
             Error::__Nonexhaustive => panic!(),
         }
     }

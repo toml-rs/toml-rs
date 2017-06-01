@@ -55,7 +55,7 @@ struct Time {
     hour: u8,
     minute: u8,
     second: u8,
-    secfract: f64,
+    nanosecond: u32,
 }
 
 #[derive(PartialEq, Clone)]
@@ -97,9 +97,9 @@ impl fmt::Display for Date {
 impl fmt::Display for Time {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         write!(f, "{:02}:{:02}:{:02}", self.hour, self.minute, self.second)?;
-        if self.secfract != 0.0 {
-            let s = format!("{}", self.secfract);
-            write!(f, "{}", s.trim_left_matches("0"))?;
+        if self.nanosecond != 0 {
+            let s = format!("{:09}", self.nanosecond);
+            write!(f, ".{}", s.trim_right_matches('0'))?;
         }
         Ok(())
     }
@@ -199,38 +199,37 @@ impl FromStr for Datetime {
             let s1 = digit(&mut chars)?;
             let s2 = digit(&mut chars)?;
 
-            let secfract = if chars.clone().next() == Some('.') {
+            let mut nanosecond = 0;
+            if chars.clone().next() == Some('.') {
                 chars.next();
-                let mut first = true;
                 let whole = chars.as_str();
+
                 let mut end = whole.len();
-                for (i, c) in whole.char_indices() {
-                    match c {
-                        '0' ... '9' => {}
+                for (i, byte) in whole.bytes().enumerate() {
+                    match byte {
+                        b'0' ... b'9' => {
+                            if i < 9 {
+                                let p = 10_u32.pow(8 - i as u32);
+                                nanosecond += p * (byte - b'0') as u32;
+                            }
+                        }
                         _ => {
                             end = i;
-                            break
+                            break;
                         }
                     }
-                    first = false;
                 }
-                if first {
+                if end == 0 {
                     return Err(DatetimeParseError { _private: () })
                 }
                 chars = whole[end..].chars();
-                match format!("0.{}", &whole[..end]).parse() {
-                    Ok(f) => f,
-                    Err(_) => return Err(DatetimeParseError { _private: () }),
-                }
-            } else {
-                0.0
-            };
+            }
 
             let time = Time {
                 hour: h1 * 10 + h2,
                 minute: m1 * 10 + m2,
                 second: s1 * 10 + s2,
-                secfract: secfract,
+                nanosecond: nanosecond,
             };
 
             if time.hour > 24 {
@@ -239,7 +238,10 @@ impl FromStr for Datetime {
             if time.minute > 59 {
                 return Err(DatetimeParseError { _private: () })
             }
-            if time.second > 60 {
+            if time.second > 59 {
+                return Err(DatetimeParseError { _private: () })
+            }
+            if time.nanosecond > 999_999_999 {
                 return Err(DatetimeParseError { _private: () })
             }
 
