@@ -308,8 +308,28 @@ impl<'a> Serializer<'a> {
             State::Array { .. } => true,
             _ => false,
         };
+
+        // Unlike [..]s, we can't omit [[..]] ancestors, so be sure to emit table
+        // headers for them.
+        let mut p = state;
+        if let State::Array { first, parent, .. } = *state {
+            if first.get() {
+                p = parent;
+            }
+        }
+        while let State::Table { first, parent, .. } = *p {
+            p = parent;
+            if !first.get() {
+                break;
+            }
+            if let State::Array { parent: &State::Table {..}, ..} = *parent {
+                self.emit_table_header(parent)?;
+                break;
+            }
+        }
+
         match *state {
-            State::Table { first , .. } |
+            State::Table { first, .. } |
             State::Array { parent: &State::Table { first, .. }, .. } => {
                 if !first.get() {
                     self.dst.push_str("\n");
