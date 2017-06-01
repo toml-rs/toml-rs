@@ -193,6 +193,9 @@ test!(example_bom,
 test!(datetime_truncate,
       include_str!("valid/datetime-truncate.toml"),
       include_str!("valid/datetime-truncate.json"));
+test!(key_quote_newline,
+      include_str!("valid/key-quote-newline.toml"),
+      include_str!("valid/key-quote-newline.json"));
 test!(table_array_nest_no_keys,
       include_str!("valid/table-array-nest-no-keys.toml"),
       include_str!("valid/table-array-nest-no-keys.json"));
