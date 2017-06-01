@@ -107,6 +107,10 @@ pub enum Error {
     /// attempted where the key of a map was not a string.
     KeyNotString,
 
+    /// An error that we never omit but keep for backwards compatibility
+    #[doc(hidden)]
+    KeyNewline,
+
     /// Arrays in TOML must have a homogenous type, but a heterogeneous array
     /// was emitted.
     ArrayMixedType,
@@ -1047,6 +1051,7 @@ impl fmt::Display for Error {
             Error::NumberInvalid => "a serialized number was invalid".fmt(f),
             Error::UnsupportedNone => "unsupported None value".fmt(f),
             Error::Custom(ref s) => s.fmt(f),
+            Error::KeyNewline => unreachable!(),
             Error::__Nonexhaustive => panic!(),
         }
     }
@@ -1063,6 +1068,7 @@ impl error::Error for Error {
             Error::NumberInvalid => "a serialized number was invalid",
             Error::UnsupportedNone => "unsupported None value",
             Error::Custom(_) => "custom error",
+            Error::KeyNewline => unreachable!(),
             Error::__Nonexhaustive => panic!(),
         }
     }
