@@ -218,7 +218,10 @@ impl FromStr for Datetime {
                     return Err(DatetimeParseError { _private: () })
                 }
                 chars = whole[end..].chars();
-                match format!("0.{}", &whole[..end]).parse() {
+
+                // truncate to picoseconds precision
+                let last = if end > 12 { 12 } else { end };
+                match format!("0.{}", &whole[..last]).parse() {
                     Ok(f) => f,
                     Err(_) => return Err(DatetimeParseError { _private: () }),
                 }

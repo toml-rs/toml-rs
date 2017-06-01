@@ -190,6 +190,9 @@ test!(example_bom,
        include_str!("valid/example-bom.toml"),
        include_str!("valid/example.json"));
 
+test!(datetime_truncate,
+      include_str!("valid/datetime-truncate.toml"),
+      include_str!("valid/datetime-truncate.json"));
 test!(table_array_nest_no_keys,
       include_str!("valid/table-array-nest-no-keys.toml"),
       include_str!("valid/table-array-nest-no-keys.json"));
