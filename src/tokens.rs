@@ -1,7 +1,11 @@
+extern crate unicode_categories;
+
 use std::borrow::Cow;
 use std::char;
 use std::str;
 use std::string;
+
+use self::unicode_categories::UnicodeCategories;
 
 use self::Token::*;
 
@@ -431,9 +435,9 @@ impl MaybeString {
 }
 
 fn is_keylike(ch: char) -> bool {
-    ('A' <= ch && ch <= 'Z') ||
-        ('a' <= ch && ch <= 'z') ||
-        ('0' <= ch && ch <= '9') ||
+    ch.is_letter() || 
+        ch.is_number() ||
+        ch.is_mark_nonspacing() || // this is necessary for dependent vowels
         ch == '-' ||
         ch == '_'
 }

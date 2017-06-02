@@ -63,6 +63,9 @@ macro_rules! test( ($name:ident, $toml:expr, $json:expr) => (
     fn $name() { run($toml, $json); }
 ) );
 
+test!(unicode_keys,
+       include_str!("valid/unicode-keys.toml"),
+       include_str!("valid/unicode-keys.json"));
 test!(array_empty,
        include_str!("valid/array-empty.toml"),
        include_str!("valid/array-empty.json"));
