@@ -620,6 +620,14 @@ impl<'de> de::MapAccess<'de> for MapDeserializer {
     }
 }
 
+impl<'de> de::IntoDeserializer<'de, ::de::Error> for Value {
+    type Deserializer = Self;
+
+    fn into_deserializer(self) -> Self {
+        self
+    }
+}
+
 struct Serializer;
 
 impl ser::Serializer for Serializer {
