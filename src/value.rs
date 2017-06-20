@@ -254,26 +254,24 @@ impl<S: Into<String> + Hash + Eq, V: Into<Value>> From<HashMap<S, V>> for Value 
 }
 
 macro_rules! impl_into_value {
-    ($variant:ident : $T:ty) => (impl_into_value!($variant: $T,););
-    ($variant:ident : $T:ty, $($extra:tt)*) => (
+    ($variant:ident : $T:ty) => {
         impl From<$T> for Value {
             #[inline]
             fn from(val: $T) -> Value {
-                Value::$variant(val $($extra)*)
+                Value::$variant(val.into())
             }
         }
-    )
+    }
 }
 
 impl_into_value!(String: String);
 impl_into_value!(Integer: i64);
-impl_into_value!(Integer: isize, as i64);
-impl_into_value!(Integer: i32, as i64);
-impl_into_value!(Integer: i8, as i64);
-impl_into_value!(Integer: u8, as i64);
-impl_into_value!(Integer: u32, as i64);
+impl_into_value!(Integer: i32);
+impl_into_value!(Integer: i8);
+impl_into_value!(Integer: u8);
+impl_into_value!(Integer: u32);
 impl_into_value!(Float: f64);
-impl_into_value!(Float: f32, as f64);
+impl_into_value!(Float: f32);
 impl_into_value!(Boolean: bool);
 impl_into_value!(Datetime: Datetime);
 
