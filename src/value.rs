@@ -1,6 +1,7 @@
 //! Definition of a TOML value
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
+use std::hash::Hash;
 use std::fmt;
 use std::ops;
 use std::str::FromStr;
@@ -219,47 +220,60 @@ impl<I> ops::IndexMut<I> for Value where I: Index {
     }
 }
 
-impl From<String> for Value {
-    fn from(val: String) -> Value {
-        Value::String(val)
+impl<'a> From<&'a str> for Value {
+    #[inline]
+    fn from(val: &'a str) -> Value {
+        Value::String(val.to_string())
     }
 }
 
-impl From<i64> for Value {
-    fn from(val: i64) -> Value {
-        Value::Integer(val)
+impl<V: Into<Value>> From<Vec<V>> for Value {
+    fn from(val: Vec<V>) -> Value {
+        Value::Array(val.into_iter().map(|v| v.into()).collect())
     }
 }
 
-impl From<f64> for Value {
-    fn from(val: f64) -> Value {
-        Value::Float(val)
+impl<S: Into<String>, V: Into<Value>> From<BTreeMap<S, V>> for Value {
+    fn from(val: BTreeMap<S, V>) -> Value {
+        let table = val.into_iter()
+            .map(|(s, v)| (s.into(), v.into()))
+            .collect();
+
+        Value::Table(table)
     }
 }
 
-impl From<bool> for Value {
-    fn from(val: bool) -> Value {
-        Value::Boolean(val)
+impl<S: Into<String> + Hash + Eq, V: Into<Value>> From<HashMap<S, V>> for Value {
+    fn from(val: HashMap<S, V>) -> Value {
+        let table = val.into_iter()
+            .map(|(s, v)| (s.into(), v.into()))
+            .collect();
+
+        Value::Table(table)
     }
 }
 
-impl From<Array> for Value {
-    fn from(val: Array) -> Value {
-        Value::Array(val)
+macro_rules! impl_into_value {
+    ($variant:ident : $T:ty) => {
+        impl From<$T> for Value {
+            #[inline]
+            fn from(val: $T) -> Value {
+                Value::$variant(val.into())
+            }
+        }
     }
 }
 
-impl From<Table> for Value {
-    fn from(val: Table) -> Value {
-        Value::Table(val)
-    }
-}
-
-impl From<Datetime> for Value {
-    fn from(val: Datetime) -> Value {
-        Value::Datetime(val)
-    }
-}
+impl_into_value!(String: String);
+impl_into_value!(Integer: i64);
+impl_into_value!(Integer: i32);
+impl_into_value!(Integer: i8);
+impl_into_value!(Integer: u8);
+impl_into_value!(Integer: u32);
+impl_into_value!(Float: f64);
+impl_into_value!(Float: f32);
+impl_into_value!(Boolean: bool);
+impl_into_value!(Datetime: Datetime);
 
 /// Types that can be used to index a `toml::Value`
 ///
