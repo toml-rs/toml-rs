@@ -525,3 +525,32 @@ fn newtypes() {
         Table(map! { b: Integer(2) }),
     }
 }
+
+#[test]
+fn newtypes2() {
+    #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
+	struct A {
+		b: B
+	}
+
+    #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
+	struct B(Option<C>);
+
+    #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
+	struct C {
+		x: u32,
+		y: u32,
+		z: u32
+	}
+
+    equivalent! {
+        A { b: B(Some(C { x: 0, y: 1, z: 2 })) },
+        Table(map! {
+            b: Table(map! {
+                x: Integer(0),
+                y: Integer(1),
+                z: Integer(2)
+            })
+        }),
+    }
+}
