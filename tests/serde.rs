@@ -509,3 +509,19 @@ fn extra_keys() {
     assert!(toml.clone().try_into::<Foo>().is_ok());
     assert!(toml::from_str::<Foo>(&toml.to_string()).is_ok());
 }
+
+#[test]
+fn newtypes() {
+    #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
+    struct A {
+        b: B
+    }
+
+    #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
+    struct B(u32);
+
+    equivalent! {
+        A { b: B(2) },
+        Table(map! { b: Integer(2) }),
+    }
+}

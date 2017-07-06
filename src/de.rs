@@ -248,7 +248,6 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
         }
     }
 
-
     forward_to_deserialize_any! {
         bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string seq
         bytes byte_buf map struct unit newtype_struct
@@ -560,9 +559,19 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
         }
     }
 
+    fn deserialize_newtype_struct<V>(
+        self,
+        _name: &'static str,
+        visitor: V
+    ) -> Result<V::Value, Error>
+        where V: de::Visitor<'de>
+    {
+        visitor.visit_newtype_struct(self)
+    }
+
     forward_to_deserialize_any! {
         bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string seq
-        bytes byte_buf map unit newtype_struct identifier
+        bytes byte_buf map unit identifier
         ignored_any unit_struct tuple_struct tuple
     }
 }

@@ -544,10 +544,20 @@ impl<'de> de::Deserializer<'de> for Value {
         visitor.visit_some(self)
     }
 
+    fn deserialize_newtype_struct<V>(
+        self,
+        _name: &'static str,
+        visitor: V
+    ) -> Result<V::Value, ::de::Error>
+        where V: de::Visitor<'de>
+    {
+        visitor.visit_newtype_struct(self)
+    }
+
     forward_to_deserialize_any! {
         bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string unit seq
         bytes byte_buf map unit_struct tuple_struct struct
-        tuple ignored_any newtype_struct identifier
+        tuple ignored_any identifier
     }
 }
 
