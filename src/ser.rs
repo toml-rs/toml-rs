@@ -214,6 +214,22 @@ impl<'a> Serializer<'a> {
         }
     }
 
+    /// instantiate a "pretty" formatter
+    /// 
+    /// TODO: add better docs
+    pub fn pretty(dst: &'a mut String) -> Serializer<'a> {
+        Serializer {
+            dst: dst,
+            state: State::End,
+            settings: Settings {
+                array: Some(ArraySettings {
+                    indent: 4,
+                }),
+                pretty_string: true,
+            },
+        }
+    }
+
     fn display<T: fmt::Display>(&mut self,
                                 t: T,
                                 type_: &'static str) -> Result<(), Error> {
@@ -300,12 +316,27 @@ impl<'a> Serializer<'a> {
     }
 
     fn emit_str(&mut self, value: &str) -> Result<(), Error> {
-        drop(write!(self.dst, "\""));
+        let do_pretty = if self.settings.pretty_string {
+            value.contains('\n')
+        } else {
+            false
+        };
+        if do_pretty {
+            drop(write!(self.dst, "'''\n"));
+        } else {
+            drop(write!(self.dst, "\""));
+        }
         for ch in value.chars() {
             match ch {
                 '\u{8}' => drop(write!(self.dst, "\\b")),
                 '\u{9}' => drop(write!(self.dst, "\\t")),
-                '\u{a}' => drop(write!(self.dst, "\\n")),
+                '\u{a}' => {
+                    if do_pretty {
+                        drop(write!(self.dst, "\n"));
+                    } else {
+                        drop(write!(self.dst, "\\n"));
+                    }
+                },
                 '\u{c}' => drop(write!(self.dst, "\\f")),
                 '\u{d}' => drop(write!(self.dst, "\\r")),
                 '\u{22}' => drop(write!(self.dst, "\\\"")),
@@ -316,7 +347,11 @@ impl<'a> Serializer<'a> {
                 ch => drop(write!(self.dst, "{}", ch)),
             }
         }
-        drop(write!(self.dst, "\""));
+        if do_pretty {
+            drop(write!(self.dst, "'''"));
+        } else {
+            drop(write!(self.dst, "\""));
+        }
         Ok(())
     }
 
