@@ -137,6 +137,21 @@ pub enum Error {
     __Nonexhaustive,
 }
 
+/// If given in `Settings` will result in a "pretty array" with the given settings
+/// TODO: add better docs
+#[derive(Debug, Default, Clone)]
+pub struct ArraySettings {
+    indent: u64,
+}
+
+/// Formatting Settings
+/// TODO: add better docs
+#[derive(Debug, Default, Clone)]
+pub struct Settings {
+    array: Option<ArraySettings>,
+    pretty_string: bool,
+}
+
 /// Serialization implementation for TOML.
 ///
 /// This structure implements serialization support for TOML to serialize an
@@ -149,6 +164,7 @@ pub enum Error {
 pub struct Serializer<'a> {
     dst: &'a mut String,
     state: State<'a>,
+    settings: Settings,
 }
 
 #[derive(Debug, Clone)]
@@ -194,6 +210,7 @@ impl<'a> Serializer<'a> {
         Serializer {
             dst: dst,
             state: State::End,
+            settings: Settings::default(),
         }
     }
 
@@ -591,6 +608,7 @@ impl<'a, 'b> ser::SerializeSeq for SerializeSeq<'a, 'b> {
                 first: &self.first,
                 type_: &self.type_,
             },
+            settings: self.ser.settings.clone(),
         })?;
         self.first.set(false);
         Ok(())
@@ -650,6 +668,7 @@ impl<'a, 'b> ser::SerializeMap for SerializeTable<'a, 'b> {
                         first: first,
                         table_emitted: table_emitted,
                     },
+                    settings: ser.settings.clone(),
                 });
                 match res {
                     Ok(()) => first.set(false),
@@ -705,6 +724,7 @@ impl<'a, 'b> ser::SerializeStruct for SerializeTable<'a, 'b> {
                         first: first,
                         table_emitted: table_emitted,
                     },
+                    settings: ser.settings.clone(),
                 });
                 match res {
                     Ok(()) => first.set(false),
