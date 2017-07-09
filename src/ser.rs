@@ -142,6 +142,7 @@ pub enum Error {
 #[derive(Debug, Default, Clone)]
 pub struct ArraySettings {
     indent: u64,
+    trailing_comma: bool,
 }
 
 /// Formatting Settings
@@ -224,6 +225,7 @@ impl<'a> Serializer<'a> {
             settings: Settings {
                 array: Some(ArraySettings {
                     indent: 4,
+                    trailing_comma: true,
                 }),
                 pretty_string: true,
             },
@@ -667,10 +669,16 @@ impl<'a, 'b> ser::SerializeSeq for SerializeSeq<'a, 'b> {
         match self.type_.get() {
             Some("table") => return Ok(()),
             Some(_) => {
-                if self.ser.settings.array.is_some() {
-                    self.ser.dst.push_str("\n]");
-                } else {
-                    self.ser.dst.push_str("]");
+                match self.ser.settings.array {
+                    Some(ref a) => {
+                        if a.trailing_comma {
+                            self.ser.dst.push_str(",");
+                        }
+                        self.ser.dst.push_str("\n]");
+                    },
+                    None => {
+                        self.ser.dst.push_str("]");
+                    }
                 }
             }
             None => {
