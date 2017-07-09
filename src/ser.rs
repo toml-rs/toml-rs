@@ -274,10 +274,24 @@ impl<'a> Serializer<'a> {
     }
 
     fn emit_array(&mut self, first: &Cell<bool>) -> Result<(), Error> {
-        if first.get() {
-            self.dst.push_str("[");
-        } else {
-            self.dst.push_str(", ");
+        match self.settings.array {
+            Some(ref a) => {
+                if first.get() {
+                    self.dst.push_str("[\n")
+                } else {
+                    self.dst.push_str(",\n")
+                }
+                for _ in 0..a.indent {
+                    self.dst.push_str(" ");
+                }
+            },
+            None => {
+                if first.get() {
+                    self.dst.push_str("[")
+                } else {
+                    self.dst.push_str(", ")
+                }
+            },
         }
         Ok(())
     }
@@ -652,7 +666,13 @@ impl<'a, 'b> ser::SerializeSeq for SerializeSeq<'a, 'b> {
     fn end(self) -> Result<(), Error> {
         match self.type_.get() {
             Some("table") => return Ok(()),
-            Some(_) => self.ser.dst.push_str("]"),
+            Some(_) => {
+                if self.ser.settings.array.is_some() {
+                    self.ser.dst.push_str("\n]");
+                } else {
+                    self.ser.dst.push_str("]");
+                }
+            }
             None => {
                 assert!(self.first.get());
                 self.ser.emit_key("array")?;
