@@ -3,7 +3,7 @@ extern crate serde;
 
 use serde::ser::Serialize;
 
-const EXAMPLE: &str = "\
+const EXAMPLE: &'static str = "\
 [example]
 array = [
     \"item 1\",
