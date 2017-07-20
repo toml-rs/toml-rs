@@ -137,18 +137,27 @@ pub enum Error {
     __Nonexhaustive,
 }
 
-/// If given in `Settings` will result in a "pretty array" with the given settings
-/// TODO: add better docs
 #[derive(Debug, Default, Clone)]
-pub struct ArraySettings {
-    indent: u64,
+#[doc(hidden)]
+/// Internal place for holding array setings
+struct ArraySettings {
+    indent: usize,
     trailing_comma: bool,
 }
 
-/// Formatting Settings
-/// TODO: add better docs
+impl ArraySettings {
+    fn pretty() -> ArraySettings {
+        ArraySettings {
+            indent: 4,
+            trailing_comma: true,
+        }
+    }
+}
+
 #[derive(Debug, Default, Clone)]
-pub struct Settings {
+#[doc(hidden)]
+/// Internal struct for holding serialization settings
+struct Settings {
     array: Option<ArraySettings>,
     pretty_string: bool,
 }
@@ -215,21 +224,70 @@ impl<'a> Serializer<'a> {
         }
     }
 
-    /// instantiate a "pretty" formatter
-    /// 
-    /// TODO: add better docs
+    /// Instantiate a "pretty" formatter
+    ///
+    /// By default this will use :
+    /// - pretty strings
+    /// - arrays with an indentation of 4 and a trailing comma
     pub fn pretty(dst: &'a mut String) -> Serializer<'a> {
         Serializer {
             dst: dst,
             state: State::End,
             settings: Settings {
-                array: Some(ArraySettings {
-                    indent: 4,
-                    trailing_comma: true,
-                }),
+                array: Some(ArraySettings::pretty()),
                 pretty_string: true,
             },
         }
+    }
+
+    /// Enable or Disable pretty strings
+    pub fn pretty_string(&mut self, value: bool) -> &mut Self {
+        self.settings.pretty_string = value;
+        self
+    }
+
+    /// Enable or Disable pretty arrays
+    pub fn pretty_array(&mut self, value: bool) -> &mut Self {
+        self.settings.array = Some(if value {
+            ArraySettings::pretty()
+        } else {
+            ArraySettings::default()
+        });
+        self
+    }
+
+    /// Set the indent to value for pretty arrays
+    pub fn pretty_array_indent(&mut self, value: usize) -> &mut Self {
+        let use_default = if let &mut Some(ref mut a) = &mut self.settings.array {
+            a.indent = value;
+            false
+        } else {
+            true
+        };
+
+        if use_default {
+            let mut array = ArraySettings::pretty();
+            array.indent = value;
+            self.settings.array = Some(array);
+        }
+        self
+    }
+
+    /// Specify whether to use a trailing comma when serializing pretty arrays
+    pub fn pretty_array_trailing_comma(&mut self, value: bool) -> &mut Self {
+        let use_default = if let &mut Some(ref mut a) = &mut self.settings.array {
+            a.trailing_comma = value;
+            false
+        } else {
+            true
+        };
+
+        if use_default {
+            let mut array = ArraySettings::pretty();
+            array.trailing_comma = value;
+            self.settings.array = Some(array);
+        }
+        self
     }
 
     fn display<T: fmt::Display>(&mut self,
