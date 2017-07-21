@@ -413,7 +413,13 @@ impl<'a> Serializer<'a> {
                 },
                 '\u{c}' => drop(write!(self.dst, "\\f")),
                 '\u{d}' => drop(write!(self.dst, "\\r")),
-                '\u{22}' => drop(write!(self.dst, "\\\"")),
+                '\u{22}' => {
+                    if do_pretty {
+                        drop(write!(self.dst, "\""))
+                    } else {
+                        drop(write!(self.dst, "\\\""))
+                    }
+                },
                 '\u{5c}' => drop(write!(self.dst, "\\\\")),
                 c if c < '\u{1f}' => {
                     drop(write!(self.dst, "\\u{:04X}", ch as u32))
