@@ -93,6 +93,18 @@ pub fn to_string<T: ?Sized>(value: &T) -> Result<String, Error>
     Ok(dst)
 }
 
+/// Serialize the given data structure as a "pretty" String of TOML.
+///
+/// This is identical to `to_string` except the output string has a more
+/// "pretty" output. See `Serializer::pretty` for more details.
+pub fn to_string_pretty<T: ?Sized>(value: &T) -> Result<String, Error>
+    where T: ser::Serialize,
+{
+    let mut dst = String::with_capacity(128);
+    value.serialize(&mut Serializer::pretty(&mut dst))?;
+    Ok(dst)
+}
+
 /// Errors that can occur when serializing a type.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Error {
@@ -226,9 +238,12 @@ impl<'a> Serializer<'a> {
 
     /// Instantiate a "pretty" formatter
     ///
-    /// By default this will use :
-    /// - pretty strings
-    /// - arrays with an indentation of 4 and a trailing comma
+    /// By default this will use:
+    ///
+    /// - pretty strings: strings with newlines will use the `'''` syntax. See
+    ///   `Serializer::pretty_string`
+    /// - pretty arrays: each item in arrays will be on a newline, have an indentation of 4 and
+    ///   have a trailing comma. See `Serializer::pretty_array`
     pub fn pretty(dst: &'a mut String) -> Serializer<'a> {
         Serializer {
             dst: dst,
@@ -241,12 +256,59 @@ impl<'a> Serializer<'a> {
     }
 
     /// Enable or Disable pretty strings
+    ///
+    /// If enabled, strings with one or more newline character will use the `'''` syntax.
+    ///
+    /// # Examples
+    ///
+    /// Instead of:
+    ///
+    /// ```toml,no_run
+    /// single = "no newlines"
+    /// text = "\nfoo\nbar\n"
+    /// ```
+    ///
+    /// You will have:
+    ///
+    /// ```toml,no_run
+    /// single = "no newlines"
+    /// text = '''
+    /// foo
+    /// bar
+    /// '''
+    /// ```
     pub fn pretty_string(&mut self, value: bool) -> &mut Self {
         self.settings.pretty_string = value;
         self
     }
 
     /// Enable or Disable pretty arrays
+    ///
+    /// If enabled, arrays will always have each item on their own line.
+    ///
+    /// Some specific features can be controlled via other builder methods:
+    ///
+    /// - `Serializer::pretty_array_indent`: set the indent to a value other
+    ///   than 4.
+    /// - `Serializer::pretty_array_trailing_comma`: enable/disable the trailing
+    ///   comma on the last item.
+    ///
+    /// # Examples
+    ///
+    /// Instead of:
+    ///
+    /// ```toml,no_run
+    /// array = ["foo", "bar"]
+    /// ```
+    ///
+    /// You will have:
+    ///
+    /// ```toml,no_run
+    /// array = [
+    ///     "foo",
+    ///     "bar",
+    /// ]
+    /// ```
     pub fn pretty_array(&mut self, value: bool) -> &mut Self {
         self.settings.array = Some(if value {
             ArraySettings::pretty()
@@ -256,7 +318,9 @@ impl<'a> Serializer<'a> {
         self
     }
 
-    /// Set the indent to value for pretty arrays
+    /// Set the indent for pretty arrays
+    ///
+    /// See `Serializer::pretty_array` for more details.
     pub fn pretty_array_indent(&mut self, value: usize) -> &mut Self {
         let use_default = if let &mut Some(ref mut a) = &mut self.settings.array {
             a.indent = value;
@@ -274,6 +338,8 @@ impl<'a> Serializer<'a> {
     }
 
     /// Specify whether to use a trailing comma when serializing pretty arrays
+    ///
+    /// See `Serializer::pretty_array` for more details.
     pub fn pretty_array_trailing_comma(&mut self, value: bool) -> &mut Self {
         let use_default = if let &mut Some(ref mut a) = &mut self.settings.array {
             a.trailing_comma = value;
