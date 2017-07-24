@@ -93,6 +93,18 @@ pub fn to_string<T: ?Sized>(value: &T) -> Result<String, Error>
     Ok(dst)
 }
 
+/// Serialize the given data structure as a "pretty" String of TOML.
+///
+/// This is identical to `to_string` except the output string has a more
+/// "pretty" output. See `Serializer::pretty` for more details.
+pub fn to_string_pretty<T: ?Sized>(value: &T) -> Result<String, Error>
+    where T: ser::Serialize,
+{
+    let mut dst = String::with_capacity(128);
+    value.serialize(&mut Serializer::pretty(&mut dst))?;
+    Ok(dst)
+}
+
 /// Errors that can occur when serializing a type.
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub enum Error {
@@ -137,6 +149,31 @@ pub enum Error {
     __Nonexhaustive,
 }
 
+#[derive(Debug, Default, Clone)]
+#[doc(hidden)]
+/// Internal place for holding array setings
+struct ArraySettings {
+    indent: usize,
+    trailing_comma: bool,
+}
+
+impl ArraySettings {
+    fn pretty() -> ArraySettings {
+        ArraySettings {
+            indent: 4,
+            trailing_comma: true,
+        }
+    }
+}
+
+#[derive(Debug, Default, Clone)]
+#[doc(hidden)]
+/// Internal struct for holding serialization settings
+struct Settings {
+    array: Option<ArraySettings>,
+    pretty_string: bool,
+}
+
 /// Serialization implementation for TOML.
 ///
 /// This structure implements serialization support for TOML to serialize an
@@ -149,6 +186,7 @@ pub enum Error {
 pub struct Serializer<'a> {
     dst: &'a mut String,
     state: State<'a>,
+    settings: Settings,
 }
 
 #[derive(Debug, Clone)]
@@ -194,7 +232,128 @@ impl<'a> Serializer<'a> {
         Serializer {
             dst: dst,
             state: State::End,
+            settings: Settings::default(),
         }
+    }
+
+    /// Instantiate a "pretty" formatter
+    ///
+    /// By default this will use:
+    ///
+    /// - pretty strings: strings with newlines will use the `'''` syntax. See
+    ///   `Serializer::pretty_string`
+    /// - pretty arrays: each item in arrays will be on a newline, have an indentation of 4 and
+    ///   have a trailing comma. See `Serializer::pretty_array`
+    pub fn pretty(dst: &'a mut String) -> Serializer<'a> {
+        Serializer {
+            dst: dst,
+            state: State::End,
+            settings: Settings {
+                array: Some(ArraySettings::pretty()),
+                pretty_string: true,
+            },
+        }
+    }
+
+    /// Enable or Disable pretty strings
+    ///
+    /// If enabled, strings with one or more newline character will use the `'''` syntax.
+    ///
+    /// # Examples
+    ///
+    /// Instead of:
+    ///
+    /// ```ignore
+    /// single = "no newlines"
+    /// text = "\nfoo\nbar\n"
+    /// ```
+    ///
+    /// You will have:
+    ///
+    /// ```ignore
+    /// single = "no newlines"
+    /// text = '''
+    /// foo
+    /// bar
+    /// '''
+    /// ```
+    pub fn pretty_string(&mut self, value: bool) -> &mut Self {
+        self.settings.pretty_string = value;
+        self
+    }
+
+    /// Enable or Disable pretty arrays
+    ///
+    /// If enabled, arrays will always have each item on their own line.
+    ///
+    /// Some specific features can be controlled via other builder methods:
+    ///
+    /// - `Serializer::pretty_array_indent`: set the indent to a value other
+    ///   than 4.
+    /// - `Serializer::pretty_array_trailing_comma`: enable/disable the trailing
+    ///   comma on the last item.
+    ///
+    /// # Examples
+    ///
+    /// Instead of:
+    ///
+    /// ```ignore
+    /// array = ["foo", "bar"]
+    /// ```
+    ///
+    /// You will have:
+    ///
+    /// ```ignore
+    /// array = [
+    ///     "foo",
+    ///     "bar",
+    /// ]
+    /// ```
+    pub fn pretty_array(&mut self, value: bool) -> &mut Self {
+        self.settings.array = if value {
+            Some(ArraySettings::pretty())
+        } else {
+            None
+        };
+        self
+    }
+
+    /// Set the indent for pretty arrays
+    ///
+    /// See `Serializer::pretty_array` for more details.
+    pub fn pretty_array_indent(&mut self, value: usize) -> &mut Self {
+        let use_default = if let &mut Some(ref mut a) = &mut self.settings.array {
+            a.indent = value;
+            false
+        } else {
+            true
+        };
+
+        if use_default {
+            let mut array = ArraySettings::pretty();
+            array.indent = value;
+            self.settings.array = Some(array);
+        }
+        self
+    }
+
+    /// Specify whether to use a trailing comma when serializing pretty arrays
+    ///
+    /// See `Serializer::pretty_array` for more details.
+    pub fn pretty_array_trailing_comma(&mut self, value: bool) -> &mut Self {
+        let use_default = if let &mut Some(ref mut a) = &mut self.settings.array {
+            a.trailing_comma = value;
+            false
+        } else {
+            true
+        };
+
+        if use_default {
+            let mut array = ArraySettings::pretty();
+            array.trailing_comma = value;
+            self.settings.array = Some(array);
+        }
+        self
     }
 
     fn display<T: fmt::Display>(&mut self,
@@ -241,10 +400,24 @@ impl<'a> Serializer<'a> {
     }
 
     fn emit_array(&mut self, first: &Cell<bool>) -> Result<(), Error> {
-        if first.get() {
-            self.dst.push_str("[");
-        } else {
-            self.dst.push_str(", ");
+        match self.settings.array {
+            Some(ref a) => {
+                if first.get() {
+                    self.dst.push_str("[\n")
+                } else {
+                    self.dst.push_str(",\n")
+                }
+                for _ in 0..a.indent {
+                    self.dst.push_str(" ");
+                }
+            },
+            None => {
+                if first.get() {
+                    self.dst.push_str("[")
+                } else {
+                    self.dst.push_str(", ")
+                }
+            },
         }
         Ok(())
     }
@@ -283,15 +456,36 @@ impl<'a> Serializer<'a> {
     }
 
     fn emit_str(&mut self, value: &str) -> Result<(), Error> {
-        drop(write!(self.dst, "\""));
+        let do_pretty = if self.settings.pretty_string {
+            value.contains('\n')
+        } else {
+            false
+        };
+        if do_pretty {
+            drop(write!(self.dst, "'''\n"));
+        } else {
+            drop(write!(self.dst, "\""));
+        }
         for ch in value.chars() {
             match ch {
                 '\u{8}' => drop(write!(self.dst, "\\b")),
                 '\u{9}' => drop(write!(self.dst, "\\t")),
-                '\u{a}' => drop(write!(self.dst, "\\n")),
+                '\u{a}' => {
+                    if do_pretty {
+                        drop(write!(self.dst, "\n"));
+                    } else {
+                        drop(write!(self.dst, "\\n"));
+                    }
+                },
                 '\u{c}' => drop(write!(self.dst, "\\f")),
                 '\u{d}' => drop(write!(self.dst, "\\r")),
-                '\u{22}' => drop(write!(self.dst, "\\\"")),
+                '\u{22}' => {
+                    if do_pretty {
+                        drop(write!(self.dst, "\""))
+                    } else {
+                        drop(write!(self.dst, "\\\""))
+                    }
+                },
                 '\u{5c}' => drop(write!(self.dst, "\\\\")),
                 c if c < '\u{1f}' => {
                     drop(write!(self.dst, "\\u{:04X}", ch as u32))
@@ -299,7 +493,11 @@ impl<'a> Serializer<'a> {
                 ch => drop(write!(self.dst, "{}", ch)),
             }
         }
-        drop(write!(self.dst, "\""));
+        if do_pretty {
+            drop(write!(self.dst, "'''"));
+        } else {
+            drop(write!(self.dst, "\""));
+        }
         Ok(())
     }
 
@@ -591,6 +789,7 @@ impl<'a, 'b> ser::SerializeSeq for SerializeSeq<'a, 'b> {
                 first: &self.first,
                 type_: &self.type_,
             },
+            settings: self.ser.settings.clone(),
         })?;
         self.first.set(false);
         Ok(())
@@ -599,7 +798,19 @@ impl<'a, 'b> ser::SerializeSeq for SerializeSeq<'a, 'b> {
     fn end(self) -> Result<(), Error> {
         match self.type_.get() {
             Some("table") => return Ok(()),
-            Some(_) => self.ser.dst.push_str("]"),
+            Some(_) => {
+                match self.ser.settings.array {
+                    Some(ref a) => {
+                        if a.trailing_comma {
+                            self.ser.dst.push_str(",");
+                        }
+                        self.ser.dst.push_str("\n]");
+                    },
+                    None => {
+                        self.ser.dst.push_str("]");
+                    }
+                }
+            }
             None => {
                 assert!(self.first.get());
                 self.ser.emit_key("array")?;
@@ -650,6 +861,7 @@ impl<'a, 'b> ser::SerializeMap for SerializeTable<'a, 'b> {
                         first: first,
                         table_emitted: table_emitted,
                     },
+                    settings: ser.settings.clone(),
                 });
                 match res {
                     Ok(()) => first.set(false),
@@ -705,6 +917,7 @@ impl<'a, 'b> ser::SerializeStruct for SerializeTable<'a, 'b> {
                         first: first,
                         table_emitted: table_emitted,
                     },
+                    settings: ser.settings.clone(),
                 });
                 match res {
                     Ok(()) => first.set(false),
