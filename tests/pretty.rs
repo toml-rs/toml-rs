@@ -3,6 +3,41 @@ extern crate serde;
 
 use serde::ser::Serialize;
 
+const NO_PRETTY: &'static str = "\
+[example]
+array = [\"item 1\", \"item 2\"]
+empty = []
+oneline = \"this has no newlines.\"
+text = \"\\nthis is the first line\\nthis is the second line\\n\"
+";
+
+#[test]
+fn no_pretty() {
+    let toml = NO_PRETTY;
+    let value: toml::Value = toml::from_str(toml).unwrap();
+    let mut result = String::with_capacity(128);
+    value.serialize(&mut toml::Serializer::new(&mut result)).unwrap();
+    println!("EXPECTED:\n{}", toml);
+    println!("\nRESULT:\n{}", result);
+    assert_eq!(toml, &result);
+}
+
+#[test]
+fn disable_pretty() {
+    let toml = NO_PRETTY;
+    let value: toml::Value = toml::from_str(toml).unwrap();
+    let mut result = String::with_capacity(128);
+    {
+        let mut serializer = toml::Serializer::pretty(&mut result);
+        serializer.pretty_string(false);
+        serializer.pretty_array(false);
+        value.serialize(&mut serializer).unwrap();
+    }
+    println!("EXPECTED:\n{}", toml);
+    println!("\nRESULT:\n{}", result);
+    assert_eq!(toml, &result);
+}
+
 const PRETTY_STD: &'static str = "\
 [example]
 array = [
@@ -18,7 +53,7 @@ this is the second line
 ";
 
 #[test]
-fn test_pretty_std() {
+fn pretty_std() {
     let toml = PRETTY_STD;
     let value: toml::Value = toml::from_str(toml).unwrap();
     let mut result = String::with_capacity(128);
@@ -44,7 +79,7 @@ this is the second line
 ";
 
 #[test]
-fn test_pretty_indent_2() {
+fn pretty_indent_2() {
     let toml = PRETTY_INDENT_2;
     let value: toml::Value = toml::from_str(toml).unwrap();
     let mut result = String::with_capacity(128);
@@ -70,7 +105,7 @@ text = \"\\nthis is the first line\\nthis is the second line\\n\"
 
 #[test]
 /// Test pretty indent when gotten the other way
-fn test_pretty_indent_2_other() {
+fn pretty_indent_2_other() {
     let toml = PRETTY_INDENT_2_OTHER;
     let value: toml::Value = toml::from_str(toml).unwrap();
     let mut result = String::with_capacity(128);
@@ -95,7 +130,7 @@ text = \"\\nthis is the first line\\nthis is the second line\\n\"
 ";
 #[test]
 /// Test pretty indent when gotten the other way
-fn test_pretty_indent_array_no_comma() {
+fn pretty_indent_array_no_comma() {
     let toml = PRETTY_ARRAY_NO_COMMA;
     let value: toml::Value = toml::from_str(toml).unwrap();
     let mut result = String::with_capacity(128);
@@ -120,7 +155,7 @@ text = \"\\nthis is the first line\\nthis is the second line\\n\"
 ";
 #[test]
 /// Test pretty indent when gotten the other way
-fn test_pretty_no_string() {
+fn pretty_no_string() {
     let toml = PRETTY_NO_STRING;
     let value: toml::Value = toml::from_str(toml).unwrap();
     let mut result = String::with_capacity(128);

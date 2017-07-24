@@ -310,11 +310,11 @@ impl<'a> Serializer<'a> {
     /// ]
     /// ```
     pub fn pretty_array(&mut self, value: bool) -> &mut Self {
-        self.settings.array = Some(if value {
-            ArraySettings::pretty()
+        self.settings.array = if value {
+            Some(ArraySettings::pretty())
         } else {
-            ArraySettings::default()
-        });
+            None
+        };
         self
     }
 
