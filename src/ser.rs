@@ -930,6 +930,15 @@ impl<'a, 'b> ser::SerializeStruct for SerializeTable<'a, 'b> {
     }
 
     fn end(self) -> Result<(), Error> {
+        match self {
+            SerializeTable::Datetime(_) => {},
+            SerializeTable::Table { mut ser, first, ..  } => {
+                if first.get() {
+                    let state = ser.state.clone();
+                    ser.emit_table_header(&state)?;
+                }
+            }
+        }
         Ok(())
     }
 }
