@@ -97,6 +97,7 @@ pub fn to_string<T: ?Sized>(value: &T) -> Result<String, Error>
 ///
 /// This is identical to `to_string` except the output string has a more
 /// "pretty" output. See `Serializer::pretty` for more details.
+#[cfg(feature = "beta")]
 pub fn to_string_pretty<T: ?Sized>(value: &T) -> Result<String, Error>
     where T: ser::Serialize,
 {
@@ -157,6 +158,7 @@ struct ArraySettings {
     trailing_comma: bool,
 }
 
+#[cfg(feature = "beta")]
 impl ArraySettings {
     fn pretty() -> ArraySettings {
         ArraySettings {
@@ -244,6 +246,7 @@ impl<'a> Serializer<'a> {
     ///   `Serializer::pretty_string`
     /// - pretty arrays: each item in arrays will be on a newline, have an indentation of 4 and
     ///   have a trailing comma. See `Serializer::pretty_array`
+    #[cfg(feature = "beta")]
     pub fn pretty(dst: &'a mut String) -> Serializer<'a> {
         Serializer {
             dst: dst,
@@ -277,6 +280,7 @@ impl<'a> Serializer<'a> {
     /// bar
     /// '''
     /// ```
+    #[cfg(feature = "beta")]
     pub fn pretty_string(&mut self, value: bool) -> &mut Self {
         self.settings.pretty_string = value;
         self
@@ -309,6 +313,7 @@ impl<'a> Serializer<'a> {
     ///     "bar",
     /// ]
     /// ```
+    #[cfg(feature = "beta")]
     pub fn pretty_array(&mut self, value: bool) -> &mut Self {
         self.settings.array = if value {
             Some(ArraySettings::pretty())
@@ -321,6 +326,7 @@ impl<'a> Serializer<'a> {
     /// Set the indent for pretty arrays
     ///
     /// See `Serializer::pretty_array` for more details.
+    #[cfg(feature = "beta")]
     pub fn pretty_array_indent(&mut self, value: usize) -> &mut Self {
         let use_default = if let &mut Some(ref mut a) = &mut self.settings.array {
             a.indent = value;
@@ -340,6 +346,7 @@ impl<'a> Serializer<'a> {
     /// Specify whether to use a trailing comma when serializing pretty arrays
     ///
     /// See `Serializer::pretty_array` for more details.
+    #[cfg(feature = "beta")]
     pub fn pretty_array_trailing_comma(&mut self, value: bool) -> &mut Self {
         let use_default = if let &mut Some(ref mut a) = &mut self.settings.array {
             a.trailing_comma = value;

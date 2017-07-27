@@ -161,7 +161,11 @@ mod datetime;
 
 pub mod ser;
 #[doc(no_inline)]
-pub use ser::{to_string, to_string_pretty, to_vec, Serializer};
+pub use ser::{to_string, to_vec, Serializer};
+#[cfg(feature = "beta")]
+#[doc(no_inline)]
+pub use ser::to_string_pretty;
+
 pub mod de;
 #[doc(no_inline)]
 pub use de::{from_slice, from_str, Deserializer};
