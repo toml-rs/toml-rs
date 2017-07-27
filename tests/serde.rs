@@ -554,3 +554,25 @@ fn newtypes2() {
         }),
     }
 }
+
+#[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
+struct CanBeEmpty {
+    a: Option<String>,
+    b: Option<String>,
+}
+
+#[test]
+fn table_structs_empty() {
+    let text = "[bar]\n\n[baz]\n\n[bazv]\na = \"foo\"\n\n[foo]\n";
+    let value: BTreeMap<String, CanBeEmpty> = toml::from_str(text).unwrap();
+    let mut expected: BTreeMap<String, CanBeEmpty> = BTreeMap::new();
+    expected.insert("bar".to_string(), CanBeEmpty::default());
+    expected.insert("baz".to_string(), CanBeEmpty::default());
+    expected.insert(
+        "bazv".to_string(), 
+        CanBeEmpty {a: Some("foo".to_string()), b: None},
+    );
+    expected.insert("foo".to_string(), CanBeEmpty::default());
+    assert_eq!(value, expected);
+    assert_eq!(toml::to_string(&value).unwrap(), text);
+}

@@ -162,6 +162,9 @@ test!(table_empty,
 test!(table_sub_empty,
        include_str!("valid/table-sub-empty.toml"),
        include_str!("valid/table-sub-empty.json"));
+test!(table_multi_empty,
+       include_str!("valid/table-multi-empty.toml"),
+       include_str!("valid/table-multi-empty.json"));
 test!(table_whitespace,
        include_str!("valid/table-whitespace.toml"),
        include_str!("valid/table-whitespace.json"));
