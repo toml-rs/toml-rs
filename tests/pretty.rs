@@ -166,3 +166,22 @@ fn pretty_no_string() {
     }
     assert_eq!(toml, &result);
 }
+
+const PRETTY_TRICKY: &'static str = r"[example]
+text = '''
+this is the first line
+This has a ''\' in it for no reason
+this is the third line
+'''
+";
+
+#[test]
+fn pretty_tricky() {
+    let toml = PRETTY_TRICKY;
+    let value: toml::Value = toml::from_str(toml).unwrap();
+    let mut result = String::with_capacity(128);
+    value.serialize(&mut toml::Serializer::pretty(&mut result)).unwrap();
+    println!("EXPECTED:\n{}", toml);
+    println!("\nRESULT:\n{}", result);
+    assert_eq!(toml, &result);
+}

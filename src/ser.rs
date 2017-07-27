@@ -450,14 +450,18 @@ impl<'a> Serializer<'a> {
         if ok {
             drop(write!(self.dst, "{}", key));
         } else {
-            self.emit_str(key)?;
+            self.emit_str(key, true)?;
         }
         Ok(())
     }
 
-    fn emit_str(&mut self, value: &str) -> Result<(), Error> {
-        let do_pretty = if self.settings.pretty_string {
-            value.contains('\n')
+    fn emit_str(&mut self, value: &str, is_key: bool) -> Result<(), Error> {
+        let do_pretty = if !is_key && self.settings.pretty_string {
+            // do pretty only if the block contains at least one newline
+            value.contains('\n') 
+                // but not if it contains any of these, as they are not
+                // representable
+                && !value.contains("'''")
         } else {
             false
         };
@@ -466,31 +470,21 @@ impl<'a> Serializer<'a> {
         } else {
             drop(write!(self.dst, "\""));
         }
-        for ch in value.chars() {
-            match ch {
-                '\u{8}' => drop(write!(self.dst, "\\b")),
-                '\u{9}' => drop(write!(self.dst, "\\t")),
-                '\u{a}' => {
-                    if do_pretty {
-                        drop(write!(self.dst, "\n"));
-                    } else {
-                        drop(write!(self.dst, "\\n"));
-                    }
-                },
-                '\u{c}' => drop(write!(self.dst, "\\f")),
-                '\u{d}' => drop(write!(self.dst, "\\r")),
-                '\u{22}' => {
-                    if do_pretty {
-                        drop(write!(self.dst, "\""))
-                    } else {
-                        drop(write!(self.dst, "\\\""))
-                    }
-                },
-                '\u{5c}' => drop(write!(self.dst, "\\\\")),
-                c if c < '\u{1f}' => {
-                    drop(write!(self.dst, "\\u{:04X}", ch as u32))
+        if do_pretty {
+            drop(write!(self.dst, "{}", value));
+        } else {
+            for ch in value.chars() {
+                match ch {
+                    '\u{8}' => drop(write!(self.dst, "\\b")),
+                    '\u{9}' => drop(write!(self.dst, "\\t")),
+                    '\u{a}' => drop(write!(self.dst, "\\n")),
+                    '\u{c}' => drop(write!(self.dst, "\\f")),
+                    '\u{d}' => drop(write!(self.dst, "\\r")),
+                    '\u{22}' => drop(write!(self.dst, "\\\"")),
+                    '\u{5c}' => drop(write!(self.dst, "\\\\")),
+                    c if c < '\u{1f}' => drop(write!(self.dst, "\\u{:04X}", ch as u32)),
+                    ch => drop(write!(self.dst, "{}", ch)),
                 }
-                ch => drop(write!(self.dst, "{}", ch)),
             }
         }
         if do_pretty {
@@ -651,7 +645,7 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
 
     fn serialize_str(mut self, value: &str) -> Result<(), Self::Error> {
         self.emit_key("string")?;
-        self.emit_str(value)?;
+        self.emit_str(value, false)?;
         if let State::Table { .. } = self.state {
             self.dst.push_str("\n");
         }
