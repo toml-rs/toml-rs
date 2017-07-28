@@ -201,6 +201,7 @@ enum State<'a> {
         parent: &'a State<'a>,
         first: &'a Cell<bool>,
         type_: &'a Cell<Option<&'static str>>,
+        len: Option<usize>,
     },
     End,
 }
@@ -210,6 +211,7 @@ pub struct SerializeSeq<'a: 'b, 'b> {
     ser: &'b mut Serializer<'a>,
     first: Cell<bool>,
     type_: Cell<Option<&'static str>>,
+    len: Option<usize>,
 }
 
 #[doc(hidden)]
@@ -377,12 +379,12 @@ impl<'a> Serializer<'a> {
     fn _emit_key(&mut self, state: &State) -> Result<(), Error> {
         match *state {
             State::End => Ok(()),
-            State::Array { parent, first, type_ } => {
+            State::Array { parent, first, type_, len } => {
                 assert!(type_.get().is_some());
                 if first.get() {
                     self._emit_key(parent)?;
                 }
-                self.emit_array(first)
+                self.emit_array(first, len)
             }
             State::Table { parent, first, table_emitted, key } => {
                 if table_emitted.get() {
@@ -399,9 +401,16 @@ impl<'a> Serializer<'a> {
         }
     }
 
-    fn emit_array(&mut self, first: &Cell<bool>) -> Result<(), Error> {
-        match self.settings.array {
-            Some(ref a) => {
+    fn emit_array(&mut self, first: &Cell<bool>, len: Option<usize>) -> Result<(), Error> {
+        match (len, &self.settings.array) {
+            (Some(0...1), _) | (_, &None) => {
+                if first.get() {
+                    self.dst.push_str("[")
+                } else {
+                    self.dst.push_str(", ")
+                }
+            },
+            (_, &Some(ref a)) => {
                 if first.get() {
                     self.dst.push_str("[\n")
                 } else {
@@ -409,13 +418,6 @@ impl<'a> Serializer<'a> {
                 }
                 for _ in 0..a.indent {
                     self.dst.push_str(" ");
-                }
-            },
-            None => {
-                if first.get() {
-                    self.dst.push_str("[")
-                } else {
-                    self.dst.push_str(", ")
                 }
             },
         }
@@ -456,41 +458,95 @@ impl<'a> Serializer<'a> {
     }
 
     fn emit_str(&mut self, value: &str, is_key: bool) -> Result<(), Error> {
-        let do_pretty = if !is_key && self.settings.pretty_string {
-            // do pretty only if the block contains at least one newline
-            value.contains('\n') 
-                // but not if it contains any of these, as they are not
-                // representable
-                && !value.contains("'''")
-        } else {
-            false
-        };
-        if do_pretty {
-            drop(write!(self.dst, "'''\n"));
-        } else {
-            drop(write!(self.dst, "\""));
+        /// Use ''' or '
+        #[derive(PartialEq)]
+        enum Multi {
+            False,
+            True,
+            Single,
         }
-        if do_pretty {
-            drop(write!(self.dst, "{}", value));
+        fn do_pretty(value: &str) -> Option<(Multi, String)> {
+            // For doing pretty prints we store in a new String
+            // because there are too many cases where pretty cannot
+            // work. We need to determine:
+            // - if we are a "multi-line" pretty (if there are \n)
+            // - if ['''] appears if multi or ['] if single
+            // - if there are any invalid control characters
+            //
+            // Doing it any other way would require multiple passes
+            // to determine if a pretty string works or not.
+            let mut out = String::with_capacity(value.len() * 2);
+            let mut multi = Multi::False;
+            // found consecutive single quotes
+            let mut max_found_singles = 0;
+            let mut found_singles = 0;
+
+            for ch in value.chars() {
+                if ch == '\'' {
+                    found_singles += 1;
+                    if found_singles >= 3 {
+                        return None;
+                    }
+                } else {
+                    if found_singles > max_found_singles {
+                        max_found_singles = found_singles;
+                    }
+                    found_singles = 0
+                }
+                match ch {
+                    '\t' => {},
+                    '\n' => multi = Multi::True,
+                    // note that the following are invalid: \b \f \r
+                    c if c < '\u{1f}' => return None, // Invalid control character
+                    _ => {}
+                }
+                out.push(ch);
+            }
+            if found_singles > max_found_singles {
+                max_found_singles = found_singles;
+            }
+            debug_assert!(max_found_singles < 3);
+            if multi == Multi::False && max_found_singles >= 1 {
+                // no newlines, but must use ''' because it has ' in it
+                multi = Multi::Single;
+            }
+            Some((multi, out))
+        }
+
+        let pretty = if !is_key && self.settings.pretty_string {
+            do_pretty(value)
         } else {
+            None
+        };
+        if let Some((multi, s)) = pretty {
+            // A pretty string
+            match multi {
+                Multi::True => self.dst.push_str("'''\n"),
+                Multi::Single => self.dst.push_str("'''"),
+                Multi::False => self.dst.push('\''),
+            }
+            self.dst.push_str(&s);
+            match multi {
+                Multi::False => self.dst.push('\''),
+                _ => self.dst.push_str("'''"),
+            }
+        } else {
+            // Not a pretty string
+            drop(write!(self.dst, "\""));
             for ch in value.chars() {
                 match ch {
-                    '\u{8}' => drop(write!(self.dst, "\\b")),
-                    '\u{9}' => drop(write!(self.dst, "\\t")),
-                    '\u{a}' => drop(write!(self.dst, "\\n")),
-                    '\u{c}' => drop(write!(self.dst, "\\f")),
-                    '\u{d}' => drop(write!(self.dst, "\\r")),
-                    '\u{22}' => drop(write!(self.dst, "\\\"")),
-                    '\u{5c}' => drop(write!(self.dst, "\\\\")),
+                    '\u{8}' => self.dst.push_str("\\b"),
+                    '\u{9}' => self.dst.push_str("\\t"),
+                    '\u{a}' => self.dst.push_str("\\n"),
+                    '\u{c}' => self.dst.push_str("\\f"),
+                    '\u{d}' => self.dst.push_str("\\r"),
+                    '\u{22}' => self.dst.push_str("\\\""),
+                    '\u{5c}' => self.dst.push_str("\\\\"),
                     c if c < '\u{1f}' => drop(write!(self.dst, "\\u{:04X}", ch as u32)),
-                    ch => drop(write!(self.dst, "{}", ch)),
+                    ch => self.dst.push(ch),
                 }
             }
-        }
-        if do_pretty {
-            drop(write!(self.dst, "'''"));
-        } else {
-            drop(write!(self.dst, "\""));
+            self.dst.push_str("\"");
         }
         Ok(())
     }
@@ -703,13 +759,14 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
         Err(Error::UnsupportedType)
     }
 
-    fn serialize_seq(mut self, _len: Option<usize>)
+    fn serialize_seq(mut self, len: Option<usize>)
                      -> Result<Self::SerializeSeq, Self::Error> {
         self.array_type("array")?;
         Ok(SerializeSeq {
             ser: self,
             first: Cell::new(true),
             type_: Cell::new(None),
+            len: len,
         })
     }
 
@@ -782,6 +839,7 @@ impl<'a, 'b> ser::SerializeSeq for SerializeSeq<'a, 'b> {
                 parent: &self.ser.state,
                 first: &self.first,
                 type_: &self.type_,
+                len: self.len,
             },
             settings: self.ser.settings.clone(),
         })?;
@@ -793,16 +851,16 @@ impl<'a, 'b> ser::SerializeSeq for SerializeSeq<'a, 'b> {
         match self.type_.get() {
             Some("table") => return Ok(()),
             Some(_) => {
-                match self.ser.settings.array {
-                    Some(ref a) => {
+                match (self.len, &self.ser.settings.array) {
+                    (Some(0...1), _) | (_, &None) => {
+                        self.ser.dst.push_str("]");
+                    },
+                    (_, &Some(ref a)) => {
                         if a.trailing_comma {
                             self.ser.dst.push_str(",");
                         }
                         self.ser.dst.push_str("\n]");
                     },
-                    None => {
-                        self.ser.dst.push_str("]");
-                    }
                 }
             }
             None => {

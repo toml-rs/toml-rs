@@ -41,11 +41,12 @@ fn disable_pretty() {
 const PRETTY_STD: &'static str = "\
 [example]
 array = [
-    \"item 1\",
-    \"item 2\",
+    'item 1',
+    'item 2',
 ]
 empty = []
-oneline = \"this has no newlines.\"
+one = ['one']
+oneline = 'this has no newlines.'
 text = '''
 this is the first line
 this is the second line
@@ -67,15 +68,21 @@ fn pretty_std() {
 const PRETTY_INDENT_2: &'static str = "\
 [example]
 array = [
-  \"item 1\",
-  \"item 2\",
+  'item 1',
+  'item 2',
 ]
 empty = []
-oneline = \"this has no newlines.\"
+one = ['one']
+oneline = 'this has no newlines.'
 text = '''
 this is the first line
 this is the second line
 '''
+three = [
+  'one',
+  'two',
+  'three',
+]
 ";
 
 #[test]
@@ -88,6 +95,7 @@ fn pretty_indent_2() {
         serializer.pretty_array_indent(2);
         value.serialize(&mut serializer).unwrap();
     }
+    println!(">> Result:\n{}", result);
     assert_eq!(toml, &result);
 }
 
@@ -168,6 +176,7 @@ fn pretty_no_string() {
 }
 
 const PRETTY_TRICKY: &'static str = r"[example]
+single = '''this is a single line but has '' for no reason'''
 text = '''
 this is the first line
 This has a ''\' in it for no reason
