@@ -201,6 +201,7 @@ enum State<'a> {
         parent: &'a State<'a>,
         first: &'a Cell<bool>,
         type_: &'a Cell<Option<&'static str>>,
+        len: Option<usize>,
     },
     End,
 }
@@ -210,6 +211,7 @@ pub struct SerializeSeq<'a: 'b, 'b> {
     ser: &'b mut Serializer<'a>,
     first: Cell<bool>,
     type_: Cell<Option<&'static str>>,
+    len: Option<usize>,
 }
 
 #[doc(hidden)]
@@ -377,12 +379,12 @@ impl<'a> Serializer<'a> {
     fn _emit_key(&mut self, state: &State) -> Result<(), Error> {
         match *state {
             State::End => Ok(()),
-            State::Array { parent, first, type_ } => {
+            State::Array { parent, first, type_, len } => {
                 assert!(type_.get().is_some());
                 if first.get() {
                     self._emit_key(parent)?;
                 }
-                self.emit_array(first)
+                self.emit_array(first, len)
             }
             State::Table { parent, first, table_emitted, key } => {
                 if table_emitted.get() {
@@ -399,9 +401,16 @@ impl<'a> Serializer<'a> {
         }
     }
 
-    fn emit_array(&mut self, first: &Cell<bool>) -> Result<(), Error> {
-        match self.settings.array {
-            Some(ref a) => {
+    fn emit_array(&mut self, first: &Cell<bool>, len: Option<usize>) -> Result<(), Error> {
+        match (len, &self.settings.array) {
+            (Some(0...1), _) | (_, &None) => {
+                if first.get() {
+                    self.dst.push_str("[")
+                } else {
+                    self.dst.push_str(", ")
+                }
+            },
+            (_, &Some(ref a)) => {
                 if first.get() {
                     self.dst.push_str("[\n")
                 } else {
@@ -409,13 +418,6 @@ impl<'a> Serializer<'a> {
                 }
                 for _ in 0..a.indent {
                     self.dst.push_str(" ");
-                }
-            },
-            None => {
-                if first.get() {
-                    self.dst.push_str("[")
-                } else {
-                    self.dst.push_str(", ")
                 }
             },
         }
@@ -450,53 +452,137 @@ impl<'a> Serializer<'a> {
         if ok {
             drop(write!(self.dst, "{}", key));
         } else {
-            self.emit_str(key)?;
+            self.emit_str(key, true)?;
         }
         Ok(())
     }
 
-    fn emit_str(&mut self, value: &str) -> Result<(), Error> {
-        let do_pretty = if self.settings.pretty_string {
-            value.contains('\n')
-        } else {
-            false
-        };
-        if do_pretty {
-            drop(write!(self.dst, "'''\n"));
-        } else {
-            drop(write!(self.dst, "\""));
+    fn emit_str(&mut self, value: &str, is_key: bool) -> Result<(), Error> {
+        #[derive(PartialEq)]
+        enum Type {
+            NewlineTripple,
+            OnelineTripple,
+            OnelineSingle,
         }
-        for ch in value.chars() {
-            match ch {
-                '\u{8}' => drop(write!(self.dst, "\\b")),
-                '\u{9}' => drop(write!(self.dst, "\\t")),
-                '\u{a}' => {
-                    if do_pretty {
-                        drop(write!(self.dst, "\n"));
+
+        enum Repr {
+            /// represent as a literal string (using '')
+            Literal(String, Type),
+            /// represent the std way (using "")
+            Std(Type),
+        }
+
+        fn do_pretty(value: &str) -> Repr {
+            // For doing pretty prints we store in a new String
+            // because there are too many cases where pretty cannot
+            // work. We need to determine:
+            // - if we are a "multi-line" pretty (if there are \n)
+            // - if ['''] appears if multi or ['] if single
+            // - if there are any invalid control characters
+            //
+            // Doing it any other way would require multiple passes
+            // to determine if a pretty string works or not.
+            let mut out = String::with_capacity(value.len() * 2);
+            let mut ty = Type::OnelineSingle;
+            // found consecutive single quotes
+            let mut max_found_singles = 0;
+            let mut found_singles = 0;
+            let mut can_be_pretty = true;
+
+            for ch in value.chars() {
+                if can_be_pretty {
+                    if ch == '\'' {
+                        found_singles += 1;
+                        if found_singles >= 3 {
+                            can_be_pretty = false;
+                        }
                     } else {
-                        drop(write!(self.dst, "\\n"));
+                        if found_singles > max_found_singles {
+                            max_found_singles = found_singles;
+                        }
+                        found_singles = 0
                     }
-                },
-                '\u{c}' => drop(write!(self.dst, "\\f")),
-                '\u{d}' => drop(write!(self.dst, "\\r")),
-                '\u{22}' => {
-                    if do_pretty {
-                        drop(write!(self.dst, "\""))
-                    } else {
-                        drop(write!(self.dst, "\\\""))
+                    match ch {
+                        '\t' => {},
+                        '\n' => ty = Type::NewlineTripple,
+                        // note that the following are invalid: \b \f \r
+                        c if c < '\u{1f}' => can_be_pretty = false, // Invalid control character
+                        _ => {}
                     }
-                },
-                '\u{5c}' => drop(write!(self.dst, "\\\\")),
-                c if c < '\u{1f}' => {
-                    drop(write!(self.dst, "\\u{:04X}", ch as u32))
+                    out.push(ch);
+                } else {
+                    // the string cannot be represented as pretty,
+                    // still check if it should be multiline
+                    if ch == '\n' {
+                        ty = Type::NewlineTripple;
+                    }
                 }
-                ch => drop(write!(self.dst, "{}", ch)),
             }
+            if !can_be_pretty {
+                debug_assert!(ty != Type::OnelineTripple);
+                return Repr::Std(ty);
+            }
+            if found_singles > max_found_singles {
+                max_found_singles = found_singles;
+            }
+            debug_assert!(max_found_singles < 3);
+            if ty == Type::OnelineSingle && max_found_singles >= 1 {
+                // no newlines, but must use ''' because it has ' in it
+                ty = Type::OnelineTripple;
+            }
+            Repr::Literal(out, ty)
         }
-        if do_pretty {
-            drop(write!(self.dst, "'''"));
+
+        let repr = if !is_key && self.settings.pretty_string {
+            do_pretty(value)
         } else {
-            drop(write!(self.dst, "\""));
+            Repr::Std(Type::OnelineSingle)
+        };
+        match repr {
+            Repr::Literal(literal, ty) => {
+                // A pretty string
+                match ty {
+                    Type::NewlineTripple => self.dst.push_str("'''\n"),
+                    Type::OnelineTripple => self.dst.push_str("'''"),
+                    Type::OnelineSingle => self.dst.push('\''),
+                }
+                self.dst.push_str(&literal);
+                match ty {
+                    Type::OnelineSingle => self.dst.push('\''),
+                    _ => self.dst.push_str("'''"),
+                }
+            },
+            Repr::Std(ty) => {
+                match ty {
+                    Type::NewlineTripple =>  self.dst.push_str("\"\"\"\n"),
+                    Type::OnelineSingle =>  self.dst.push('"'),
+                    _ => unreachable!(),
+                }
+                for ch in value.chars() {
+                    match ch {
+                        '\u{8}' => self.dst.push_str("\\b"),
+                        '\u{9}' => self.dst.push_str("\\t"),
+                        '\u{a}' => {
+                            match ty {
+                                Type::NewlineTripple =>  self.dst.push('\n'),
+                                Type::OnelineSingle =>  self.dst.push_str("\\n"),
+                                _ => unreachable!(),
+                            }
+                        },
+                        '\u{c}' => self.dst.push_str("\\f"),
+                        '\u{d}' => self.dst.push_str("\\r"),
+                        '\u{22}' => self.dst.push_str("\\\""),
+                        '\u{5c}' => self.dst.push_str("\\\\"),
+                        c if c < '\u{1f}' => drop(write!(self.dst, "\\u{:04X}", ch as u32)),
+                        ch => self.dst.push(ch),
+                    }
+                }
+                match ty {
+                    Type::NewlineTripple =>  self.dst.push_str("\"\"\""),
+                    Type::OnelineSingle =>  self.dst.push('"'),
+                    _ => unreachable!(),
+                }
+            },
         }
         Ok(())
     }
@@ -651,7 +737,7 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
 
     fn serialize_str(mut self, value: &str) -> Result<(), Self::Error> {
         self.emit_key("string")?;
-        self.emit_str(value)?;
+        self.emit_str(value, false)?;
         if let State::Table { .. } = self.state {
             self.dst.push_str("\n");
         }
@@ -709,13 +795,14 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
         Err(Error::UnsupportedType)
     }
 
-    fn serialize_seq(mut self, _len: Option<usize>)
+    fn serialize_seq(mut self, len: Option<usize>)
                      -> Result<Self::SerializeSeq, Self::Error> {
         self.array_type("array")?;
         Ok(SerializeSeq {
             ser: self,
             first: Cell::new(true),
             type_: Cell::new(None),
+            len: len,
         })
     }
 
@@ -788,6 +875,7 @@ impl<'a, 'b> ser::SerializeSeq for SerializeSeq<'a, 'b> {
                 parent: &self.ser.state,
                 first: &self.first,
                 type_: &self.type_,
+                len: self.len,
             },
             settings: self.ser.settings.clone(),
         })?;
@@ -799,16 +887,16 @@ impl<'a, 'b> ser::SerializeSeq for SerializeSeq<'a, 'b> {
         match self.type_.get() {
             Some("table") => return Ok(()),
             Some(_) => {
-                match self.ser.settings.array {
-                    Some(ref a) => {
+                match (self.len, &self.ser.settings.array) {
+                    (Some(0...1), _) | (_, &None) => {
+                        self.ser.dst.push_str("]");
+                    },
+                    (_, &Some(ref a)) => {
                         if a.trailing_comma {
                             self.ser.dst.push_str(",");
                         }
                         self.ser.dst.push_str("\n]");
                     },
-                    None => {
-                        self.ser.dst.push_str("]");
-                    }
                 }
             }
             None => {
