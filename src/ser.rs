@@ -458,14 +458,21 @@ impl<'a> Serializer<'a> {
     }
 
     fn emit_str(&mut self, value: &str, is_key: bool) -> Result<(), Error> {
-        /// Use ''' or '
         #[derive(PartialEq)]
-        enum Multi {
-            False,
-            True,
-            Single,
+        enum Type {
+            NewlineTripple,
+            OnelineTripple,
+            OnelineSingle,
         }
-        fn do_pretty(value: &str) -> Option<(Multi, String)> {
+
+        enum Repr {
+            /// represent as a literal string (using '')
+            Literal(String, Type),
+            /// represent the std way (using "")
+            Std(Type),
+        }
+
+        fn do_pretty(value: &str) -> Repr {
             // For doing pretty prints we store in a new String
             // because there are too many cases where pretty cannot
             // work. We need to determine:
@@ -476,77 +483,106 @@ impl<'a> Serializer<'a> {
             // Doing it any other way would require multiple passes
             // to determine if a pretty string works or not.
             let mut out = String::with_capacity(value.len() * 2);
-            let mut multi = Multi::False;
+            let mut ty = Type::OnelineSingle;
             // found consecutive single quotes
             let mut max_found_singles = 0;
             let mut found_singles = 0;
+            let mut can_be_pretty = true;
 
             for ch in value.chars() {
-                if ch == '\'' {
-                    found_singles += 1;
-                    if found_singles >= 3 {
-                        return None;
+                if can_be_pretty {
+                    if ch == '\'' {
+                        found_singles += 1;
+                        if found_singles >= 3 {
+                            can_be_pretty = false;
+                        }
+                    } else {
+                        if found_singles > max_found_singles {
+                            max_found_singles = found_singles;
+                        }
+                        found_singles = 0
                     }
+                    match ch {
+                        '\t' => {},
+                        '\n' => ty = Type::NewlineTripple,
+                        // note that the following are invalid: \b \f \r
+                        c if c < '\u{1f}' => can_be_pretty = false, // Invalid control character
+                        _ => {}
+                    }
+                    out.push(ch);
                 } else {
-                    if found_singles > max_found_singles {
-                        max_found_singles = found_singles;
+                    // the string cannot be represented as pretty,
+                    // still check if it should be multiline
+                    if ch == '\n' {
+                        ty = Type::NewlineTripple;
                     }
-                    found_singles = 0
                 }
-                match ch {
-                    '\t' => {},
-                    '\n' => multi = Multi::True,
-                    // note that the following are invalid: \b \f \r
-                    c if c < '\u{1f}' => return None, // Invalid control character
-                    _ => {}
-                }
-                out.push(ch);
+            }
+            if !can_be_pretty {
+                debug_assert!(ty != Type::OnelineTripple);
+                return Repr::Std(ty);
             }
             if found_singles > max_found_singles {
                 max_found_singles = found_singles;
             }
             debug_assert!(max_found_singles < 3);
-            if multi == Multi::False && max_found_singles >= 1 {
+            if ty == Type::OnelineSingle && max_found_singles >= 1 {
                 // no newlines, but must use ''' because it has ' in it
-                multi = Multi::Single;
+                ty = Type::OnelineTripple;
             }
-            Some((multi, out))
+            Repr::Literal(out, ty)
         }
 
-        let pretty = if !is_key && self.settings.pretty_string {
+        let repr = if !is_key && self.settings.pretty_string {
             do_pretty(value)
         } else {
-            None
+            Repr::Std(Type::OnelineSingle)
         };
-        if let Some((multi, s)) = pretty {
-            // A pretty string
-            match multi {
-                Multi::True => self.dst.push_str("'''\n"),
-                Multi::Single => self.dst.push_str("'''"),
-                Multi::False => self.dst.push('\''),
-            }
-            self.dst.push_str(&s);
-            match multi {
-                Multi::False => self.dst.push('\''),
-                _ => self.dst.push_str("'''"),
-            }
-        } else {
-            // Not a pretty string
-            drop(write!(self.dst, "\""));
-            for ch in value.chars() {
-                match ch {
-                    '\u{8}' => self.dst.push_str("\\b"),
-                    '\u{9}' => self.dst.push_str("\\t"),
-                    '\u{a}' => self.dst.push_str("\\n"),
-                    '\u{c}' => self.dst.push_str("\\f"),
-                    '\u{d}' => self.dst.push_str("\\r"),
-                    '\u{22}' => self.dst.push_str("\\\""),
-                    '\u{5c}' => self.dst.push_str("\\\\"),
-                    c if c < '\u{1f}' => drop(write!(self.dst, "\\u{:04X}", ch as u32)),
-                    ch => self.dst.push(ch),
+        match repr {
+            Repr::Literal(literal, ty) => {
+                // A pretty string
+                match ty {
+                    Type::NewlineTripple => self.dst.push_str("'''\n"),
+                    Type::OnelineTripple => self.dst.push_str("'''"),
+                    Type::OnelineSingle => self.dst.push('\''),
                 }
-            }
-            self.dst.push_str("\"");
+                self.dst.push_str(&literal);
+                match ty {
+                    Type::OnelineSingle => self.dst.push('\''),
+                    _ => self.dst.push_str("'''"),
+                }
+            },
+            Repr::Std(ty) => {
+                match ty {
+                    Type::NewlineTripple =>  self.dst.push_str("\"\"\"\n"),
+                    Type::OnelineSingle =>  self.dst.push('"'),
+                    _ => unreachable!(),
+                }
+                for ch in value.chars() {
+                    match ch {
+                        '\u{8}' => self.dst.push_str("\\b"),
+                        '\u{9}' => self.dst.push_str("\\t"),
+                        '\u{a}' => {
+                            match ty {
+                                Type::NewlineTripple =>  self.dst.push('\n'),
+                                Type::OnelineSingle =>  self.dst.push_str("\\n"),
+                                _ => unreachable!(),
+                            }
+                        },
+                        '\u{c}' => self.dst.push_str("\\f"),
+                        '\u{d}' => self.dst.push_str("\\r"),
+                        '\u{22}' => self.dst.push_str("\\\""),
+                        '\u{5c}' => self.dst.push_str("\\\\"),
+                        c if c < '\u{1f}' => drop(write!(self.dst, "\\u{:04X}", ch as u32)),
+                        ch => self.dst.push(ch),
+                    }
+                }
+                match ty {
+                    Type::NewlineTripple =>  self.dst.push_str("\"\"\""),
+                    Type::OnelineSingle =>  self.dst.push('"'),
+                    _ => unreachable!(),
+                }
+            },
         }
         Ok(())
     }

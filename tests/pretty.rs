@@ -175,14 +175,32 @@ fn pretty_no_string() {
     assert_eq!(toml, &result);
 }
 
-const PRETTY_TRICKY: &'static str = r"[example]
-single = '''this is a single line but has '' for no reason'''
-text = '''
-this is the first line
-This has a ''\' in it for no reason
-this is the third line
+const PRETTY_TRICKY: &'static str = r##"[example]
+f = "\f"
+glass = '''
+Nothing too unusual, except that I can eat glass in:
+- Greek: Μπορώ να φάω σπασμένα γυαλιά χωρίς να πάθω τίποτα. 
+- Polish: Mogę jeść szkło, i mi nie szkodzi. 
+- Hindi: मैं काँच खा सकता हूँ, मुझे उस से कोई पीडा नहीं होती. 
+- Japanese: 私はガラスを食べられます。それは私を傷つけません。 
 '''
-";
+r = "\r"
+r_newline = """
+\r
+"""
+single = '''this is a single line but has '' cuz it's tricky'''
+single_tricky = "single line with ''' in it"
+tabs = '''
+this is pretty standard
+	except for some 	tabs right here
+'''
+text = """
+this is the first line.
+This has a ''' in it and \"\"\" cuz it's tricky yo
+Also ' and \" because why not
+this is the third line
+"""
+"##;
 
 #[test]
 fn pretty_tricky() {
