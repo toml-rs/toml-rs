@@ -10,7 +10,7 @@ before_script:
 script:
   - cargo test
   - rustdoc --test README.md -L target
-  - cargo doc --no-deps
+  - test "$TRAVIS_RUST_VERSION" != "1.15.0" && cargo doc --no-deps || echo "skipping cargo doc"
 after_success:
   - travis-cargo --only nightly doc-upload
   - travis-cargo coveralls --no-sudo

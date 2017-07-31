@@ -265,15 +265,15 @@ impl<'a> Serializer<'a> {
     ///
     /// Instead of:
     ///
-    /// ```ignore
+    /// ```toml,ignore
     /// single = "no newlines"
     /// text = "\nfoo\nbar\n"
     /// ```
     ///
     /// You will have:
     ///
-    /// ```ignore
-    /// single = "no newlines"
+    /// ```toml,ignore
+    /// single = 'no newlines'
     /// text = '''
     /// foo
     /// bar
@@ -299,13 +299,13 @@ impl<'a> Serializer<'a> {
     ///
     /// Instead of:
     ///
-    /// ```ignore
+    /// ```toml,ignore
     /// array = ["foo", "bar"]
     /// ```
     ///
     /// You will have:
     ///
-    /// ```ignore
+    /// ```toml,ignore
     /// array = [
     ///     "foo",
     ///     "bar",
