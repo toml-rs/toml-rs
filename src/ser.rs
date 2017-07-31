@@ -30,6 +30,7 @@ use std::cell::Cell;
 use std::error;
 use std::fmt::{self, Write};
 use std::marker;
+use std::rc::Rc;
 
 use serde::ser;
 use datetime::{SERDE_STRUCT_FIELD_NAME, SERDE_STRUCT_NAME};
@@ -166,12 +167,18 @@ impl ArraySettings {
     }
 }
 
+#[doc(hidden)]
+#[derive(Debug, Default, Clone)]
+/// String settings. Currently empty but may contain settings
+/// eventually.
+struct StringSettings();
+
 #[derive(Debug, Default, Clone)]
 #[doc(hidden)]
 /// Internal struct for holding serialization settings
 struct Settings {
     array: Option<ArraySettings>,
-    pretty_string: bool,
+    string: Option<StringSettings>,
 }
 
 /// Serialization implementation for TOML.
@@ -186,7 +193,7 @@ struct Settings {
 pub struct Serializer<'a> {
     dst: &'a mut String,
     state: State<'a>,
-    settings: Settings,
+    settings: Rc<Settings>,
 }
 
 #[derive(Debug, Clone)]
@@ -234,7 +241,7 @@ impl<'a> Serializer<'a> {
         Serializer {
             dst: dst,
             state: State::End,
-            settings: Settings::default(),
+            settings: Rc::new(Settings::default()),
         }
     }
 
@@ -250,16 +257,17 @@ impl<'a> Serializer<'a> {
         Serializer {
             dst: dst,
             state: State::End,
-            settings: Settings {
+            settings: Rc::new(Settings {
                 array: Some(ArraySettings::pretty()),
-                pretty_string: true,
-            },
+                string: Some(StringSettings()),
+            }),
         }
     }
 
     /// Enable or Disable pretty strings
     ///
-    /// If enabled, strings with one or more newline character will use the `'''` syntax.
+    /// If enabled, literal strings will be used when possible and strings with
+    /// one or more newlines will use triple quotes (i.e.: `'''` or `"""`)
     ///
     /// # Examples
     ///
@@ -280,7 +288,11 @@ impl<'a> Serializer<'a> {
     /// '''
     /// ```
     pub fn pretty_string(&mut self, value: bool) -> &mut Self {
-        self.settings.pretty_string = value;
+        Rc::get_mut(&mut self.settings).unwrap().string = if value {
+            Some(StringSettings())
+        } else {
+            None
+        };
         self
     }
 
@@ -312,7 +324,7 @@ impl<'a> Serializer<'a> {
     /// ]
     /// ```
     pub fn pretty_array(&mut self, value: bool) -> &mut Self {
-        self.settings.array = if value {
+        Rc::get_mut(&mut self.settings).unwrap().array = if value {
             Some(ArraySettings::pretty())
         } else {
             None
@@ -324,7 +336,8 @@ impl<'a> Serializer<'a> {
     ///
     /// See `Serializer::pretty_array` for more details.
     pub fn pretty_array_indent(&mut self, value: usize) -> &mut Self {
-        let use_default = if let &mut Some(ref mut a) = &mut self.settings.array {
+        let use_default = if let &mut Some(ref mut a) = &mut Rc::get_mut(&mut self.settings)
+                .unwrap().array {
             a.indent = value;
             false
         } else {
@@ -334,7 +347,7 @@ impl<'a> Serializer<'a> {
         if use_default {
             let mut array = ArraySettings::pretty();
             array.indent = value;
-            self.settings.array = Some(array);
+            Rc::get_mut(&mut self.settings).unwrap().array = Some(array);
         }
         self
     }
@@ -343,7 +356,8 @@ impl<'a> Serializer<'a> {
     ///
     /// See `Serializer::pretty_array` for more details.
     pub fn pretty_array_trailing_comma(&mut self, value: bool) -> &mut Self {
-        let use_default = if let &mut Some(ref mut a) = &mut self.settings.array {
+        let use_default = if let &mut Some(ref mut a) = &mut Rc::get_mut(&mut self.settings)
+                .unwrap().array {
             a.trailing_comma = value;
             false
         } else {
@@ -353,7 +367,7 @@ impl<'a> Serializer<'a> {
         if use_default {
             let mut array = ArraySettings::pretty();
             array.trailing_comma = value;
-            self.settings.array = Some(array);
+            Rc::get_mut(&mut self.settings).unwrap().array = Some(array);
         }
         self
     }
@@ -533,7 +547,7 @@ impl<'a> Serializer<'a> {
             Repr::Literal(out, ty)
         }
 
-        let repr = if !is_key && self.settings.pretty_string {
+        let repr = if !is_key && self.settings.string.is_some() {
             do_pretty(value)
         } else {
             Repr::Std(Type::OnelineSingle)
