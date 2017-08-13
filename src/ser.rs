@@ -628,12 +628,25 @@ impl<'a> Serializer<'a> {
         }
 
         match *state {
-            State::Table { first, .. } |
-            State::Array { parent: &State::Table { first, .. }, .. } => {
+            State::Table { first, .. } => {
                 if !first.get() {
-                    self.dst.push_str("\n");
+                    // Newline if we are a table that is not the first
+                    // table in the document.
+                    self.dst.push('\n');
                 }
-            }
+            },
+            State::Array { parent, first, .. } => {
+                if !first.get() {
+                    // Always newline if we are not the first item in the
+                    // table-array
+                    self.dst.push('\n');
+                } else if let State::Table { first, .. } = *parent {
+                    if !first.get() {
+                        // Newline if we are not the first item in the document 
+                        self.dst.push('\n');
+                    }
+                }
+            },
             _ => {}
         }
         self.dst.push_str("[");

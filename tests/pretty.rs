@@ -212,3 +212,51 @@ fn pretty_tricky() {
     println!("\nRESULT:\n{}", result);
     assert_eq!(toml, &result);
 }
+
+const PRETTY_TABLE_ARRAY: &'static str = r##"[[array]]
+key = 'foo'
+
+[[array]]
+key = 'bar'
+
+[abc]
+doc = 'this is a table'
+
+[example]
+single = 'this is a single line string'
+"##;
+
+#[test]
+fn pretty_table_array() {
+    let toml = PRETTY_TABLE_ARRAY;
+    let value: toml::Value = toml::from_str(toml).unwrap();
+    let mut result = String::with_capacity(128);
+    value.serialize(&mut toml::Serializer::pretty(&mut result)).unwrap();
+    println!("EXPECTED:\n{}", toml);
+    println!("\nRESULT:\n{}", result);
+    assert_eq!(toml, &result);
+}
+
+const TABLE_ARRAY: &'static str = r##"[[array]]
+key = "foo"
+
+[[array]]
+key = "bar"
+
+[abc]
+doc = "this is a table"
+
+[example]
+single = "this is a single line string"
+"##;
+
+#[test]
+fn table_array() {
+    let toml = TABLE_ARRAY;
+    let value: toml::Value = toml::from_str(toml).unwrap();
+    let mut result = String::with_capacity(128);
+    value.serialize(&mut toml::Serializer::new(&mut result)).unwrap();
+    println!("EXPECTED:\n{}", toml);
+    println!("\nRESULT:\n{}", result);
+    assert_eq!(toml, &result);
+}
