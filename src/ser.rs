@@ -169,9 +169,19 @@ impl ArraySettings {
 
 #[doc(hidden)]
 #[derive(Debug, Default, Clone)]
-/// String settings. Currently empty but may contain settings
-/// eventually.
-struct StringSettings();
+/// String settings
+struct StringSettings {
+    /// Whether to use literal strings when possible
+    literal: bool,
+}
+
+impl StringSettings {
+    fn pretty() -> StringSettings {
+        StringSettings {
+            literal: true,
+        }
+    }
+}
 
 #[derive(Debug, Default, Clone)]
 #[doc(hidden)]
@@ -259,7 +269,7 @@ impl<'a> Serializer<'a> {
             state: State::End,
             settings: Rc::new(Settings {
                 array: Some(ArraySettings::pretty()),
-                string: Some(StringSettings()),
+                string: Some(StringSettings::pretty()),
             }),
         }
     }
@@ -289,10 +299,53 @@ impl<'a> Serializer<'a> {
     /// ```
     pub fn pretty_string(&mut self, value: bool) -> &mut Self {
         Rc::get_mut(&mut self.settings).unwrap().string = if value {
-            Some(StringSettings())
+            Some(StringSettings::pretty())
         } else {
             None
         };
+        self
+    }
+
+    /// Enable or Disable Literal strings for pretty strings 
+    ///
+    /// If enabled, literal strings will be used when possible and strings with
+    /// one or more newlines will use triple quotes (i.e.: `'''` or `"""`)
+    ///
+    /// If disabled, literal strings will NEVER be used and strings with one or
+    /// more newlines will use `"""`
+    ///
+    /// # Examples
+    ///
+    /// Instead of:
+    ///
+    /// ```toml,ignore
+    /// single = "no newlines"
+    /// text = "\nfoo\nbar\n"
+    /// ```
+    ///
+    /// You will have:
+    ///
+    /// ```toml,ignore
+    /// single = "no newlines"
+    /// text = """
+    /// foo
+    /// bar
+    /// """
+    /// ```
+    pub fn pretty_string_literal(&mut self, value: bool) -> &mut Self {
+        let use_default = if let &mut Some(ref mut s) = &mut Rc::get_mut(&mut self.settings)
+                .unwrap().string {
+            s.literal = value;
+            false
+        } else {
+            true
+        };
+
+        if use_default {
+            let mut string = StringSettings::pretty();
+            string.literal = value;
+            Rc::get_mut(&mut self.settings).unwrap().string = Some(string);
+        }
         self
     }
 
@@ -548,7 +601,11 @@ impl<'a> Serializer<'a> {
         }
 
         let repr = if !is_key && self.settings.string.is_some() {
-            do_pretty(value)
+            match (&self.settings.string, do_pretty(value)) {
+                (&Some(StringSettings { literal: false, .. }), Repr::Literal(_, ty)) => 
+                    Repr::Std(ty),
+                (_, r @ _) => r,
+            }
         } else {
             Repr::Std(Type::OnelineSingle)
         };
@@ -569,8 +626,11 @@ impl<'a> Serializer<'a> {
             Repr::Std(ty) => {
                 match ty {
                     Type::NewlineTripple =>  self.dst.push_str("\"\"\"\n"),
-                    Type::OnelineSingle =>  self.dst.push('"'),
-                    _ => unreachable!(),
+                    // note: OnelineTripple can happen if do_pretty wants to do
+                    // '''it's one line''' 
+                    // but settings.string.literal == false
+                    Type::OnelineSingle | 
+                        Type::OnelineTripple =>  self.dst.push('"'),
                 }
                 for ch in value.chars() {
                     match ch {
@@ -593,8 +653,7 @@ impl<'a> Serializer<'a> {
                 }
                 match ty {
                     Type::NewlineTripple =>  self.dst.push_str("\"\"\""),
-                    Type::OnelineSingle =>  self.dst.push('"'),
-                    _ => unreachable!(),
+                    Type::OnelineSingle | Type::OnelineTripple => self.dst.push('"'),
                 }
             },
         }
