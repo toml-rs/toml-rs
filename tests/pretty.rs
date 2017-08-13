@@ -198,7 +198,7 @@ text = """
 this is the first line.
 This has a ''' in it and \"\"\" cuz it's tricky yo
 Also ' and \" because why not
-this is the third line
+this is the fourth line
 """
 "##;
 
@@ -256,6 +256,48 @@ fn table_array() {
     let value: toml::Value = toml::from_str(toml).unwrap();
     let mut result = String::with_capacity(128);
     value.serialize(&mut toml::Serializer::new(&mut result)).unwrap();
+    println!("EXPECTED:\n{}", toml);
+    println!("\nRESULT:\n{}", result);
+    assert_eq!(toml, &result);
+}
+
+// FIXME: add the `glass` line to this. Unfortunately there seems to
+// be an issue with the deserialization module that treats the first \n
+// as a real newline in that case (not cool)
+const PRETTY_TRICKY_NON_LITERAL: &'static str = r##"[example]
+f = "\f"
+plain = """
+This has a couple of lines
+Because it likes to.
+"""
+r = "\r"
+r_newline = """
+\r
+"""
+single = "this is a single line but has '' cuz it's tricky"
+single_tricky = "single line with ''' in it"
+tabs = """
+this is pretty standard
+\texcept for some \ttabs right here
+"""
+text = """
+this is the first line.
+This has a ''' in it and \"\"\" cuz it's tricky yo
+Also ' and \" because why not
+this is the fourth line
+"""
+"##;
+
+#[test]
+fn pretty_tricky_non_literal() {
+    let toml = PRETTY_TRICKY_NON_LITERAL;
+    let value: toml::Value = toml::from_str(toml).unwrap();
+    let mut result = String::with_capacity(128);
+    {
+        let mut serializer = toml::Serializer::pretty(&mut result);
+        serializer.pretty_string_literal(false);
+        value.serialize(&mut serializer).unwrap();
+    }
     println!("EXPECTED:\n{}", toml);
     println!("\nRESULT:\n{}", result);
     assert_eq!(toml, &result);
