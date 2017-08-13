@@ -261,11 +261,15 @@ fn table_array() {
     assert_eq!(toml, &result);
 }
 
-// FIXME: add the `glass` line to this. Unfortunately there seems to
-// be an issue with the deserialization module that treats the first \n
-// as a real newline in that case (not cool)
 const PRETTY_TRICKY_NON_LITERAL: &'static str = r##"[example]
 f = "\f"
+glass = """
+Nothing too unusual, except that I can eat glass in:
+- Greek: Μπορώ να φάω σπασμένα γυαλιά χωρίς να πάθω τίποτα. 
+- Polish: Mogę jeść szkło, i mi nie szkodzi. 
+- Hindi: मैं काँच खा सकता हूँ, मुझे उस से कोई पीडा नहीं होती. 
+- Japanese: 私はガラスを食べられます。それは私を傷つけません。 
+"""
 plain = """
 This has a couple of lines
 Because it likes to.
