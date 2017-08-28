@@ -306,7 +306,7 @@ impl<'a> Serializer<'a> {
         self
     }
 
-    /// Enable or Disable Literal strings for pretty strings 
+    /// Enable or Disable Literal strings for pretty strings
     ///
     /// If enabled, literal strings will be used when possible and strings with
     /// one or more newlines will use triple quotes (i.e.: `'''` or `"""`)
@@ -602,7 +602,7 @@ impl<'a> Serializer<'a> {
 
         let repr = if !is_key && self.settings.string.is_some() {
             match (&self.settings.string, do_pretty(value)) {
-                (&Some(StringSettings { literal: false, .. }), Repr::Literal(_, ty)) => 
+                (&Some(StringSettings { literal: false, .. }), Repr::Literal(_, ty)) =>
                     Repr::Std(ty),
                 (_, r @ _) => r,
             }
@@ -627,9 +627,9 @@ impl<'a> Serializer<'a> {
                 match ty {
                     Type::NewlineTripple =>  self.dst.push_str("\"\"\"\n"),
                     // note: OnelineTripple can happen if do_pretty wants to do
-                    // '''it's one line''' 
+                    // '''it's one line'''
                     // but settings.string.literal == false
-                    Type::OnelineSingle | 
+                    Type::OnelineSingle |
                         Type::OnelineTripple =>  self.dst.push('"'),
                 }
                 for ch in value.chars() {
@@ -701,7 +701,7 @@ impl<'a> Serializer<'a> {
                     self.dst.push('\n');
                 } else if let State::Table { first, .. } = *parent {
                     if !first.get() {
-                        // Newline if we are not the first item in the document 
+                        // Newline if we are not the first item in the document
                         self.dst.push('\n');
                     }
                 }
@@ -784,7 +784,7 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
         self.display(v, "integer")
     }
 
-    fn serialize_f32(mut self, v: f32) -> Result<(), Self::Error> {
+    fn serialize_f32(self, v: f32) -> Result<(), Self::Error> {
         if !v.is_finite() {
             return Err(Error::NumberInvalid);
         }
@@ -800,7 +800,7 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
         Ok(())
     }
 
-    fn serialize_f64(mut self, v: f64) -> Result<(), Self::Error> {
+    fn serialize_f64(self, v: f64) -> Result<(), Self::Error> {
         if !v.is_finite() {
             return Err(Error::NumberInvalid);
         }
@@ -821,7 +821,7 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
         self.serialize_str(v.encode_utf8(&mut buf))
     }
 
-    fn serialize_str(mut self, value: &str) -> Result<(), Self::Error> {
+    fn serialize_str(self, value: &str) -> Result<(), Self::Error> {
         self.emit_key("string")?;
         self.emit_str(value, false)?;
         if let State::Table { .. } = self.state {
@@ -881,7 +881,7 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
         Err(Error::UnsupportedType)
     }
 
-    fn serialize_seq(mut self, len: Option<usize>)
+    fn serialize_seq(self, len: Option<usize>)
                      -> Result<Self::SerializeSeq, Self::Error> {
         self.array_type("array")?;
         Ok(SerializeSeq {
@@ -911,7 +911,7 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
         Err(Error::UnsupportedType)
     }
 
-    fn serialize_map(mut self, _len: Option<usize>)
+    fn serialize_map(self, _len: Option<usize>)
                      -> Result<Self::SerializeMap, Self::Error> {
         self.array_type("table")?;
         Ok(SerializeTable::Table {
@@ -922,7 +922,7 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
         })
     }
 
-    fn serialize_struct(mut self, name: &'static str, _len: usize)
+    fn serialize_struct(self, name: &'static str, _len: usize)
                         -> Result<Self::SerializeStruct, Self::Error> {
         if name == SERDE_STRUCT_NAME {
             self.array_type("datetime")?;
@@ -1050,7 +1050,7 @@ impl<'a, 'b> ser::SerializeMap for SerializeTable<'a, 'b> {
     fn end(self) -> Result<(), Error> {
         match self {
             SerializeTable::Datetime(_) => panic!(), // shouldn't be possible
-            SerializeTable::Table { mut ser, first, ..  } => {
+            SerializeTable::Table { ser, first, ..  } => {
                 if first.get() {
                     let state = ser.state.clone();
                     ser.emit_table_header(&state)?;
@@ -1106,7 +1106,7 @@ impl<'a, 'b> ser::SerializeStruct for SerializeTable<'a, 'b> {
     fn end(self) -> Result<(), Error> {
         match self {
             SerializeTable::Datetime(_) => {},
-            SerializeTable::Table { mut ser, first, ..  } => {
+            SerializeTable::Table { ser, first, ..  } => {
                 if first.get() {
                     let state = ser.state.clone();
                     ser.emit_table_header(&state)?;
