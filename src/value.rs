@@ -95,7 +95,7 @@ impl Value {
         match *self { Value::Integer(i) => Some(i), _ => None }
     }
 
-    /// Tests whether this value is an integer
+    /// Tests whether this value is an integer.
     pub fn is_integer(&self) -> bool {
         self.as_integer().is_some()
     }
@@ -105,7 +105,7 @@ impl Value {
         match *self { Value::Float(f) => Some(f), _ => None }
     }
 
-    /// Tests whether this value is a float
+    /// Tests whether this value is a float.
     pub fn is_float(&self) -> bool {
         self.as_float().is_some()
     }
@@ -115,7 +115,7 @@ impl Value {
         match *self { Value::Boolean(b) => Some(b), _ => None }
     }
 
-    /// Tests whether this value is a boolean
+    /// Tests whether this value is a boolean.
     pub fn is_bool(&self) -> bool {
         self.as_bool().is_some()
     }
@@ -125,7 +125,7 @@ impl Value {
         match *self { Value::String(ref s) => Some(&**s), _ => None }
     }
 
-    /// Tests if this value is a string
+    /// Tests if this value is a string.
     pub fn is_str(&self) -> bool {
         self.as_str().is_some()
     }
@@ -142,7 +142,7 @@ impl Value {
         match *self { Value::Datetime(ref s) => Some(s), _ => None }
     }
 
-    /// Tests whether this value is a datetime
+    /// Tests whether this value is a datetime.
     pub fn is_datetime(&self) -> bool {
         self.as_datetime().is_some()
     }
@@ -157,7 +157,7 @@ impl Value {
         match *self { Value::Array(ref mut s) => Some(s), _ => None }
     }
 
-    /// Tests whether this value is an array
+    /// Tests whether this value is an array.
     pub fn is_array(&self) -> bool {
         self.as_array().is_some()
     }
@@ -172,7 +172,7 @@ impl Value {
         match *self { Value::Table(ref mut s) => Some(s), _ => None }
     }
 
-    /// Extracts the table value if it is a table.
+    /// Tests whether this value is a table.
     pub fn is_table(&self) -> bool {
         self.as_table().is_some()
     }
