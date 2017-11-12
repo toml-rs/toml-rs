@@ -166,3 +166,6 @@ pub mod de;
 #[doc(no_inline)]
 pub use de::{from_slice, from_str, Deserializer};
 mod tokens;
+
+#[doc(hidden)]
+pub mod macros;
