@@ -9,6 +9,7 @@ before_script:
   - pip install 'travis-cargo<0.2' --user && export PATH=$HOME/.local/bin:$PATH
 script:
   - cargo test
+  - cargo test --manifest-path test-suite/Cargo.toml
   - rustdoc --test README.md -L target
   - test "$TRAVIS_RUST_VERSION" != "1.15.0" && cargo doc --no-deps || echo "skipping cargo doc"
 after_success:
