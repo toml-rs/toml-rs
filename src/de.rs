@@ -76,21 +76,21 @@ pub fn from_str<'de, T>(s: &'de str) -> Result<T, Error>
 /// Errors that can occur when deserializing a type.
 #[derive(Debug, Clone)]
 pub struct Error {
-    inner: Box<ErrorInner>,
+    pub inner: Box<ErrorInner>,
 }
 
 #[derive(Debug, Clone)]
-struct ErrorInner {
-    kind: ErrorKind,
-    line: Option<usize>,
-    col: usize,
-    message: String,
-    key: Vec<String>,
+pub struct ErrorInner {
+    pub kind: ErrorKind,
+    pub line: Option<usize>,
+    pub col: usize,
+    pub message: String,
+    pub key: Vec<String>,
 }
 
 /// Errors that can occur when deserializing a type.
 #[derive(Debug, Clone)]
-enum ErrorKind {
+pub enum ErrorKind {
     /// EOF was reached when looking for a value
     UnexpectedEof,
 
