@@ -90,6 +90,54 @@ impl Value {
         index.index_mut(self)
     }
 
+    /// Walk through nested values according to path
+    /// for example if the path is "foo.bar", it will extract foo key, and then bar key,
+    /// if it is there
+    pub fn get_path(&self, path: &str) -> Option<&Value> {
+        let mut value: &Value = &self;
+        for path_part in path.split('.') {
+            value = match value {
+                &Value::Table(ref t) => match t.get(path_part) {
+                    Some(v) => &v,
+                    None => return None,
+                },
+                _ => return None,
+            };
+        }
+        Some(value)
+    }
+
+    /// Extracts array value by providing path
+    pub fn get_array_from_path(&self, path: &str) -> Option<&Vec<Value>> {
+        self.get_path(path).and_then(|v| v.as_array())
+    }
+
+    /// Extracts boolean value by providing path
+    pub fn get_bool_from_path(&self, path: &str) -> Option<bool> {
+        self.get_path(path).and_then(|v| v.as_bool())
+    }
+
+    /// Extracts str value by providing path
+    pub fn get_str_from_path(&self, path: &str) -> Option<&str> {
+        self.get_path(path).and_then(|v| v.as_str())
+    }
+
+    /// Extracts string value by providing path
+    pub fn get_string_from_path(&self, path: &str) -> Option<String> {
+        self.get_path(path)
+            .and_then(|v| v.as_str().map(|s| s.to_string()))
+    }
+
+    /// Extracts i64 value by providing path
+    pub fn get_i64_from_path(&self, path: &str) -> Option<i64> {
+        self.get_path(path).and_then(|v| v.as_integer())
+    }
+
+    /// Extracts float value by providing path
+    pub fn get_float_from_path(&self, path: &str) -> Option<f64> {
+        self.get_path(path).and_then(|v| v.as_float())
+    }
+
     /// Extracts the integer value if it is an integer.
     pub fn as_integer(&self) -> Option<i64> {
         match *self { Value::Integer(i) => Some(i), _ => None }
@@ -942,5 +990,59 @@ impl<'a, 'de> de::Visitor<'de> for DatetimeOrTable<'a> {
             *self.key = s;
             Ok(false)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Value;
+
+    fn get_example() -> Value {
+        r###"
+        [integers]
+        foo=1
+        [booleans]
+        foo=true
+        bar=false
+        [strings]
+        foo="foo"
+        bar="bar"
+        [floats]
+        foo=1.1
+        bar=2.2
+        "###.parse::<Value>().unwrap()
+    }
+
+    #[test]
+    fn get_i64_key() {
+        let value = get_example();
+        assert_eq!(value.get_i64_from_path("integers.foo").unwrap(), 1);
+    }
+
+    #[test]
+    fn get_boolean_key() {
+        let value = get_example();
+        assert_eq!(value.get_bool_from_path("booleans.foo").unwrap(), true);
+        assert_eq!(value.get_bool_from_path("booleans.bar").unwrap(), false);
+    }
+
+    #[test]
+    fn get_str_key() {
+        let value = get_example();
+        assert_eq!(value.get_str_from_path("strings.foo").unwrap(), "foo");
+        assert_eq!(value.get_str_from_path("strings.bar").unwrap(), "bar");
+    }
+
+    #[test]
+    fn get_float_key() {
+        let value = get_example();
+        assert_eq!(value.get_float_from_path("floats.foo").unwrap(), 1.1f64);
+        assert_eq!(value.get_float_from_path("floats.bar").unwrap(), 2.2f64);
+    }
+
+    #[test]
+    fn get_table() {
+        let value = get_example();
+        assert!(value.get_path("integers").unwrap().is_table());
     }
 }
