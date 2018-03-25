@@ -28,3 +28,27 @@ fn always_works() {
 
     toml::to_string(&a).unwrap();
 }
+
+#[derive(Serialize)]
+struct B {
+    property: bool,
+}
+
+#[derive(Serialize)]
+struct C {
+    b: B,
+    // struct B will be serialized as a table, so this property must not appear
+    // after it and must be serialized before b.
+    property2: bool,
+}
+
+// Make sure that serializing with nested structs and property ordering always
+// works.
+#[test]
+fn nested_struct_tables() {
+    let c = C {
+        property2: false,
+        b: B { property: true },
+    };
+    toml::to_string(&c).unwrap();
+}
