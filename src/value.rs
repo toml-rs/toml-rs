@@ -204,6 +204,14 @@ impl Value {
             Value::Table(..) => "table",
         }
     }
+
+    /// Adding new Value to a Table. Returns `None` when fail (Value is not a table);
+    pub fn insert(&mut self, key: &str, value: Value) -> Option<()>
+    { 
+        let table = self.as_table_mut()?;
+        table.insert(key.to_string(), value);
+        Some(())
+    }
 }
 
 impl<I> ops::Index<I> for Value where I: Index {
