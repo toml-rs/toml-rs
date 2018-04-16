@@ -445,7 +445,7 @@ impl<'de> de::Deserialize<'de> for Value {
                 where V: de::SeqAccess<'de>,
             {
                 let mut vec = Vec::new();
-                while let Some(elem) = try!(visitor.next_element()) {
+                while let Some(elem) = visitor.next_element()? {
                     vec.push(elem);
                 }
                 Ok(Value::Array(vec))
@@ -892,7 +892,7 @@ impl ser::SerializeStruct for SerializeMap {
     fn serialize_field<T: ?Sized>(&mut self, key: &'static str, value: &T) -> Result<(), ::ser::Error>
         where T: ser::Serialize
     {
-        try!(ser::SerializeMap::serialize_key(self, key));
+        ser::SerializeMap::serialize_key(self, key)?;
         ser::SerializeMap::serialize_value(self, value)
     }
 

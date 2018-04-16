@@ -290,7 +290,7 @@ impl<'a> Tokenizer<'a> {
                         val: val.into_cow(&self.input[..i]),
                     })
                 }
-                Some((i, c)) => try!(new_ch(self, &mut val, multiline, i, c)),
+                Some((i, c)) => new_ch(self, &mut val, multiline, i, c)?,
                 None => return Err(Error::UnterminatedString(start))
             }
         }
@@ -323,7 +323,7 @@ impl<'a> Tokenizer<'a> {
                         Some((i, c @ 'u')) |
                         Some((i, c @ 'U')) => {
                             let len = if c == 'u' {4} else {8};
-                            val.push(try!(me.hex(start, i, len)));
+                            val.push(me.hex(start, i, len)?);
                         }
                         Some((_, '\n')) if multi => {
                             while let Some((_, ch)) = me.chars.clone().next() {
