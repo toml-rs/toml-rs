@@ -5,6 +5,21 @@ use std::string;
 
 use self::Token::*;
 
+/// A span, designating a range of bytes where a token is located.
+#[derive(Eq, PartialEq, Debug, Clone, Copy)]
+pub struct Span {
+    /// The start of the range.
+    pub start: usize,
+    /// The end of the range (exclusive).
+    pub end: usize,
+}
+
+impl From<Span> for (usize, usize) {
+    fn from(Span { start, end }: Span) -> (usize, usize) {
+        (start, end)
+    }
+}
+
 #[derive(Eq, PartialEq, Debug)]
 pub enum Token<'a> {
     Whitespace(&'a str),
@@ -69,38 +84,42 @@ impl<'a> Tokenizer<'a> {
         t
     }
 
-    pub fn next(&mut self) -> Result<Option<Token<'a>>, Error> {
-        let token = match self.chars.next() {
-            Some((_, '\n')) => Newline,
-            Some((start, ' ')) => self.whitespace_token(start),
-            Some((start, '\t')) => self.whitespace_token(start),
-            Some((start, '#')) => self.comment_token(start),
-            Some((_, '=')) => Equals,
-            Some((_, '.')) => Period,
-            Some((_, ',')) => Comma,
-            Some((_, ':')) => Colon,
-            Some((_, '+')) => Plus,
-            Some((_, '{')) => LeftBrace,
-            Some((_, '}')) => RightBrace,
-            Some((_, '[')) => LeftBracket,
-            Some((_, ']')) => RightBracket,
-            Some((start, '\'')) => return self.literal_string(start).map(Some),
-            Some((start, '"')) => return self.basic_string(start).map(Some),
-            Some((start, ch)) if is_keylike(ch) => self.keylike(start),
+    pub fn next(&mut self) -> Result<Option<(Span, Token<'a>)>, Error> {
+        let (start, token) = match self.one() {
+            Some((start, '\n')) => (start, Newline),
+            Some((start, ' ')) => (start, self.whitespace_token(start)),
+            Some((start, '\t')) => (start, self.whitespace_token(start)),
+            Some((start, '#')) => (start, self.comment_token(start)),
+            Some((start, '=')) => (start, Equals),
+            Some((start, '.')) => (start, Period),
+            Some((start, ',')) => (start, Comma),
+            Some((start, ':')) => (start, Colon),
+            Some((start, '+')) => (start, Plus),
+            Some((start, '{')) => (start, LeftBrace),
+            Some((start, '}')) => (start, RightBrace),
+            Some((start, '[')) => (start, LeftBracket),
+            Some((start, ']')) => (start, RightBracket),
+            Some((start, '\'')) => return self.literal_string(start)
+                .map(|t| Some((self.step_span(start), t))),
+            Some((start, '"')) => return self.basic_string(start)
+                .map(|t| Some((self.step_span(start), t))),
+            Some((start, ch)) if is_keylike(ch) => (start, self.keylike(start)),
 
             Some((start, ch)) => return Err(Error::Unexpected(start, ch)),
             None => return Ok(None),
         };
-        Ok(Some(token))
+
+        let span = self.step_span(start);
+        Ok(Some((span, token)))
     }
 
-    pub fn peek(&mut self) -> Result<Option<Token<'a>>, Error> {
+    pub fn peek(&mut self) -> Result<Option<(Span, Token<'a>)>, Error> {
         self.clone().next()
     }
 
     pub fn eat(&mut self, expected: Token<'a>) -> Result<bool, Error> {
         match self.peek()? {
-            Some(ref found) if expected == *found => {}
+            Some((_, ref found)) if expected == *found => {}
             Some(_) => return Ok(false),
             None => return Ok(false),
         }
@@ -111,7 +130,7 @@ impl<'a> Tokenizer<'a> {
     pub fn expect(&mut self, expected: Token<'a>) -> Result<(), Error> {
         let current = self.current();
         match self.next()? {
-            Some(found) => {
+            Some((_, found)) => {
                 if expected == found {
                     Ok(())
                 } else {
@@ -132,21 +151,21 @@ impl<'a> Tokenizer<'a> {
         }
     }
 
-    pub fn table_key(&mut self) -> Result<Cow<'a, str>, Error> {
+    pub fn table_key(&mut self) -> Result<(Span, Cow<'a, str>), Error> {
         let current = self.current();
         match self.next()? {
-            Some(Token::Keylike(k)) => Ok(k.into()),
-            Some(Token::String { src, val }) => {
+            Some((span, Token::Keylike(k))) => Ok((span, k.into())),
+            Some((span, Token::String { src, val })) => {
                 let offset = self.substr_offset(src);
                 if val == "" {
                     return Err(Error::EmptyTableKey(offset))
                 }
                 match src.find('\n') {
-                    None => Ok(val),
+                    None => Ok((span, val)),
                     Some(i) => Err(Error::NewlineInTableKey(offset + i)),
                 }
             }
-            Some(other) => {
+            Some((_, other)) => {
                 Err(Error::Wanted {
                     at: current,
                     expected: "a table key",
@@ -182,8 +201,8 @@ impl<'a> Tokenizer<'a> {
         let current = self.current();
         match self.next()? {
             None |
-            Some(Token::Newline) => Ok(()),
-            Some(other) => {
+            Some((_, Token::Newline)) => Ok(()),
+            Some((_, other)) => {
                 Err(Error::Wanted {
                     at: current,
                     expected: "newline",
@@ -195,7 +214,7 @@ impl<'a> Tokenizer<'a> {
 
     pub fn skip_to_newline(&mut self) {
         loop {
-            match self.chars.next() {
+            match self.one() {
                 Some((_, '\n')) |
                 None => break,
                 _ => {}
@@ -206,7 +225,7 @@ impl<'a> Tokenizer<'a> {
     fn eatc(&mut self, ch: char) -> bool {
         match self.chars.clone().next() {
             Some((_, ch2)) if ch == ch2 => {
-                self.chars.next();
+                self.one();
                 true
             }
             _ => false,
@@ -233,7 +252,7 @@ impl<'a> Tokenizer<'a> {
             if ch != '\t' && (ch < '\u{20}' || ch > '\u{10ffff}') {
                 break
             }
-            self.chars.next();
+            self.one();
         }
         Comment(&self.input[start..self.current()])
     }
@@ -260,7 +279,7 @@ impl<'a> Tokenizer<'a> {
         let mut n = 0;
         'outer: loop {
             n += 1;
-            match self.chars.next() {
+            match self.one() {
                 Some((i, '\n')) => {
                     if multiline {
                         if self.input.as_bytes()[i] == b'\r' {
@@ -352,7 +371,7 @@ impl<'a> Tokenizer<'a> {
     fn hex(&mut self, start: usize, i: usize, len: usize) -> Result<char, Error> {
         let mut val = 0;
         for _ in 0..len {
-            match self.chars.next() {
+            match self.one() {
                 Some((_, ch)) if '0' <= ch && ch <= '9' => {
                     val = val * 16 + (ch as u32 - '0' as u32);
                 }
@@ -370,11 +389,11 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn keylike(&mut self, start: usize) -> Token<'a> {
-        while let Some((_, ch)) = self.chars.clone().next() {
+        while let Some((_, ch)) = self.peek_one() {
             if !is_keylike(ch) {
                 break
             }
-            self.chars.next();
+            self.one();
         }
         Keylike(&self.input[start..self.current()])
     }
@@ -385,6 +404,22 @@ impl<'a> Tokenizer<'a> {
         let b = s.as_ptr() as usize;
         assert!(a <= b);
         b - a
+    }
+
+    /// Calculate the span of a single character.
+    fn step_span(&mut self, start: usize) -> Span {
+        let end = self.peek_one().map(|t| t.0).unwrap_or_else(|| self.input.len());
+        Span { start: start, end: end }
+    }
+
+    /// Peek one char without consuming it.
+    fn peek_one(&mut self) -> Option<(usize, char)> {
+        self.chars.clone().next()
+    }
+
+    /// Take one char.
+    pub fn one(&mut self) -> Option<(usize, char)> {
+        self.chars.next()
     }
 }
 
@@ -475,7 +510,7 @@ mod tests {
     fn literal_strings() {
         fn t(input: &str, val: &str) {
             let mut t = Tokenizer::new(input);
-            let token = t.next().unwrap().unwrap();
+            let (_, token) = t.next().unwrap().unwrap();
             assert_eq!(token, Token::String {
                 src: input,
                 val: Cow::Borrowed(val),
@@ -497,7 +532,7 @@ mod tests {
     fn basic_strings() {
         fn t(input: &str, val: &str) {
             let mut t = Tokenizer::new(input);
-            let token = t.next().unwrap().unwrap();
+            let (_, token) = t.next().unwrap().unwrap();
             assert_eq!(token, Token::String {
                 src: input,
                 val: Cow::Borrowed(val),
@@ -538,7 +573,7 @@ mod tests {
     fn keylike() {
         fn t(input: &str) {
             let mut t = Tokenizer::new(input);
-            let token = t.next().unwrap().unwrap();
+            let (_, token) = t.next().unwrap().unwrap();
             assert_eq!(token, Token::Keylike(input));
             assert!(t.next().unwrap().is_none());
         }
@@ -554,11 +589,11 @@ mod tests {
 
     #[test]
     fn all() {
-        fn t(input: &str, expected: &[Token]) {
+        fn t(input: &str, expected: &[((usize, usize), Token, &str)]) {
             let mut tokens = Tokenizer::new(input);
-            let mut actual = Vec::new();
-            while let Some(token) = tokens.next().unwrap() {
-                actual.push(token);
+            let mut actual: Vec<((usize, usize), Token, &str)> = Vec::new();
+            while let Some((span, token)) = tokens.next().unwrap() {
+                actual.push((span.into(), token, &input[span.start..span.end]));
             }
             for (a, b) in actual.iter().zip(expected) {
                 assert_eq!(a, b);
@@ -567,37 +602,37 @@ mod tests {
         }
 
         t(" a ", &[
-            Token::Whitespace(" "),
-            Token::Keylike("a"),
-            Token::Whitespace(" "),
+            ((0, 1), Token::Whitespace(" "), " "),
+            ((1, 2), Token::Keylike("a"), "a"),
+            ((2, 3), Token::Whitespace(" "), " "),
         ]);
 
         t(" a\t [[]] \t [] {} , . =\n# foo \r\n#foo \n ", &[
-            Token::Whitespace(" "),
-            Token::Keylike("a"),
-            Token::Whitespace("\t "),
-            Token::LeftBracket,
-            Token::LeftBracket,
-            Token::RightBracket,
-            Token::RightBracket,
-            Token::Whitespace(" \t "),
-            Token::LeftBracket,
-            Token::RightBracket,
-            Token::Whitespace(" "),
-            Token::LeftBrace,
-            Token::RightBrace,
-            Token::Whitespace(" "),
-            Token::Comma,
-            Token::Whitespace(" "),
-            Token::Period,
-            Token::Whitespace(" "),
-            Token::Equals,
-            Token::Newline,
-            Token::Comment("# foo "),
-            Token::Newline,
-            Token::Comment("#foo "),
-            Token::Newline,
-            Token::Whitespace(" "),
+            ((0, 1), Token::Whitespace(" "), " "),
+            ((1, 2), Token::Keylike("a"), "a"),
+            ((2, 4), Token::Whitespace("\t "), "\t "),
+            ((4, 5), Token::LeftBracket, "["),
+            ((5, 6), Token::LeftBracket, "["),
+            ((6, 7), Token::RightBracket, "]"),
+            ((7, 8), Token::RightBracket, "]"),
+            ((8, 11), Token::Whitespace(" \t "), " \t "),
+            ((11, 12), Token::LeftBracket, "["),
+            ((12, 13), Token::RightBracket, "]"),
+            ((13, 14), Token::Whitespace(" "), " "),
+            ((14, 15), Token::LeftBrace, "{"),
+            ((15, 16), Token::RightBrace, "}"),
+            ((16, 17), Token::Whitespace(" "), " "),
+            ((17, 18), Token::Comma, ","),
+            ((18, 19), Token::Whitespace(" "), " "),
+            ((19, 20), Token::Period, "."),
+            ((20, 21), Token::Whitespace(" "), " "),
+            ((21, 22), Token::Equals, "="),
+            ((22, 23), Token::Newline, "\n"),
+            ((23, 29), Token::Comment("# foo "), "# foo "),
+            ((29, 31), Token::Newline, "\r\n"),
+            ((31, 36), Token::Comment("#foo "), "#foo "),
+            ((36, 37), Token::Newline, "\n"),
+            ((37, 38), Token::Whitespace(" "), " "),
         ]);
     }
 
