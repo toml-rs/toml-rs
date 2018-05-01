@@ -1025,7 +1025,7 @@ impl<'a> Deserializer<'a> {
     }
 
     fn table_key(&mut self) -> Result<Cow<'a, str>, Error> {
-        self.tokens.table_key().map_err(|e| self.token_error(e))
+        self.tokens.table_key().map(|t| t.1).map_err(|e| self.token_error(e))
     }
 
     fn eat_whitespace(&mut self) -> Result<(), Error> {
@@ -1049,11 +1049,11 @@ impl<'a> Deserializer<'a> {
     }
 
     fn next(&mut self) -> Result<Option<Token<'a>>, Error> {
-        self.tokens.next().map_err(|e| self.token_error(e))
+        self.tokens.next().map(|t| t.map(|t| t.1)).map_err(|e| self.token_error(e))
     }
 
     fn peek(&mut self) -> Result<Option<Token<'a>>, Error> {
-        self.tokens.peek().map_err(|e| self.token_error(e))
+        self.tokens.peek().map(|t| t.map(|t| t.1)).map_err(|e| self.token_error(e))
     }
 
     fn eof(&self) -> Error {
@@ -1281,7 +1281,7 @@ impl<'a> Header<'a> {
         if self.first || self.tokens.eat(Token::Period)? {
             self.first = false;
             self.tokens.eat_whitespace()?;
-            self.tokens.table_key().map(Some)
+            self.tokens.table_key().map(|t| t.1).map(Some)
         } else {
             self.tokens.expect(Token::RightBracket)?;
             if self.array {
