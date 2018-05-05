@@ -153,6 +153,8 @@
 
 #[macro_use]
 extern crate serde;
+#[macro_use]
+extern crate serde_derive;
 
 pub mod value;
 #[doc(no_inline)]
@@ -169,3 +171,5 @@ mod tokens;
 
 #[doc(hidden)]
 pub mod macros;
+
+pub mod spanned;
