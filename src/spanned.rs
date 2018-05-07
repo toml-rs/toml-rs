@@ -32,43 +32,6 @@ pub const END: &'static str = "$__toml_private_end";
 #[doc(hidden)]
 pub const VALUE: &'static str = "$__toml_private_value";
 
-macro_rules! key_deserialize {
-    ($ident:ident, $field:expr, $name:expr) => {
-        struct $ident;
-
-        impl<'de> de::Deserialize<'de> for $ident {
-            fn deserialize<D>(deserializer: D) -> Result<$ident, D::Error>
-                where D: de::Deserializer<'de>
-            {
-                struct FieldVisitor;
-
-                impl<'de> de::Visitor<'de> for FieldVisitor {
-                    type Value = ();
-
-                    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-                        formatter.write_str("a valid spanned field")
-                    }
-
-                    fn visit_str<E>(self, s: &str) -> Result<(), E>
-                        where E: de::Error
-                    {
-                        if s == $field {
-                            Ok(())
-                        } else {
-                            Err(de::Error::custom(
-                                concat!("expected spanned field `", $name, "`")))
-                        }
-                    }
-                }
-
-                deserializer.deserialize_identifier(FieldVisitor)?;
-                Ok($ident)
-            }
-        }
-    }
-}
-
-
 /// A spanned value, indicating the range at which it is defined in the source.
 #[derive(Debug)]
 pub struct Spanned<T> {
@@ -100,25 +63,19 @@ impl<'de, T> de::Deserialize<'de> for Spanned<T>
             fn visit_map<V>(self, mut visitor: V) -> Result<Spanned<T>, V::Error>
                 where V: de::MapAccess<'de>
             {
-                let start = visitor.next_key::<StartKey>()?;
-
-                if start.is_none() {
+                if visitor.next_key()? != Some(START) {
                     return Err(de::Error::custom("spanned start key not found"))
                 }
 
                 let start: usize = visitor.next_value()?;
 
-                let end = visitor.next_key::<EndKey>()?;
-
-                if end.is_none() {
+                if visitor.next_key()? != Some(END) {
                     return Err(de::Error::custom("spanned end key not found"))
                 }
 
                 let end: usize = visitor.next_value()?;
 
-                let value = visitor.next_key::<ValueKey>()?;
-
-                if value.is_none() {
+                if visitor.next_key()? != Some(VALUE) {
                     return Err(de::Error::custom("spanned value key not found"))
                 }
 
@@ -131,10 +88,6 @@ impl<'de, T> de::Deserialize<'de> for Spanned<T>
                 })
             }
         }
-
-        key_deserialize!(StartKey, START, "start");
-        key_deserialize!(EndKey, END, "end");
-        key_deserialize!(ValueKey, VALUE, "value");
 
         let visitor = SpannedVisitor(::std::marker::PhantomData);
 

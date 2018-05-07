@@ -12,6 +12,7 @@ use std::vec;
 
 use serde::de;
 use serde::de::IntoDeserializer;
+use serde::de::value::BorrowedStrDeserializer;
 
 use tokens::{Tokenizer, Token, Error as TokenError, Span};
 use datetime;
@@ -620,11 +621,11 @@ impl<'de> de::MapAccess<'de> for SpannedDeserializer<'de> {
         K: de::DeserializeSeed<'de>,
     {
         if self.start.is_some() {
-            seed.deserialize(spanned::START.into_deserializer()).map(Some)
+            seed.deserialize(BorrowedStrDeserializer::new(spanned::START)).map(Some)
         } else if self.end.is_some() {
-            seed.deserialize(spanned::END.into_deserializer()).map(Some)
+            seed.deserialize(BorrowedStrDeserializer::new(spanned::END)).map(Some)
         } else if self.value.is_some() {
-            seed.deserialize(spanned::VALUE.into_deserializer()).map(Some)
+            seed.deserialize(BorrowedStrDeserializer::new(spanned::VALUE)).map(Some)
         } else {
             Ok(None)
         }
