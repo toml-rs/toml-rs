@@ -853,16 +853,16 @@ impl<'a> Deserializer<'a> {
     {
         if s.contains('T') || (s.len() > 1 && s[1..].contains('-')) &&
            !s.contains("e-") {
-            self.datetime(s, false).map(|d| Value {
+            self.datetime(span, s, false).map(|(Span { start, end }, d)| Value {
                 e: E::Datetime(d),
-                start: span.start,
-                end: span.end
+                start: start,
+                end: end
             })
         } else if self.eat(Token::Colon)? {
-            self.datetime(s, true).map(|d| Value {
+            self.datetime(span, s, true).map(|(Span { start, end }, d)| Value {
                 e: E::Datetime(d),
-                start: span.start,
-                end: span.end
+                start: start,
+                end: end
             })
         } else {
             self.number(span, s)
@@ -1006,9 +1006,10 @@ impl<'a> Deserializer<'a> {
         })
     }
 
-    fn datetime(&mut self, date: &'a str, colon_eaten: bool)
-                -> Result<&'a str, Error> {
+    fn datetime(&mut self, mut span: Span, date: &'a str, colon_eaten: bool)
+                -> Result<(Span, &'a str), Error> {
         let start = self.tokens.substr_offset(date);
+
         if colon_eaten || self.eat(Token::Colon)? {
             // minutes
             match self.next()? {
@@ -1018,13 +1019,17 @@ impl<'a> Deserializer<'a> {
             // Seconds
             self.expect(Token::Colon)?;
             match self.next()? {
-                Some((_, Token::Keylike(_))) => {}
+                Some((Span { end, .. }, Token::Keylike(_))) => {
+                    span.end = end;
+                },
                 _ => return Err(self.error(start, ErrorKind::DateInvalid)),
             }
             // Fractional seconds
             if self.eat(Token::Period)? {
                 match self.next()? {
-                    Some((_, Token::Keylike(_))) => {}
+                    Some((Span { end, .. }, Token::Keylike(_))) => {
+                        span.end = end;
+                    },
                     _ => return Err(self.error(start, ErrorKind::DateInvalid)),
                 }
             }
@@ -1032,19 +1037,24 @@ impl<'a> Deserializer<'a> {
             // offset
             if self.eat(Token::Plus)? {
                 match self.next()? {
-                    Some((_, Token::Keylike(_))) => {}
+                    Some((Span { end, .. }, Token::Keylike(_))) => {
+                        span.end = end;
+                    },
                     _ => return Err(self.error(start, ErrorKind::DateInvalid)),
                 }
             }
             if self.eat(Token::Colon)? {
                 match self.next()? {
-                    Some((_, Token::Keylike(_))) => {}
+                    Some((Span { end, .. }, Token::Keylike(_))) => {
+                        span.end = end;
+                    },
                     _ => return Err(self.error(start, ErrorKind::DateInvalid)),
                 }
             }
         }
+
         let end = self.tokens.current();
-        Ok(&self.tokens.input()[start..end])
+        Ok((span, &self.tokens.input()[start..end]))
     }
 
     // TODO(#140): shouldn't buffer up this entire table in memory, it'd be

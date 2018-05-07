@@ -4,7 +4,25 @@ extern crate toml;
 extern crate serde_derive;
 
 use toml::Spanned;
+use toml::value::Datetime;
 use std::collections::HashMap;
+
+/// A set of good datetimes.
+pub fn good_datetimes() -> Vec<&'static str> {
+    let mut v = Vec::new();
+    v.push("1997-09-09T09:09:09Z");
+    v.push("1997-09-09T09:09:09+09:09");
+    v.push("1997-09-09T09:09:09-09:09");
+    v.push("1997-09-09T09:09:09");
+    v.push("1997-09-09");
+    v.push("09:09:09");
+    v.push("1997-09-09T09:09:09.09Z");
+    v.push("1997-09-09T09:09:09.09+09:09");
+    v.push("1997-09-09T09:09:09.09-09:09");
+    v.push("1997-09-09T09:09:09.09");
+    v.push("09:09:09.09");
+    v
+}
 
 #[test]
 fn test_spanned_field() {
@@ -40,4 +58,9 @@ fn test_spanned_field() {
         "foo = \"1997-09-09T09:09:09Z\"",
         "\"1997-09-09T09:09:09Z\""
     );
+
+    for expected in good_datetimes() {
+        let s = format!("foo = {}", expected);
+        good::<Datetime>(&s, expected);
+    }
 }

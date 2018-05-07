@@ -171,4 +171,5 @@ mod tokens;
 pub mod macros;
 
 pub mod spanned;
+#[doc(no_inline)]
 pub use spanned::Spanned;
