@@ -14,7 +14,7 @@ use serde::de;
 use serde::de::IntoDeserializer;
 
 use tokens::{Tokenizer, Token, Error as TokenError, Span};
-use datetime::{SERDE_STRUCT_FIELD_NAME, SERDE_STRUCT_NAME};
+use datetime;
 use spanned;
 
 /// Deserializes a byte slice into a type.
@@ -536,7 +536,7 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
                              visitor: V) -> Result<V::Value, Error>
         where V: de::Visitor<'de>,
     {
-        if name == SERDE_STRUCT_NAME && fields == &[SERDE_STRUCT_FIELD_NAME] {
+        if name == datetime::NAME && fields == &[datetime::FIELD] {
             if let E::Datetime(s) = self.value.e {
                 return visitor.visit_map(DatetimeDeserializer {
                     date: s,
@@ -545,9 +545,10 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
             }
         }
 
-        if name == spanned::NAME && fields == spanned::FIELDS {
+        if name == spanned::NAME && fields == &[spanned::START, spanned::END, spanned::VALUE] {
             let start = self.value.start;
             let end = self.value.end;
+
             return visitor.visit_map(SpannedDeserializer {
                 start: Some(start),
                 value: Some(self.value),
@@ -607,8 +608,8 @@ impl<'de> de::IntoDeserializer<'de, Error> for Value<'de> {
 
 struct SpannedDeserializer<'a> {
     start: Option<usize>,
-    value: Option<Value<'a>>,
     end: Option<usize>,
+    value: Option<Value<'a>>,
 }
 
 impl<'de> de::MapAccess<'de> for SpannedDeserializer<'de> {
@@ -619,11 +620,11 @@ impl<'de> de::MapAccess<'de> for SpannedDeserializer<'de> {
         K: de::DeserializeSeed<'de>,
     {
         if self.start.is_some() {
-            seed.deserialize("start".into_deserializer()).map(Some)
-        } else if self.value.is_some() {
-            seed.deserialize("value".into_deserializer()).map(Some)
+            seed.deserialize(spanned::START.into_deserializer()).map(Some)
         } else if self.end.is_some() {
-            seed.deserialize("end".into_deserializer()).map(Some)
+            seed.deserialize(spanned::END.into_deserializer()).map(Some)
+        } else if self.value.is_some() {
+            seed.deserialize(spanned::VALUE.into_deserializer()).map(Some)
         } else {
             Ok(None)
         }
@@ -635,10 +636,10 @@ impl<'de> de::MapAccess<'de> for SpannedDeserializer<'de> {
     {
         if let Some(start) = self.start.take() {
             seed.deserialize(start.into_deserializer())
+        } else if  let Some(end) = self.end.take() {
+            seed.deserialize(end.into_deserializer())
         } else if let Some(value) = self.value.take() {
             seed.deserialize(value.into_deserializer())
-        } else if let Some(end) = self.end.take() {
-            seed.deserialize(end.into_deserializer())
         } else {
             panic!("next_value_seed called before next_key_seed")
         }
@@ -678,7 +679,7 @@ impl<'de> de::Deserializer<'de> for DatetimeFieldDeserializer {
     fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Error>
         where V: de::Visitor<'de>,
     {
-        visitor.visit_borrowed_str(SERDE_STRUCT_FIELD_NAME)
+        visitor.visit_borrowed_str(datetime::FIELD)
     }
 
     forward_to_deserialize_any! {
@@ -811,21 +812,25 @@ impl<'a> Deserializer<'a> {
         let at = self.tokens.current();
         let value = match self.next()? {
             Some((Span { start, end }, Token::String { val, .. })) => {
-                Value { e: E::String(val), start, end }
+                Value { e: E::String(val), start: start, end: end }
             }
             Some((Span { start, end }, Token::Keylike("true"))) => {
-                Value { e: E::Boolean(true), start, end }
+                Value { e: E::Boolean(true), start: start, end: end }
             }
             Some((Span { start, end }, Token::Keylike("false"))) => {
-                Value { e: E::Boolean(false), start, end }
+                Value { e: E::Boolean(false), start: start, end: end }
             }
-            Some((_, Token::Keylike(key))) => self.number_or_date(key)?,
+            Some((span, Token::Keylike(key))) => self.number_or_date(span, key)?,
             Some((_, Token::Plus)) => self.number_leading_plus()?,
             Some((Span { start, end }, Token::LeftBrace)) => {
-                self.inline_table().map(|table| Value { e: E::InlineTable(table), start, end })?
+                self.inline_table().map(|table| Value {
+                    e: E::InlineTable(table),
+                    start: start,
+                    end: end
+                })?
             }
             Some((Span { start, end }, Token::LeftBracket)) => {
-                self.array().map(|array| Value { e: E::Array(array), start, end })?
+                self.array().map(|array| Value { e: E::Array(array), start: start, end: end })?
             }
             Some(token) => {
                 return Err(self.error(at, ErrorKind::Wanted {
@@ -838,42 +843,49 @@ impl<'a> Deserializer<'a> {
         Ok(value)
     }
 
-    fn number_or_date(&mut self, s: &'a str) -> Result<Value<'a>, Error> {
+    fn number_or_date(&mut self, span: Span, s: &'a str)
+        -> Result<Value<'a>, Error>
+    {
         if s.contains('T') || (s.len() > 1 && s[1..].contains('-')) &&
            !s.contains("e-") {
-            // FIXME needs span
-            self.datetime(s, false).map(|d| Value { e: E::Datetime(d), start: 0, end: 0 })
+            self.datetime(s, false).map(|d| Value {
+                e: E::Datetime(d),
+                start: span.start,
+                end: span.end
+            })
         } else if self.eat(Token::Colon)? {
-            // FIXME needs span
-            self.datetime(s, true).map(|d| Value { e: E::Datetime(d), start: 0, end: 0 })
+            self.datetime(s, true).map(|d| Value {
+                e: E::Datetime(d),
+                start: span.start,
+                end: span.end
+            })
         } else {
-            self.number(s)
+            self.number(span, s)
         }
     }
 
-    fn number(&mut self, s: &'a str) -> Result<Value<'a>, Error> {
+    fn number(&mut self, Span { start, end}: Span, s: &'a str) -> Result<Value<'a>, Error> {
         if s.contains('e') || s.contains('E') {
-            // FIXME needs span
-            self.float(s, None).map(|f| Value { e: E::Float(f), start: 0, end: 0 })
+            self.float(s, None).map(|f| Value { e: E::Float(f), start: start, end: end })
         } else if self.eat(Token::Period)? {
             let at = self.tokens.current();
             match self.next()? {
-                Some((_, Token::Keylike(after))) => {
-                    // FIXME needs span
-                    self.float(s, Some(after)).map(|f| Value { e: E::Float(f), start: 0, end: 0 })
+                Some((Span { start, end }, Token::Keylike(after))) => {
+                    self.float(s, Some(after)).map(|f| Value {
+                        e: E::Float(f), start: start, end: end
+                    })
                 }
                 _ => Err(self.error(at, ErrorKind::NumberInvalid)),
             }
         } else {
-            // FIXME needs span
-            self.integer(s).map(|f| Value { e: E::Integer(f), start: 0, end: 0 })
+            self.integer(s).map(|f| Value { e: E::Integer(f), start: start, end: end })
         }
     }
 
     fn number_leading_plus(&mut self) -> Result<Value<'a>, Error> {
         let start = self.tokens.current();
         match self.next()? {
-            Some((_, Token::Keylike(s))) => self.number(s),
+            Some((span, Token::Keylike(s))) => self.number(span, s),
             _ => Err(self.error(start, ErrorKind::NumberInvalid)),
         }
     }

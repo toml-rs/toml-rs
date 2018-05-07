@@ -173,3 +173,4 @@ mod tokens;
 pub mod macros;
 
 pub mod spanned;
+pub use spanned::Spanned;

@@ -33,7 +33,7 @@ use std::marker;
 use std::rc::Rc;
 
 use serde::ser;
-use datetime::{SERDE_STRUCT_FIELD_NAME, SERDE_STRUCT_NAME};
+use datetime;
 
 /// Serialize the given data structure as a TOML byte vector.
 ///
@@ -924,7 +924,7 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
 
     fn serialize_struct(self, name: &'static str, _len: usize)
                         -> Result<Self::SerializeStruct, Self::Error> {
-        if name == SERDE_STRUCT_NAME {
+        if name == datetime::NAME {
             self.array_type("datetime")?;
             Ok(SerializeTable::Datetime(self))
         } else {
@@ -1071,7 +1071,7 @@ impl<'a, 'b> ser::SerializeStruct for SerializeTable<'a, 'b> {
     {
         match *self {
             SerializeTable::Datetime(ref mut ser) => {
-                if key == SERDE_STRUCT_FIELD_NAME {
+                if key == datetime::FIELD {
                     value.serialize(DateStrEmitter(&mut *ser))?;
                 } else {
                     return Err(Error::DateInvalid)
