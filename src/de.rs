@@ -821,16 +821,20 @@ impl<'a> Deserializer<'a> {
                 Value { e: E::Boolean(false), start: start, end: end }
             }
             Some((span, Token::Keylike(key))) => self.number_or_date(span, key)?,
-            Some((_, Token::Plus)) => self.number_leading_plus()?,
-            Some((Span { start, end }, Token::LeftBrace)) => {
-                self.inline_table().map(|table| Value {
+            Some((span, Token::Plus)) => self.number_leading_plus(span)?,
+            Some((Span { start, .. }, Token::LeftBrace)) => {
+                self.inline_table().map(|(Span { end, .. }, table)| Value {
                     e: E::InlineTable(table),
                     start: start,
                     end: end
                 })?
             }
-            Some((Span { start, end }, Token::LeftBracket)) => {
-                self.array().map(|array| Value { e: E::Array(array), start: start, end: end })?
+            Some((Span { start, .. }, Token::LeftBracket)) => {
+                self.array().map(|(Span { end, .. }, array)| Value {
+                    e: E::Array(array),
+                    start: start,
+                    end: end
+                })?
             }
             Some(token) => {
                 return Err(self.error(at, ErrorKind::Wanted {
@@ -882,11 +886,13 @@ impl<'a> Deserializer<'a> {
         }
     }
 
-    fn number_leading_plus(&mut self) -> Result<Value<'a>, Error> {
-        let start = self.tokens.current();
+    fn number_leading_plus(&mut self, Span { start, .. }: Span) -> Result<Value<'a>, Error> {
+        let start_token = self.tokens.current();
         match self.next()? {
-            Some((span, Token::Keylike(s))) => self.number(span, s),
-            _ => Err(self.error(start, ErrorKind::NumberInvalid)),
+            Some((Span { end, .. }, Token::Keylike(s))) => {
+                self.number(Span { start: start, end: end }, s)
+            },
+            _ => Err(self.error(start_token, ErrorKind::NumberInvalid)),
         }
     }
 
@@ -1042,11 +1048,11 @@ impl<'a> Deserializer<'a> {
 
     // TODO(#140): shouldn't buffer up this entire table in memory, it'd be
     // great to defer parsing everything until later.
-    fn inline_table(&mut self) -> Result<Vec<(Cow<'a, str>, Value<'a>)>, Error> {
+    fn inline_table(&mut self) -> Result<(Span, Vec<(Cow<'a, str>, Value<'a>)>), Error> {
         let mut ret = Vec::new();
         self.eat_whitespace()?;
-        if self.eat(Token::RightBrace)? {
-            return Ok(ret)
+        if let Some(span) = self.eat_spanned(Token::RightBrace)? {
+            return Ok((span, ret))
         }
         loop {
             let key = self.table_key()?;
@@ -1056,8 +1062,8 @@ impl<'a> Deserializer<'a> {
             ret.push((key, self.value()?));
 
             self.eat_whitespace()?;
-            if self.eat(Token::RightBrace)? {
-                return Ok(ret)
+            if let Some(span) = self.eat_spanned(Token::RightBrace)? {
+                return Ok((span, ret))
             }
             self.expect(Token::Comma)?;
             self.eat_whitespace()?;
@@ -1066,7 +1072,7 @@ impl<'a> Deserializer<'a> {
 
     // TODO(#140): shouldn't buffer up this entire array in memory, it'd be
     // great to defer parsing everything until later.
-    fn array(&mut self) -> Result<Vec<Value<'a>>, Error> {
+    fn array(&mut self) -> Result<(Span, Vec<Value<'a>>), Error> {
         let mut ret = Vec::new();
 
         let intermediate = |me: &mut Deserializer| {
@@ -1081,8 +1087,8 @@ impl<'a> Deserializer<'a> {
 
         loop {
             intermediate(self)?;
-            if self.eat(Token::RightBracket)? {
-                return Ok(ret)
+            if let Some(span) = self.eat_spanned(Token::RightBracket)? {
+                return Ok((span, ret))
             }
             let at = self.tokens.current();
             let value = self.value()?;
@@ -1098,8 +1104,8 @@ impl<'a> Deserializer<'a> {
             }
         }
         intermediate(self)?;
-        self.expect(Token::RightBracket)?;
-        Ok(ret)
+        let span = self.expect_spanned(Token::RightBracket)?;
+        Ok((span, ret))
     }
 
     fn table_key(&mut self) -> Result<Cow<'a, str>, Error> {
@@ -1122,8 +1128,16 @@ impl<'a> Deserializer<'a> {
         self.tokens.eat(expected).map_err(|e| self.token_error(e))
     }
 
+    fn eat_spanned(&mut self, expected: Token<'a>) -> Result<Option<Span>, Error> {
+        self.tokens.eat_spanned(expected).map_err(|e| self.token_error(e))
+    }
+
     fn expect(&mut self, expected: Token<'a>) -> Result<(), Error> {
         self.tokens.expect(expected).map_err(|e| self.token_error(e))
+    }
+
+    fn expect_spanned(&mut self, expected: Token<'a>) -> Result<Span, Error> {
+        self.tokens.expect_spanned(expected).map_err(|e| self.token_error(e))
     }
 
     fn next(&mut self) -> Result<Option<(Span, Token<'a>)>, Error> {

@@ -23,8 +23,21 @@ fn test_spanned_field() {
 
     good::<String>("foo = \"foo\"", "\"foo\"");
     good::<u32>("foo = 42", "42");
+    // leading plus
+    good::<u32>("foo = +42", "+42");
+    // table
     good::<HashMap<String, u32>>(
         "foo = {\"foo\" = 42, \"bar\" = 42}",
         "{\"foo\" = 42, \"bar\" = 42}"
+    );
+    // array
+    good::<Vec<u32>>(
+        "foo = [0, 1, 2, 3, 4]",
+        "[0, 1, 2, 3, 4]"
+    );
+    // datetime
+    good::<String>(
+        "foo = \"1997-09-09T09:09:09Z\"",
+        "\"1997-09-09T09:09:09Z\""
     );
 }
