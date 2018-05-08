@@ -2,6 +2,7 @@ use std::borrow::Cow;
 use std::char;
 use std::str;
 use std::string;
+use std::string::String as StdString;
 
 use self::Token::*;
 
@@ -369,19 +370,15 @@ impl<'a> Tokenizer<'a> {
     }
 
     fn hex(&mut self, start: usize, i: usize, len: usize) -> Result<char, Error> {
-        let mut val = 0;
+        let mut buf = StdString::with_capacity(len);
         for _ in 0..len {
             match self.one() {
-                Some((_, ch)) if '0' <= ch && ch <= '9' => {
-                    val = val * 16 + (ch as u32 - '0' as u32);
-                }
-                Some((_, ch)) if 'A' <= ch && ch <= 'F' => {
-                    val = val * 16 + (ch as u32 - 'A' as u32) + 10;
-                }
+                Some((_, ch)) if ch as u32 <= 0x7F && ch.is_digit(16) => buf.push(ch),
                 Some((i, ch)) => return Err(Error::InvalidHexEscape(i, ch)),
                 None => return Err(Error::UnterminatedString(start)),
             }
         }
+        let val = u32::from_str_radix(&buf, 16).unwrap();
         match char::from_u32(val) {
             Some(ch) => Ok(ch),
             None => Err(Error::InvalidEscapeValue(i, val)),
