@@ -169,3 +169,7 @@ mod tokens;
 
 #[doc(hidden)]
 pub mod macros;
+
+mod spanned;
+#[doc(no_inline)]
+pub use spanned::Spanned;

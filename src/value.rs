@@ -12,7 +12,7 @@ use serde::de;
 use serde::de::IntoDeserializer;
 
 pub use datetime::{Datetime, DatetimeParseError};
-use datetime::{DatetimeFromString, SERDE_STRUCT_FIELD_NAME};
+use datetime::{self, DatetimeFromString};
 
 /// Representation of a TOML value.
 #[derive(PartialEq, Clone, Debug)]
@@ -925,7 +925,7 @@ impl<'a, 'de> de::Visitor<'de> for DatetimeOrTable<'a> {
     fn visit_str<E>(self, s: &str) -> Result<bool, E>
         where E: de::Error,
     {
-        if s == SERDE_STRUCT_FIELD_NAME {
+        if s == datetime::FIELD {
             Ok(true)
         } else {
             self.key.push_str(s);
@@ -936,7 +936,7 @@ impl<'a, 'de> de::Visitor<'de> for DatetimeOrTable<'a> {
     fn visit_string<E>(self, s: String) -> Result<bool, E>
         where E: de::Error,
     {
-        if s == SERDE_STRUCT_FIELD_NAME {
+        if s == datetime::FIELD {
             Ok(true)
         } else {
             *self.key = s;

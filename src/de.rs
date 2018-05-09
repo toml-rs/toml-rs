@@ -12,9 +12,11 @@ use std::vec;
 
 use serde::de;
 use serde::de::IntoDeserializer;
+use serde::de::value::BorrowedStrDeserializer;
 
-use tokens::{Tokenizer, Token, Error as TokenError};
-use datetime::{SERDE_STRUCT_FIELD_NAME, SERDE_STRUCT_NAME};
+use tokens::{Tokenizer, Token, Error as TokenError, Span};
+use datetime;
+use spanned;
 
 /// Deserializes a byte slice into a type.
 ///
@@ -238,7 +240,7 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
     {
         if let Some(next) = self.next()? {
             match next {
-                Token::String { val, .. } => {
+                (_, Token::String { val, .. }) => {
                     visitor.visit_enum(val.into_deserializer())
                 },
                 _ => Err(Error::from_kind(ErrorKind::ExpectedString))
@@ -504,23 +506,23 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
     fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Error>
         where V: de::Visitor<'de>,
     {
-        match self.value {
-            Value::Integer(i) => visitor.visit_i64(i),
-            Value::Boolean(b) => visitor.visit_bool(b),
-            Value::Float(f) => visitor.visit_f64(f),
-            Value::String(Cow::Borrowed(s)) => visitor.visit_borrowed_str(s),
-            Value::String(Cow::Owned(s)) => visitor.visit_string(s),
-            Value::Datetime(s) => visitor.visit_map(DatetimeDeserializer {
+        match self.value.e {
+            E::Integer(i) => visitor.visit_i64(i),
+            E::Boolean(b) => visitor.visit_bool(b),
+            E::Float(f) => visitor.visit_f64(f),
+            E::String(Cow::Borrowed(s)) => visitor.visit_borrowed_str(s),
+            E::String(Cow::Owned(s)) => visitor.visit_string(s),
+            E::Datetime(s) => visitor.visit_map(DatetimeDeserializer {
                 date: s,
                 visited: false,
             }),
-            Value::Array(values) => {
+            E::Array(values) => {
                 let mut s = de::value::SeqDeserializer::new(values.into_iter());
                 let ret = visitor.visit_seq(&mut s)?;
                 s.end()?;
                 Ok(ret)
             }
-            Value::InlineTable(values) => {
+            E::InlineTable(values) => {
                 visitor.visit_map(InlineTableDeserializer {
                     values: values.into_iter(),
                     next_value: None,
@@ -535,13 +537,24 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
                              visitor: V) -> Result<V::Value, Error>
         where V: de::Visitor<'de>,
     {
-        if name == SERDE_STRUCT_NAME && fields == &[SERDE_STRUCT_FIELD_NAME] {
-            if let Value::Datetime(s) = self.value {
+        if name == datetime::NAME && fields == &[datetime::FIELD] {
+            if let E::Datetime(s) = self.value.e {
                 return visitor.visit_map(DatetimeDeserializer {
                     date: s,
                     visited: false,
                 })
             }
+        }
+
+        if name == spanned::NAME && fields == &[spanned::START, spanned::END, spanned::VALUE] {
+            let start = self.value.start;
+            let end = self.value.end;
+
+            return visitor.visit_map(SpannedDeserializer {
+                start: Some(start),
+                value: Some(self.value),
+                end: Some(end),
+            });
         }
 
         self.deserialize_any(visitor)
@@ -563,8 +576,8 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
     ) -> Result<V::Value, Error>
         where V: de::Visitor<'de>
     {
-        match self.value {
-            Value::String(val) => visitor.visit_enum(val.into_deserializer()),
+        match self.value.e {
+            E::String(val) => visitor.visit_enum(val.into_deserializer()),
             _ => Err(Error::from_kind(ErrorKind::ExpectedString))
         }
     }
@@ -591,6 +604,46 @@ impl<'de> de::IntoDeserializer<'de, Error> for Value<'de> {
 
     fn into_deserializer(self) -> Self::Deserializer {
         ValueDeserializer::new(self)
+    }
+}
+
+struct SpannedDeserializer<'a> {
+    start: Option<usize>,
+    end: Option<usize>,
+    value: Option<Value<'a>>,
+}
+
+impl<'de> de::MapAccess<'de> for SpannedDeserializer<'de> {
+    type Error = Error;
+
+    fn next_key_seed<K>(&mut self, seed: K) -> Result<Option<K::Value>, Error>
+    where
+        K: de::DeserializeSeed<'de>,
+    {
+        if self.start.is_some() {
+            seed.deserialize(BorrowedStrDeserializer::new(spanned::START)).map(Some)
+        } else if self.end.is_some() {
+            seed.deserialize(BorrowedStrDeserializer::new(spanned::END)).map(Some)
+        } else if self.value.is_some() {
+            seed.deserialize(BorrowedStrDeserializer::new(spanned::VALUE)).map(Some)
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Error>
+    where
+        V: de::DeserializeSeed<'de>,
+    {
+        if let Some(start) = self.start.take() {
+            seed.deserialize(start.into_deserializer())
+        } else if  let Some(end) = self.end.take() {
+            seed.deserialize(end.into_deserializer())
+        } else if let Some(value) = self.value.take() {
+            seed.deserialize(value.into_deserializer())
+        } else {
+            panic!("next_value_seed called before next_key_seed")
+        }
     }
 }
 
@@ -627,7 +680,7 @@ impl<'de> de::Deserializer<'de> for DatetimeFieldDeserializer {
     fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Error>
         where V: de::Visitor<'de>,
     {
-        visitor.visit_borrowed_str(SERDE_STRUCT_FIELD_NAME)
+        visitor.visit_borrowed_str(datetime::FIELD)
     }
 
     forward_to_deserialize_any! {
@@ -707,7 +760,7 @@ impl<'a> Deserializer<'a> {
         }
 
         match self.peek()? {
-            Some(Token::LeftBracket) => self.table_header().map(Some),
+            Some((_, Token::LeftBracket)) => self.table_header().map(Some),
             Some(_) => self.key_value().map(Some),
             None => Ok(None),
         }
@@ -725,13 +778,13 @@ impl<'a> Deserializer<'a> {
         } else {
             loop {
                 match self.next()? {
-                    Some(Token::RightBracket) => {
+                    Some((_, Token::RightBracket)) => {
                         if array {
                             self.eat(Token::RightBracket)?;
                         }
                         break
                     }
-                    Some(Token::Newline) |
+                    Some((_, Token::Newline)) |
                     None => break,
                     _ => {}
                 }
@@ -759,17 +812,35 @@ impl<'a> Deserializer<'a> {
     fn value(&mut self) -> Result<Value<'a>, Error> {
         let at = self.tokens.current();
         let value = match self.next()? {
-            Some(Token::String { val, .. }) => Value::String(val),
-            Some(Token::Keylike("true")) => Value::Boolean(true),
-            Some(Token::Keylike("false")) => Value::Boolean(false),
-            Some(Token::Keylike(key)) => self.number_or_date(key)?,
-            Some(Token::Plus) => self.number_leading_plus()?,
-            Some(Token::LeftBrace) => self.inline_table().map(Value::InlineTable)?,
-            Some(Token::LeftBracket) => self.array().map(Value::Array)?,
+            Some((Span { start, end }, Token::String { val, .. })) => {
+                Value { e: E::String(val), start: start, end: end }
+            }
+            Some((Span { start, end }, Token::Keylike("true"))) => {
+                Value { e: E::Boolean(true), start: start, end: end }
+            }
+            Some((Span { start, end }, Token::Keylike("false"))) => {
+                Value { e: E::Boolean(false), start: start, end: end }
+            }
+            Some((span, Token::Keylike(key))) => self.number_or_date(span, key)?,
+            Some((span, Token::Plus)) => self.number_leading_plus(span)?,
+            Some((Span { start, .. }, Token::LeftBrace)) => {
+                self.inline_table().map(|(Span { end, .. }, table)| Value {
+                    e: E::InlineTable(table),
+                    start: start,
+                    end: end
+                })?
+            }
+            Some((Span { start, .. }, Token::LeftBracket)) => {
+                self.array().map(|(Span { end, .. }, array)| Value {
+                    e: E::Array(array),
+                    start: start,
+                    end: end
+                })?
+            }
             Some(token) => {
                 return Err(self.error(at, ErrorKind::Wanted {
                     expected: "a value",
-                    found: token.describe(),
+                    found: token.1.describe(),
                 }))
             }
             None => return Err(self.eof()),
@@ -777,38 +848,52 @@ impl<'a> Deserializer<'a> {
         Ok(value)
     }
 
-    fn number_or_date(&mut self, s: &'a str) -> Result<Value<'a>, Error> {
+    fn number_or_date(&mut self, span: Span, s: &'a str)
+        -> Result<Value<'a>, Error>
+    {
         if s.contains('T') || (s.len() > 1 && s[1..].contains('-')) &&
            !s.contains("e-") {
-            self.datetime(s, false).map(Value::Datetime)
+            self.datetime(span, s, false).map(|(Span { start, end }, d)| Value {
+                e: E::Datetime(d),
+                start: start,
+                end: end
+            })
         } else if self.eat(Token::Colon)? {
-            self.datetime(s, true).map(Value::Datetime)
+            self.datetime(span, s, true).map(|(Span { start, end }, d)| Value {
+                e: E::Datetime(d),
+                start: start,
+                end: end
+            })
         } else {
-            self.number(s)
+            self.number(span, s)
         }
     }
 
-    fn number(&mut self, s: &'a str) -> Result<Value<'a>, Error> {
+    fn number(&mut self, Span { start, end}: Span, s: &'a str) -> Result<Value<'a>, Error> {
         if s.contains('e') || s.contains('E') {
-            self.float(s, None).map(Value::Float)
+            self.float(s, None).map(|f| Value { e: E::Float(f), start: start, end: end })
         } else if self.eat(Token::Period)? {
             let at = self.tokens.current();
             match self.next()? {
-                Some(Token::Keylike(after)) => {
-                    self.float(s, Some(after)).map(Value::Float)
+                Some((Span { start, end }, Token::Keylike(after))) => {
+                    self.float(s, Some(after)).map(|f| Value {
+                        e: E::Float(f), start: start, end: end
+                    })
                 }
                 _ => Err(self.error(at, ErrorKind::NumberInvalid)),
             }
         } else {
-            self.integer(s).map(Value::Integer)
+            self.integer(s).map(|f| Value { e: E::Integer(f), start: start, end: end })
         }
     }
 
-    fn number_leading_plus(&mut self) -> Result<Value<'a>, Error> {
-        let start = self.tokens.current();
+    fn number_leading_plus(&mut self, Span { start, .. }: Span) -> Result<Value<'a>, Error> {
+        let start_token = self.tokens.current();
         match self.next()? {
-            Some(Token::Keylike(s)) => self.number(s),
-            _ => Err(self.error(start, ErrorKind::NumberInvalid)),
+            Some((Span { end, .. }, Token::Keylike(s))) => {
+                self.number(Span { start: start, end: end }, s)
+            },
+            _ => Err(self.error(start_token, ErrorKind::NumberInvalid)),
         }
     }
 
@@ -884,7 +969,7 @@ impl<'a> Deserializer<'a> {
             let (a, b) = if suffix.len() == 1 {
                 self.eat(Token::Plus)?;
                 match self.next()? {
-                    Some(Token::Keylike(s)) => {
+                    Some((_, Token::Keylike(s))) => {
                         self.parse_integer(s, false, false)?
                     }
                     _ => return Err(self.error(start, ErrorKind::NumberInvalid)),
@@ -921,25 +1006,30 @@ impl<'a> Deserializer<'a> {
         })
     }
 
-    fn datetime(&mut self, date: &'a str, colon_eaten: bool)
-                -> Result<&'a str, Error> {
+    fn datetime(&mut self, mut span: Span, date: &'a str, colon_eaten: bool)
+                -> Result<(Span, &'a str), Error> {
         let start = self.tokens.substr_offset(date);
+
         if colon_eaten || self.eat(Token::Colon)? {
             // minutes
             match self.next()? {
-                Some(Token::Keylike(_)) => {}
+                Some((_, Token::Keylike(_))) => {}
                 _ => return Err(self.error(start, ErrorKind::DateInvalid)),
             }
             // Seconds
             self.expect(Token::Colon)?;
             match self.next()? {
-                Some(Token::Keylike(_)) => {}
+                Some((Span { end, .. }, Token::Keylike(_))) => {
+                    span.end = end;
+                },
                 _ => return Err(self.error(start, ErrorKind::DateInvalid)),
             }
             // Fractional seconds
             if self.eat(Token::Period)? {
                 match self.next()? {
-                    Some(Token::Keylike(_)) => {}
+                    Some((Span { end, .. }, Token::Keylike(_))) => {
+                        span.end = end;
+                    },
                     _ => return Err(self.error(start, ErrorKind::DateInvalid)),
                 }
             }
@@ -947,28 +1037,33 @@ impl<'a> Deserializer<'a> {
             // offset
             if self.eat(Token::Plus)? {
                 match self.next()? {
-                    Some(Token::Keylike(_)) => {}
+                    Some((Span { end, .. }, Token::Keylike(_))) => {
+                        span.end = end;
+                    },
                     _ => return Err(self.error(start, ErrorKind::DateInvalid)),
                 }
             }
             if self.eat(Token::Colon)? {
                 match self.next()? {
-                    Some(Token::Keylike(_)) => {}
+                    Some((Span { end, .. }, Token::Keylike(_))) => {
+                        span.end = end;
+                    },
                     _ => return Err(self.error(start, ErrorKind::DateInvalid)),
                 }
             }
         }
+
         let end = self.tokens.current();
-        Ok(&self.tokens.input()[start..end])
+        Ok((span, &self.tokens.input()[start..end]))
     }
 
     // TODO(#140): shouldn't buffer up this entire table in memory, it'd be
     // great to defer parsing everything until later.
-    fn inline_table(&mut self) -> Result<Vec<(Cow<'a, str>, Value<'a>)>, Error> {
+    fn inline_table(&mut self) -> Result<(Span, Vec<(Cow<'a, str>, Value<'a>)>), Error> {
         let mut ret = Vec::new();
         self.eat_whitespace()?;
-        if self.eat(Token::RightBrace)? {
-            return Ok(ret)
+        if let Some(span) = self.eat_spanned(Token::RightBrace)? {
+            return Ok((span, ret))
         }
         loop {
             let key = self.table_key()?;
@@ -978,8 +1073,8 @@ impl<'a> Deserializer<'a> {
             ret.push((key, self.value()?));
 
             self.eat_whitespace()?;
-            if self.eat(Token::RightBrace)? {
-                return Ok(ret)
+            if let Some(span) = self.eat_spanned(Token::RightBrace)? {
+                return Ok((span, ret))
             }
             self.expect(Token::Comma)?;
             self.eat_whitespace()?;
@@ -988,7 +1083,7 @@ impl<'a> Deserializer<'a> {
 
     // TODO(#140): shouldn't buffer up this entire array in memory, it'd be
     // great to defer parsing everything until later.
-    fn array(&mut self) -> Result<Vec<Value<'a>>, Error> {
+    fn array(&mut self) -> Result<(Span, Vec<Value<'a>>), Error> {
         let mut ret = Vec::new();
 
         let intermediate = |me: &mut Deserializer| {
@@ -1003,8 +1098,8 @@ impl<'a> Deserializer<'a> {
 
         loop {
             intermediate(self)?;
-            if self.eat(Token::RightBracket)? {
-                return Ok(ret)
+            if let Some(span) = self.eat_spanned(Token::RightBracket)? {
+                return Ok((span, ret))
             }
             let at = self.tokens.current();
             let value = self.value()?;
@@ -1020,8 +1115,8 @@ impl<'a> Deserializer<'a> {
             }
         }
         intermediate(self)?;
-        self.expect(Token::RightBracket)?;
-        Ok(ret)
+        let span = self.expect_spanned(Token::RightBracket)?;
+        Ok((span, ret))
     }
 
     fn table_key(&mut self) -> Result<Cow<'a, str>, Error> {
@@ -1044,16 +1139,24 @@ impl<'a> Deserializer<'a> {
         self.tokens.eat(expected).map_err(|e| self.token_error(e))
     }
 
+    fn eat_spanned(&mut self, expected: Token<'a>) -> Result<Option<Span>, Error> {
+        self.tokens.eat_spanned(expected).map_err(|e| self.token_error(e))
+    }
+
     fn expect(&mut self, expected: Token<'a>) -> Result<(), Error> {
         self.tokens.expect(expected).map_err(|e| self.token_error(e))
     }
 
-    fn next(&mut self) -> Result<Option<Token<'a>>, Error> {
-        self.tokens.next().map(|t| t.map(|t| t.1)).map_err(|e| self.token_error(e))
+    fn expect_spanned(&mut self, expected: Token<'a>) -> Result<Span, Error> {
+        self.tokens.expect_spanned(expected).map_err(|e| self.token_error(e))
     }
 
-    fn peek(&mut self) -> Result<Option<Token<'a>>, Error> {
-        self.tokens.peek().map(|t| t.map(|t| t.1)).map_err(|e| self.token_error(e))
+    fn next(&mut self) -> Result<Option<(Span, Token<'a>)>, Error> {
+        self.tokens.next().map_err(|e| self.token_error(e))
+    }
+
+    fn peek(&mut self) -> Result<Option<(Span, Token<'a>)>, Error> {
+        self.tokens.peek().map_err(|e| self.token_error(e))
     }
 
     fn eof(&self) -> Error {
@@ -1300,7 +1403,14 @@ impl<'a> Header<'a> {
 }
 
 #[derive(Debug)]
-enum Value<'a> {
+struct Value<'a> {
+    e: E<'a>,
+    start: usize,
+    end: usize,
+}
+
+#[derive(Debug)]
+enum E<'a> {
     Integer(i64),
     Float(f64),
     Boolean(bool),
@@ -1312,14 +1422,14 @@ enum Value<'a> {
 
 impl<'a> Value<'a> {
     fn same_type(&self, other: &Value<'a>) -> bool {
-        match (self, other) {
-            (&Value::String(..), &Value::String(..)) |
-            (&Value::Integer(..), &Value::Integer(..)) |
-            (&Value::Float(..), &Value::Float(..)) |
-            (&Value::Boolean(..), &Value::Boolean(..)) |
-            (&Value::Datetime(..), &Value::Datetime(..)) |
-            (&Value::Array(..), &Value::Array(..)) |
-            (&Value::InlineTable(..), &Value::InlineTable(..)) => true,
+        match (&self.e, &other.e) {
+            (&E::String(..), &E::String(..)) |
+            (&E::Integer(..), &E::Integer(..)) |
+            (&E::Float(..), &E::Float(..)) |
+            (&E::Boolean(..), &E::Boolean(..)) |
+            (&E::Datetime(..), &E::Datetime(..)) |
+            (&E::Array(..), &E::Array(..)) |
+            (&E::InlineTable(..), &E::InlineTable(..)) => true,
 
             _ => false,
         }

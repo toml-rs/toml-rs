@@ -119,21 +119,34 @@ impl<'a> Tokenizer<'a> {
     }
 
     pub fn eat(&mut self, expected: Token<'a>) -> Result<bool, Error> {
-        match self.peek()? {
-            Some((_, ref found)) if expected == *found => {}
-            Some(_) => return Ok(false),
-            None => return Ok(false),
-        }
+        self.eat_spanned(expected).map(|s| s.is_some())
+    }
+
+    /// Eat a value, returning it's span if it was consumed.
+    pub fn eat_spanned(&mut self, expected: Token<'a>) -> Result<Option<Span>, Error> {
+        let span = match self.peek()? {
+            Some((span, ref found)) if expected == *found => span,
+            Some(_) => return Ok(None),
+            None => return Ok(None),
+        };
+
         drop(self.next());
-        Ok(true)
+        Ok(Some(span))
     }
 
     pub fn expect(&mut self, expected: Token<'a>) -> Result<(), Error> {
+        // ignore span
+        let _ = self.expect_spanned(expected)?;
+        Ok(())
+    }
+
+    /// Expect the given token returning its span.
+    pub fn expect_spanned(&mut self, expected: Token<'a>) -> Result<Span, Error> {
         let current = self.current();
         match self.next()? {
-            Some((_, found)) => {
+            Some((span, found)) => {
                 if expected == found {
-                    Ok(())
+                    Ok(span)
                 } else {
                     Err(Error::Wanted {
                         at: current,
