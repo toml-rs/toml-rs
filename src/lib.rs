@@ -170,6 +170,6 @@ mod tokens;
 #[doc(hidden)]
 pub mod macros;
 
-pub mod spanned;
+mod spanned;
 #[doc(no_inline)]
 pub use spanned::Spanned;

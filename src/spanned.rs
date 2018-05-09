@@ -3,7 +3,7 @@
 //! extern crate serde_derive;
 //!
 //! extern crate toml;
-//! use toml::spanned::Spanned;
+//! use toml::Spanned;
 //!
 //! #[derive(Deserialize)]
 //! struct Value {
@@ -15,8 +15,10 @@
 //!
 //!     let u: Value = toml::from_str(t).unwrap();
 //!
-//!     assert_eq!(u.s.start, 4);
-//!     assert_eq!(u.s.end, 11);
+//!     assert_eq!(u.s.start(), 4);
+//!     assert_eq!(u.s.end(), 11);
+//!     assert_eq!(u.s.get_ref(), "value");
+//!     assert_eq!(u.s.into_inner(), String::from("value"));
 //! }
 //! ```
 
@@ -36,11 +38,43 @@ pub const VALUE: &'static str = "$__toml_private_value";
 #[derive(Debug)]
 pub struct Spanned<T> {
     /// The start range.
-    pub start: usize,
+    start: usize,
     /// The end range (exclusive).
-    pub end: usize,
+    end: usize,
     /// The spanned value.
-    pub value: T,
+    value: T,
+}
+
+impl<T> Spanned<T> {
+    /// Access the start of the span of the contained value.
+    pub fn start(&self) -> usize {
+        self.start
+    }
+
+    /// Access the end of the span of the contained value.
+    pub fn end(&self) -> usize {
+        self.end
+    }
+
+    /// Get the span of the contained value.
+    pub fn span(&self) -> (usize, usize) {
+        (self.start, self.end)
+    }
+
+    /// Consumes the spanned value and returns the contained value.
+    pub fn into_inner(self) -> T {
+        self.value
+    }
+
+    /// Returns a reference to the contained value.
+    pub fn get_ref(&self) -> &T {
+        &self.value
+    }
+
+    /// Returns a mutable reference to the contained value.
+    pub fn get_mut(&self) -> &T {
+        &self.value
+    }
 }
 
 impl<'de, T> de::Deserialize<'de> for Spanned<T>

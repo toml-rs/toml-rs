@@ -34,9 +34,9 @@ fn test_spanned_field() {
     fn good<'de, T>(s: &'de str, expected: &str) where T: serde::Deserialize<'de> {
         let foo: Foo<T> = toml::from_str(s).unwrap();
 
-        assert_eq!(6, foo.foo.start);
-        assert_eq!(s.len(), foo.foo.end);
-        assert_eq!(expected, &s[foo.foo.start..foo.foo.end]);
+        assert_eq!(6, foo.foo.start());
+        assert_eq!(s.len(), foo.foo.end());
+        assert_eq!(expected, &s[foo.foo.start()..foo.foo.end()]);
     }
 
     good::<String>("foo = \"foo\"", "\"foo\"");
