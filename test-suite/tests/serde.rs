@@ -8,6 +8,7 @@ use serde::{Deserialize, Deserializer};
 
 use toml::Value;
 use toml::Value::{Table, Integer, Array, Float};
+use toml::map::Map;
 
 macro_rules! t {
     ($e:expr) => (match $e {
@@ -62,7 +63,7 @@ macro_rules! error {
 }
 
 macro_rules! map( ($($k:ident: $v:expr),*) => ({
-    let mut _m = BTreeMap::new();
+    let mut _m = Map::new();
     $(_m.insert(stringify!($k).to_string(), $v);)*
     _m
 }) );
@@ -96,7 +97,7 @@ fn smoke_hyphen() {
         a_b: isize,
     }
 
-    let mut m = BTreeMap::new();
+    let mut m = Map::new();
     m.insert("a-b".to_string(), Integer(2));
     equivalent! {
         Foo2 { a_b: 2 },
@@ -569,7 +570,7 @@ fn table_structs_empty() {
     expected.insert("bar".to_string(), CanBeEmpty::default());
     expected.insert("baz".to_string(), CanBeEmpty::default());
     expected.insert(
-        "bazv".to_string(), 
+        "bazv".to_string(),
         CanBeEmpty {a: Some("foo".to_string()), b: None},
     );
     expected.insert("foo".to_string(), CanBeEmpty::default());

@@ -1,11 +1,10 @@
 extern crate toml;
 
-use std::collections::BTreeMap;
-
 use toml::Value::{String, Integer, Float, Boolean, Array, Table};
+use toml::map::Map;
 
 macro_rules! map( ($($k:expr => $v:expr),*) => ({
-    let mut _m = BTreeMap::new();
+    let mut _m = Map::new();
     $(_m.insert($k.to_string(), $v);)*
     _m
 }) );
