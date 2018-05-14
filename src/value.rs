@@ -14,6 +14,9 @@ use serde::ser;
 use datetime::{self, DatetimeFromString};
 pub use datetime::{Datetime, DatetimeParseError};
 
+pub use map::Map;
+
+
 /// Representation of a TOML value.
 #[derive(PartialEq, Clone, Debug)]
 pub enum Value {
@@ -36,8 +39,10 @@ pub enum Value {
 /// Type representing a TOML array, payload of the `Value::Array` variant
 pub type Array = Vec<Value>;
 
-/// Type representing a TOML table, payload of the `Value::Table` variant
-pub type Table = BTreeMap<String, Value>;
+/// Type representing a TOML table, payload of the `Value::Table` variant.
+/// By default it is backed by a BTreeMap, enable the `preserve_order` feature
+/// to use a LinkedHashMap instead.
+pub type Table = Map<String, Value>;
 
 impl Value {
     /// Convert a `T` into `toml::Value` which is an enum that can represent
@@ -525,10 +530,10 @@ impl<'de> de::Deserialize<'de> for Value {
                         let date: DatetimeFromString = visitor.next_value()?;
                         return Ok(Value::Datetime(date.value));
                     }
-                    None => return Ok(Value::Table(BTreeMap::new())),
+                    None => return Ok(Value::Table(Map::new())),
                     Some(false) => {}
                 }
-                let mut map = BTreeMap::new();
+                let mut map = Map::new();
                 map.insert(key, visitor.next_value()?);
                 while let Some(key) = visitor.next_key()? {
                     if map.contains_key(&key) {
@@ -663,12 +668,12 @@ impl<'de> de::SeqAccess<'de> for SeqDeserializer {
 }
 
 struct MapDeserializer {
-    iter: <BTreeMap<String, Value> as IntoIterator>::IntoIter,
+    iter: <Map<String, Value> as IntoIterator>::IntoIter,
     value: Option<(String, Value)>,
 }
 
 impl MapDeserializer {
-    fn new(map: BTreeMap<String, Value>) -> Self {
+    fn new(map: Map<String, Value>) -> Self {
         MapDeserializer {
             iter: map.into_iter(),
             value: None,
@@ -881,7 +886,7 @@ impl ser::Serializer for Serializer {
 
     fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap, ::ser::Error> {
         Ok(SerializeMap {
-            map: BTreeMap::new(),
+            map: Map::new(),
             next_key: None,
         })
     }
@@ -910,7 +915,7 @@ struct SerializeVec {
 }
 
 struct SerializeMap {
-    map: BTreeMap<String, Value>,
+    map: Map<String, Value>,
     next_key: Option<String>,
 }
 
