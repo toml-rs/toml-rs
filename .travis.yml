@@ -11,7 +11,6 @@ script:
   - cargo test
   - cargo test --features preserve_order
   - cargo test --manifest-path test-suite/Cargo.toml
-  - cargo test --manifest-path test-suite/Cargo.toml --features preserve_order
   - rustdoc --test README.md -L target
   - test "$TRAVIS_RUST_VERSION" != "1.15.0" && cargo doc --no-deps || echo "skipping cargo doc"
 after_success:
