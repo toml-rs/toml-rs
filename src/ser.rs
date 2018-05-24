@@ -741,9 +741,9 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
     type Ok = ();
     type Error = Error;
     type SerializeSeq = SerializeSeq<'a, 'b>;
-    type SerializeTuple = ser::Impossible<(), Error>;
-    type SerializeTupleStruct = ser::Impossible<(), Error>;
-    type SerializeTupleVariant = ser::Impossible<(), Error>;
+    type SerializeTuple = SerializeSeq<'a, 'b>;
+    type SerializeTupleStruct = SerializeSeq<'a, 'b>;
+    type SerializeTupleVariant = SerializeSeq<'a, 'b>;
     type SerializeMap = SerializeTable<'a, 'b>;
     type SerializeStruct = SerializeTable<'a, 'b>;
     type SerializeStructVariant = ser::Impossible<(), Error>;
@@ -892,23 +892,23 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
         })
     }
 
-    fn serialize_tuple(self, _len: usize)
+    fn serialize_tuple(self, len: usize)
                        -> Result<Self::SerializeTuple, Self::Error> {
-        Err(Error::UnsupportedType)
+        self.serialize_seq(Some(len))
     }
 
-    fn serialize_tuple_struct(self, _name: &'static str, _len: usize)
+    fn serialize_tuple_struct(self, _name: &'static str, len: usize)
                               -> Result<Self::SerializeTupleStruct, Self::Error> {
-        Err(Error::UnsupportedType)
+        self.serialize_seq(Some(len))
     }
 
     fn serialize_tuple_variant(self,
                                _name: &'static str,
                                _variant_index: u32,
                                _variant: &'static str,
-                               _len: usize)
+                               len: usize)
                                -> Result<Self::SerializeTupleVariant, Self::Error> {
-        Err(Error::UnsupportedType)
+        self.serialize_seq(Some(len))
     }
 
     fn serialize_map(self, _len: Option<usize>)
@@ -995,6 +995,51 @@ impl<'a, 'b> ser::SerializeSeq for SerializeSeq<'a, 'b> {
             self.ser.dst.push_str("\n");
         }
         Ok(())
+    }
+}
+
+impl<'a, 'b> ser::SerializeTuple for SerializeSeq<'a, 'b> {
+    type Ok = ();
+    type Error = Error;
+
+    fn serialize_element<T: ?Sized>(&mut self, value: &T) -> Result<(), Error>
+        where T: ser::Serialize,
+    {
+        ser::SerializeSeq::serialize_element(self, value)
+    }
+
+    fn end(self) -> Result<(), Error> {
+        ser::SerializeSeq::end(self)
+    }
+}
+
+impl<'a, 'b> ser::SerializeTupleVariant for SerializeSeq<'a, 'b> {
+    type Ok = ();
+    type Error = Error;
+
+    fn serialize_field<T: ?Sized>(&mut self, value: &T) -> Result<(), Error>
+        where T: ser::Serialize,
+    {
+        ser::SerializeSeq::serialize_element(self, value)
+    }
+
+    fn end(self) -> Result<(), Error> {
+        ser::SerializeSeq::end(self)
+    }
+}
+
+impl<'a, 'b> ser::SerializeTupleStruct for SerializeSeq<'a, 'b> {
+    type Ok = ();
+    type Error = Error;
+
+    fn serialize_field<T: ?Sized>(&mut self, value: &T) -> Result<(), Error>
+        where T: ser::Serialize,
+    {
+        ser::SerializeSeq::serialize_element(self, value)
+    }
+
+    fn end(self) -> Result<(), Error> {
+        ser::SerializeSeq::end(self)
     }
 }
 
@@ -1543,9 +1588,9 @@ impl<E: ser::Error> ser::Serializer for Categorize<E> {
     type Ok = Category;
     type Error = E;
     type SerializeSeq = Self;
-    type SerializeTuple = ser::Impossible<Category, E>;
-    type SerializeTupleStruct = ser::Impossible<Category, E>;
-    type SerializeTupleVariant = ser::Impossible<Category, E>;
+    type SerializeTuple = Self;
+    type SerializeTupleStruct = Self;
+    type SerializeTupleVariant = Self;
     type SerializeMap = Self;
     type SerializeStruct = Self;
     type SerializeStructVariant = ser::Impossible<Category, E>;
@@ -1639,15 +1684,15 @@ impl<E: ser::Error> ser::Serializer for Categorize<E> {
     }
 
     fn serialize_tuple(self, _: usize) -> Result<Self::SerializeTuple, Self::Error> {
-        Err(ser::Error::custom("unsupported"))
+        Ok(self)
     }
 
     fn serialize_tuple_struct(self, _: &'static str, _: usize) -> Result<Self::SerializeTupleStruct, Self::Error> {
-        Err(ser::Error::custom("unsupported"))
+        Ok(self)
     }
 
     fn serialize_tuple_variant(self, _: &'static str, _: u32, _: &'static str, _: usize) -> Result<Self::SerializeTupleVariant, Self::Error> {
-        Err(ser::Error::custom("unsupported"))
+        Ok(self)
     }
 
     fn serialize_map(self, _: Option<usize>) -> Result<Self, Self::Error> {
@@ -1669,6 +1714,48 @@ impl<E: ser::Error> ser::SerializeSeq for Categorize<E> {
 
     fn serialize_element<T: ?Sized + ser::Serialize>(&mut self, _: &T)
                                                      -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+        Ok(Category::Array)
+    }
+}
+
+impl<E: ser::Error> ser::SerializeTuple for Categorize<E> {
+    type Ok = Category;
+    type Error = E;
+
+    fn serialize_element<T: ?Sized + ser::Serialize>(&mut self, _: &T)
+                                                     -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+        Ok(Category::Array)
+    }
+}
+
+impl<E: ser::Error> ser::SerializeTupleVariant for Categorize<E> {
+    type Ok = Category;
+    type Error = E;
+
+    fn serialize_field<T: ?Sized + ser::Serialize>(&mut self, _: &T)
+                                                   -> Result<(), Self::Error> {
+        Ok(())
+    }
+
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+        Ok(Category::Array)
+    }
+}
+
+impl<E: ser::Error> ser::SerializeTupleStruct for Categorize<E> {
+    type Ok = Category;
+    type Error = E;
+
+    fn serialize_field<T: ?Sized + ser::Serialize>(&mut self, _: &T)
+                                                   -> Result<(), Self::Error> {
         Ok(())
     }
 
