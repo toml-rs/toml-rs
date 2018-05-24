@@ -569,10 +569,23 @@ fn table_structs_empty() {
     expected.insert("bar".to_string(), CanBeEmpty::default());
     expected.insert("baz".to_string(), CanBeEmpty::default());
     expected.insert(
-        "bazv".to_string(), 
+        "bazv".to_string(),
         CanBeEmpty {a: Some("foo".to_string()), b: None},
     );
     expected.insert("foo".to_string(), CanBeEmpty::default());
+    assert_eq!(value, expected);
+    assert_eq!(toml::to_string(&value).unwrap(), text);
+}
+
+#[test]
+fn fixed_size_array() {
+    #[derive(Serialize, PartialEq, Eq, Deserialize, Debug)]
+    struct Entity {
+        pos: [i32; 2]
+    }
+    let text = "pos = [1, 2]\n";
+    let value: Entity = toml::from_str(text).unwrap();
+    let expected = Entity { pos: [1, 2] };
     assert_eq!(value, expected);
     assert_eq!(toml::to_string(&value).unwrap(), text);
 }
