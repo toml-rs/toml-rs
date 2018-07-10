@@ -1,4 +1,6 @@
 {
     "answer": {"type": "integer", "value": "42"},
-    "neganswer": {"type": "integer", "value": "-42"}
+    "neganswer": {"type": "integer", "value": "-42"},
+    "neg_zero": {"type": "integer", "value": "0"},
+    "pos_zero": {"type": "integer", "value": "0"}
 }

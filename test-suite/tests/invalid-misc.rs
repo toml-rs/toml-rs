@@ -10,8 +10,5 @@ fn bad() {
     bad("a = 1__1");
     bad("a = 1_");
     bad("''");
-    bad("a = nan");
-    bad("a = -inf");
-    bad("a = inf");
     bad("a = 9e99999");
 }

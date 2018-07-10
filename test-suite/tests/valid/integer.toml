@@ -1,2 +1,4 @@
 answer = 42
 neganswer = -42
+neg_zero = -0
+pos_zero = +0

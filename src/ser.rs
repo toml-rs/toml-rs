@@ -737,6 +737,27 @@ impl<'a> Serializer<'a> {
     }
 }
 
+macro_rules! serialize_float {
+    ($this:expr, $v:expr) => {{
+        $this.emit_key("float")?;
+        if ($v.is_nan() || $v == 0.0) && $v.is_sign_negative() {
+            drop(write!($this.dst, "-"));
+        }
+        if $v.is_nan() {
+            drop(write!($this.dst, "nan"));
+        } else {
+            drop(write!($this.dst, "{}", $v));
+        }
+        if $v % 1.0 == 0.0 {
+            drop(write!($this.dst, ".0"));
+        }
+        if let State::Table { .. } = $this.state {
+            $this.dst.push_str("\n");
+        }
+        return Ok(());
+    }};
+}
+
 impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
     type Ok = ();
     type Error = Error;
@@ -785,35 +806,11 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
     }
 
     fn serialize_f32(self, v: f32) -> Result<(), Self::Error> {
-        if !v.is_finite() {
-            return Err(Error::NumberInvalid);
-        }
-
-        self.emit_key("float")?;
-        drop(write!(self.dst, "{}", v));
-        if v % 1.0 == 0.0 {
-            drop(write!(self.dst, ".0"));
-        }
-        if let State::Table { .. } = self.state {
-            self.dst.push_str("\n");
-        }
-        Ok(())
+        serialize_float!(self, v)
     }
 
     fn serialize_f64(self, v: f64) -> Result<(), Self::Error> {
-        if !v.is_finite() {
-            return Err(Error::NumberInvalid);
-        }
-
-        self.emit_key("float")?;
-        drop(write!(self.dst, "{}", v));
-        if v % 1.0 == 0.0 {
-            drop(write!(self.dst, ".0"));
-        }
-        if let State::Table { .. } = self.state {
-            self.dst.push_str("\n");
-        }
-        Ok(())
+        serialize_float!(self, v)
     }
 
     fn serialize_char(self, v: char) -> Result<(), Self::Error> {
