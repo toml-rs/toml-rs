@@ -159,6 +159,9 @@ enum ErrorKind {
     /// A struct was expected but something else was found
     ExpectedString,
 
+    /// Dotted key attempted to extend something that is not a table.
+    DottedKeyInvalidType,
+
     #[doc(hidden)]
     __Nonexhaustive,
 }
@@ -210,7 +213,7 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
                     if cur_table.values.is_none() {
                         cur_table.values = Some(Vec::new());
                     }
-                    cur_table.values.as_mut().unwrap().push((key, value));
+                    self.add_dotted_key(key, value, cur_table.values.as_mut().unwrap())?;
                 }
             }
         }
@@ -796,7 +799,7 @@ impl<'a> Deserializer<'a> {
     }
 
     fn key_value(&mut self) -> Result<Line<'a>, Error> {
-        let key = self.table_key()?;
+        let key = self.dotted_key()?;
         self.eat_whitespace()?;
         self.expect(Token::Equals)?;
         self.eat_whitespace()?;
@@ -1095,11 +1098,12 @@ impl<'a> Deserializer<'a> {
             return Ok((span, ret))
         }
         loop {
-            let key = self.table_key()?;
+            let key = self.dotted_key()?;
             self.eat_whitespace()?;
             self.expect(Token::Equals)?;
             self.eat_whitespace()?;
-            ret.push((key, self.value()?));
+            let value = self.value()?;
+            self.add_dotted_key(key, value, &mut ret)?;
 
             self.eat_whitespace()?;
             if let Some(span) = self.eat_spanned(Token::RightBrace)? {
@@ -1150,6 +1154,52 @@ impl<'a> Deserializer<'a> {
 
     fn table_key(&mut self) -> Result<Cow<'a, str>, Error> {
         self.tokens.table_key().map(|t| t.1).map_err(|e| self.token_error(e))
+    }
+
+    fn dotted_key(&mut self) -> Result<Vec<Cow<'a, str>>, Error> {
+        let mut result = Vec::new();
+        result.push(self.table_key()?);
+        self.eat_whitespace()?;
+        while self.eat(Token::Period)? {
+            self.eat_whitespace()?;
+            result.push(self.table_key()?);
+            self.eat_whitespace()?;
+        }
+        Ok(result)
+    }
+
+    fn add_dotted_key(
+        &self,
+        mut key_parts: Vec<Cow<'a, str>>,
+        value: Value<'a>,
+        values: &mut Vec<(Cow<'a, str>, Value<'a>)>,
+    ) -> Result<(), Error> {
+        let key = key_parts.remove(0);
+        if key_parts.is_empty() {
+            values.push((key, value));
+            return Ok(());
+        }
+        match values.iter_mut().find(|(k, _)| *k == key) {
+            Some((_, Value { e: E::InlineTable(ref mut v), .. })) => {
+                return self.add_dotted_key(key_parts, value, v);
+            }
+            Some((_, Value { start, .. })) => {
+                return Err(self.error(*start, ErrorKind::DottedKeyInvalidType));
+            }
+            None => {}
+        }
+        // The start/end value is somewhat misleading here.
+        let inline_table = Value {
+            e: E::InlineTable(Vec::new()),
+            start: value.start,
+            end: value.end,
+        };
+        values.push((key, inline_table));
+        let last_i = values.len() - 1;
+        if let (_, Value { e: E::InlineTable(ref mut v), .. }) = values[last_i] {
+            self.add_dotted_key(key_parts, value, v)?;
+        }
+        Ok(())
     }
 
     fn eat_whitespace(&mut self) -> Result<(), Error> {
@@ -1329,6 +1379,7 @@ impl fmt::Display for Error {
             ErrorKind::EmptyTableKey => "empty table key found".fmt(f)?,
             ErrorKind::Custom => self.inner.message.fmt(f)?,
             ErrorKind::ExpectedString => "expected string".fmt(f)?,
+            ErrorKind::DottedKeyInvalidType => "dotted key attempted to extend non-table type".fmt(f)?,
             ErrorKind::__Nonexhaustive => panic!(),
         }
 
@@ -1372,6 +1423,7 @@ impl error::Error for Error {
             ErrorKind::EmptyTableKey => "empty table key found",
             ErrorKind::Custom => "a custom error",
             ErrorKind::ExpectedString => "expected string",
+            ErrorKind::DottedKeyInvalidType => "dotted key invalid type",
             ErrorKind::__Nonexhaustive => panic!(),
         }
     }
@@ -1385,7 +1437,7 @@ impl de::Error for Error {
 
 enum Line<'a> {
     Table { at: usize, header: Header<'a>, array: bool },
-    KeyValue(Cow<'a, str>, Value<'a>),
+    KeyValue(Vec<Cow<'a, str>>, Value<'a>),
 }
 
 struct Header<'a> {
