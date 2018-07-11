@@ -331,7 +331,7 @@ impl<'a> Tokenizer<'a> {
 
     fn literal_string(&mut self, start: usize) -> Result<Token<'a>, Error> {
         self.read_string('\'', start, &mut |_me, val, _multi, i, ch| {
-            if ch == '\u{09}' || ('\u{20}' <= ch && ch <= '\u{10ffff}') {
+            if ch == '\u{09}' || ('\u{20}' <= ch && ch <= '\u{10ffff}' && ch != '\u{7f}') {
                 val.push(ch);
                 Ok(())
             } else {
@@ -373,7 +373,7 @@ impl<'a> Tokenizer<'a> {
                     }
                     Ok(())
                 }
-                ch if '\u{20}' <= ch && ch <= '\u{10ffff}' => {
+                ch if '\u{20}' <= ch && ch <= '\u{10ffff}' && ch != '\u{7f}' => {
                     val.push(ch);
                     Ok(())
                 }

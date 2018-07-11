@@ -14,4 +14,6 @@ fn bad() {
     bad("a = -inf");
     bad("a = inf");
     bad("a = 9e99999");
+    bad("a = \"\u{7f}\"");
+    bad("a = '\u{7f}'");
 }
