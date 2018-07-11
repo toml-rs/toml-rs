@@ -1179,12 +1179,12 @@ impl<'a> Deserializer<'a> {
             values.push((key, value));
             return Ok(());
         }
-        match values.iter_mut().find(|(k, _)| *k == key) {
-            Some((_, Value { e: E::InlineTable(ref mut v), .. })) => {
+        match values.iter_mut().find(|&&mut (ref k, _)| *k == key) {
+            Some(&mut (_, Value { e: E::InlineTable(ref mut v), .. })) => {
                 return self.add_dotted_key(key_parts, value, v);
             }
-            Some((_, Value { start, .. })) => {
-                return Err(self.error(*start, ErrorKind::DottedKeyInvalidType));
+            Some(&mut (_, Value { start, .. })) => {
+                return Err(self.error(start, ErrorKind::DottedKeyInvalidType));
             }
             None => {}
         }
