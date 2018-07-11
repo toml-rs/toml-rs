@@ -176,7 +176,8 @@ impl FromStr for Datetime {
 
         // Next parse the "partial-time" if available
         let partial_time = if full_date.is_some() &&
-                              chars.clone().next() == Some('T') {
+                              (chars.clone().next() == Some('T')
+                              || chars.clone().next() == Some(' ')) {
             chars.next();
             true
         } else {
