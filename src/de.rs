@@ -6,6 +6,7 @@
 
 use std::borrow::Cow;
 use std::error;
+use std::f64;
 use std::fmt;
 use std::str;
 use std::vec;
@@ -882,6 +883,14 @@ impl<'a> Deserializer<'a> {
                 }
                 _ => Err(self.error(at, ErrorKind::NumberInvalid)),
             }
+        } else if s == "inf" {
+            Ok(Value { e: E::Float(f64::INFINITY), start: start, end: end })
+        } else if s == "-inf" {
+            Ok(Value { e: E::Float(f64::NEG_INFINITY), start: start, end: end })
+        } else if s == "nan" {
+            Ok(Value { e: E::Float(f64::NAN), start: start, end: end })
+        } else if s == "-nan" {
+            Ok(Value { e: E::Float(-f64::NAN), start: start, end: end })
         } else {
             self.integer(s).map(|f| Value { e: E::Integer(f), start: start, end: end })
         }
