@@ -1019,6 +1019,17 @@ impl<'a> Deserializer<'a> {
                 -> Result<(Span, &'a str), Error> {
         let start = self.tokens.substr_offset(date);
 
+        // Check for space separated date and time.
+        if let Some((_, Token::Whitespace(s))) = self.peek()? {
+            if s == " " {
+                self.next()?;
+                // Skip past the hour.
+                if let Some((_, Token::Keylike(_))) = self.peek()? {
+                    self.next()?;
+                }
+            }
+        }
+
         if colon_eaten || self.eat(Token::Colon)? {
             // minutes
             match self.next()? {

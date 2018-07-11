@@ -6,10 +6,14 @@ use toml::Value;
 
 #[test]
 fn times() {
-    fn good(s: &str) {
+    fn dogood(s: &str, serialized: &str) {
         let to_parse = format!("foo = {}", s);
         let value = Value::from_str(&to_parse).unwrap();
-        assert_eq!(value["foo"].as_datetime().unwrap().to_string(), s);
+        assert_eq!(value["foo"].as_datetime().unwrap().to_string(), serialized);
+    }
+    fn good(s: &str) {
+        dogood(s, s);
+        dogood(&s.replace("T", " "), s);
     }
 
     good("1997-09-09T09:09:09Z");
