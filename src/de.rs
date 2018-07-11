@@ -871,7 +871,14 @@ impl<'a> Deserializer<'a> {
     }
 
     fn number(&mut self, Span { start, end}: Span, s: &'a str) -> Result<Value<'a>, Error> {
-        if s.contains('e') || s.contains('E') {
+        let to_integer = |f| Value { e: E::Integer(f), start: start, end: end };
+        if s.starts_with("0x") {
+            self.integer(&s[2..], 16).map(to_integer)
+        } else if s.starts_with("0o") {
+            self.integer(&s[2..], 8).map(to_integer)
+        } else if s.starts_with("0b") {
+            self.integer(&s[2..], 2).map(to_integer)
+        } else if s.contains('e') || s.contains('E') {
             self.float(s, None).map(|f| Value { e: E::Float(f), start: start, end: end })
         } else if self.eat(Token::Period)? {
             let at = self.tokens.current();
@@ -892,7 +899,7 @@ impl<'a> Deserializer<'a> {
         } else if s == "-nan" {
             Ok(Value { e: E::Float(-f64::NAN), start: start, end: end })
         } else {
-            self.integer(s).map(|f| Value { e: E::Integer(f), start: start, end: end })
+            self.integer(s, 10).map(to_integer)
         }
     }
 
@@ -906,22 +913,25 @@ impl<'a> Deserializer<'a> {
         }
     }
 
-    fn integer(&self, s: &'a str) -> Result<i64, Error> {
-        let (prefix, suffix) = self.parse_integer(s, true, false)?;
+    fn integer(&self, s: &'a str, radix: u32) -> Result<i64, Error> {
+        let allow_sign = radix == 10;
+        let allow_leading_zeros = radix != 10;
+        let (prefix, suffix) = self.parse_integer(s, allow_sign, allow_leading_zeros, radix)?;
         let start = self.tokens.substr_offset(s);
         if suffix != "" {
             return Err(self.error(start, ErrorKind::NumberInvalid))
         }
-        prefix.replace("_", "").trim_left_matches('+').parse().map_err(|_e| {
-            self.error(start, ErrorKind::NumberInvalid)
-        })
+        i64::from_str_radix(&prefix.replace("_", "").trim_left_matches('+'), radix)
+            .map_err(|_e| self.error(start, ErrorKind::NumberInvalid))
     }
 
-    fn parse_integer(&self,
-                     s: &'a str,
-                     allow_sign: bool,
-                     allow_leading_zeros: bool)
-                     -> Result<(&'a str, &'a str), Error> {
+    fn parse_integer(
+        &self,
+        s: &'a str,
+        allow_sign: bool,
+        allow_leading_zeros: bool,
+        radix: u32,
+    ) -> Result<(&'a str, &'a str), Error> {
         let start = self.tokens.substr_offset(s);
 
         let mut first = true;
@@ -934,21 +944,20 @@ impl<'a> Deserializer<'a> {
                 continue
             }
 
-            match c {
-                '0' if first => first_zero = true,
-                '0' ... '9' if !first && first_zero && !allow_leading_zeros => {
-                    return Err(self.error(at, ErrorKind::NumberInvalid))
+            if c == '0' && first {
+                first_zero = true;
+            } else if c.to_digit(radix).is_some() {
+                if !first && first_zero && !allow_leading_zeros {
+                    return Err(self.error(at, ErrorKind::NumberInvalid));
                 }
-                '0' ... '9' => underscore = false,
-                '_' if first => {
-                    return Err(self.error(at, ErrorKind::NumberInvalid))
-                }
-                '_' if !underscore => underscore = true,
-                _ => {
-                    end = i;
-                    break
-                }
-
+                underscore = false;
+            } else if c == '_' && first {
+                return Err(self.error(at, ErrorKind::NumberInvalid));
+            } else if c == '_' && !underscore {
+                underscore = true;
+            } else {
+                end = i;
+                break;
             }
             first = false;
         }
@@ -960,7 +969,7 @@ impl<'a> Deserializer<'a> {
 
     fn float(&mut self, s: &'a str, after_decimal: Option<&'a str>)
              -> Result<f64, Error> {
-        let (integral, mut suffix) = self.parse_integer(s, true, false)?;
+        let (integral, mut suffix) = self.parse_integer(s, true, false, 10)?;
         let start = self.tokens.substr_offset(integral);
 
         let mut fraction = None;
@@ -968,7 +977,7 @@ impl<'a> Deserializer<'a> {
             if suffix != "" {
                 return Err(self.error(start, ErrorKind::NumberInvalid))
             }
-            let (a, b) = self.parse_integer(after, false, true)?;
+            let (a, b) = self.parse_integer(after, false, true, 10)?;
             fraction = Some(a);
             suffix = b;
         }
@@ -979,12 +988,12 @@ impl<'a> Deserializer<'a> {
                 self.eat(Token::Plus)?;
                 match self.next()? {
                     Some((_, Token::Keylike(s))) => {
-                        self.parse_integer(s, false, false)?
+                        self.parse_integer(s, false, false, 10)?
                     }
                     _ => return Err(self.error(start, ErrorKind::NumberInvalid)),
                 }
             } else {
-                self.parse_integer(&suffix[1..], true, false)?
+                self.parse_integer(&suffix[1..], true, false, 10)?
             };
             if b != "" {
                 return Err(self.error(start, ErrorKind::NumberInvalid))
