@@ -80,54 +80,75 @@ macro_rules! toml_internal {
     (@toplevel $root:ident [$($path:tt)*]) => {};
 
     // Parse negative number `key = -value`.
-    (@toplevel $root:ident [$($path:tt)*] $($k:tt)-+ = - $v:tt $($rest:tt)*) => {
-        toml_internal!(@toplevel $root [$($path)*] $($k)-+ = (-$v) $($rest)*);
+    (@toplevel $root:ident [$($path:tt)*] $($($k:tt)-+).+ = - $v:tt $($rest:tt)*) => {
+        toml_internal!(@toplevel $root [$($path)*] $($($k)-+).+ = (-$v) $($rest)*);
+    };
+
+    // Parse positive number `key = +value`.
+    (@toplevel $root:ident [$($path:tt)*] $($($k:tt)-+).+ = + $v:tt $($rest:tt)*) => {
+        toml_internal!(@toplevel $root [$($path)*] $($($k)-+).+ = ($v) $($rest)*);
     };
 
     // Parse offset datetime `key = 1979-05-27T00:32:00.999999-07:00`.
-    (@toplevel $root:ident [$($path:tt)*] $($k:tt)-+ = $yr:tt - $mo:tt - $dhr:tt : $min:tt : $sec:tt . $frac:tt - $tzh:tt : $tzm:tt $($rest:tt)*) => {
-        toml_internal!(@topleveldatetime $root [$($path)*] $($k)-+ = ($yr - $mo - $dhr : $min : $sec . $frac - $tzh : $tzm) $($rest)*);
+    (@toplevel $root:ident [$($path:tt)*] $($($k:tt)-+).+ = $yr:tt - $mo:tt - $dhr:tt : $min:tt : $sec:tt . $frac:tt - $tzh:tt : $tzm:tt $($rest:tt)*) => {
+        toml_internal!(@topleveldatetime $root [$($path)*] $($($k)-+).+ = ($yr - $mo - $dhr : $min : $sec . $frac - $tzh : $tzm) $($rest)*);
+    };
+    // Space instead of T.
+    (@toplevel $root:ident [$($path:tt)*] $($($k:tt)-+).+ = $yr:tt - $mo:tt - $day:tt $hr:tt : $min:tt : $sec:tt . $frac:tt - $tzh:tt : $tzm:tt $($rest:tt)*) => {
+        toml_internal!(@topleveldatetime $root [$($path)*] $($($k)-+).+ = ($yr - $mo - $day T $hr : $min : $sec . $frac - $tzh : $tzm) $($rest)*);
     };
 
     // Parse offset datetime `key = 1979-05-27T00:32:00-07:00`.
-    (@toplevel $root:ident [$($path:tt)*] $($k:tt)-+ = $yr:tt - $mo:tt - $dhr:tt : $min:tt : $sec:tt - $tzh:tt : $tzm:tt $($rest:tt)*) => {
-        toml_internal!(@topleveldatetime $root [$($path)*] $($k)-+ = ($yr - $mo - $dhr : $min : $sec - $tzh : $tzm) $($rest)*);
+    (@toplevel $root:ident [$($path:tt)*] $($($k:tt)-+).+ = $yr:tt - $mo:tt - $dhr:tt : $min:tt : $sec:tt - $tzh:tt : $tzm:tt $($rest:tt)*) => {
+        toml_internal!(@topleveldatetime $root [$($path)*] $($($k)-+).+ = ($yr - $mo - $dhr : $min : $sec - $tzh : $tzm) $($rest)*);
+    };
+    // Space instead of T.
+    (@toplevel $root:ident [$($path:tt)*] $($($k:tt)-+).+ = $yr:tt - $mo:tt - $day:tt $hr:tt : $min:tt : $sec:tt - $tzh:tt : $tzm:tt $($rest:tt)*) => {
+        toml_internal!(@topleveldatetime $root [$($path)*] $($($k)-+).+ = ($yr - $mo - $day T $hr : $min : $sec - $tzh : $tzm) $($rest)*);
     };
 
     // Parse local datetime `key = 1979-05-27T00:32:00.999999`.
-    (@toplevel $root:ident [$($path:tt)*] $($k:tt)-+ = $yr:tt - $mo:tt - $dhr:tt : $min:tt : $sec:tt . $frac:tt $($rest:tt)*) => {
-        toml_internal!(@topleveldatetime $root [$($path)*] $($k)-+ = ($yr - $mo - $dhr : $min : $sec . $frac) $($rest)*);
+    (@toplevel $root:ident [$($path:tt)*] $($($k:tt)-+).+ = $yr:tt - $mo:tt - $dhr:tt : $min:tt : $sec:tt . $frac:tt $($rest:tt)*) => {
+        toml_internal!(@topleveldatetime $root [$($path)*] $($($k)-+).+ = ($yr - $mo - $dhr : $min : $sec . $frac) $($rest)*);
+    };
+    // Space instead of T.
+    (@toplevel $root:ident [$($path:tt)*] $($($k:tt)-+).+ = $yr:tt - $mo:tt - $day:tt $hr:tt : $min:tt : $sec:tt . $frac:tt $($rest:tt)*) => {
+        toml_internal!(@topleveldatetime $root [$($path)*] $($($k)-+).+ = ($yr - $mo - $day T $hr : $min : $sec . $frac) $($rest)*);
     };
 
     // Parse offset datetime `key = 1979-05-27T07:32:00Z` and local datetime `key = 1979-05-27T07:32:00`.
-    (@toplevel $root:ident [$($path:tt)*] $($k:tt)-+ = $yr:tt - $mo:tt - $dhr:tt : $min:tt : $sec:tt $($rest:tt)*) => {
-        toml_internal!(@topleveldatetime $root [$($path)*] $($k)-+ = ($yr - $mo - $dhr : $min : $sec) $($rest)*);
+    (@toplevel $root:ident [$($path:tt)*] $($($k:tt)-+).+ = $yr:tt - $mo:tt - $dhr:tt : $min:tt : $sec:tt $($rest:tt)*) => {
+        toml_internal!(@topleveldatetime $root [$($path)*] $($($k)-+).+ = ($yr - $mo - $dhr : $min : $sec) $($rest)*);
+    };
+    // Space instead of T.
+    (@toplevel $root:ident [$($path:tt)*] $($($k:tt)-+).+ = $yr:tt - $mo:tt - $day:tt $hr:tt : $min:tt : $sec:tt $($rest:tt)*) => {
+        toml_internal!(@topleveldatetime $root [$($path)*] $($($k)-+).+ = ($yr - $mo - $day T $hr : $min : $sec) $($rest)*);
     };
 
     // Parse local date `key = 1979-05-27`.
-    (@toplevel $root:ident [$($path:tt)*] $($k:tt)-+ = $yr:tt - $mo:tt - $day:tt $($rest:tt)*) => {
-        toml_internal!(@topleveldatetime $root [$($path)*] $($k)-+ = ($yr - $mo - $day) $($rest)*);
+    (@toplevel $root:ident [$($path:tt)*] $($($k:tt)-+).+ = $yr:tt - $mo:tt - $day:tt $($rest:tt)*) => {
+        toml_internal!(@topleveldatetime $root [$($path)*] $($($k)-+).+ = ($yr - $mo - $day) $($rest)*);
     };
 
     // Parse local time `key = 00:32:00.999999`.
-    (@toplevel $root:ident [$($path:tt)*] $($k:tt)-+ = $hr:tt : $min:tt : $sec:tt . $frac:tt $($rest:tt)*) => {
-        toml_internal!(@topleveldatetime $root [$($path)*] $($k)-+ = ($hr : $min : $sec . $frac) $($rest)*);
+    (@toplevel $root:ident [$($path:tt)*] $($($k:tt)-+).+ = $hr:tt : $min:tt : $sec:tt . $frac:tt $($rest:tt)*) => {
+        toml_internal!(@topleveldatetime $root [$($path)*] $($($k)-+).+ = ($hr : $min : $sec . $frac) $($rest)*);
     };
 
     // Parse local time `key = 07:32:00`.
-    (@toplevel $root:ident [$($path:tt)*] $($k:tt)-+ = $hr:tt : $min:tt : $sec:tt $($rest:tt)*) => {
-        toml_internal!(@topleveldatetime $root [$($path)*] $($k)-+ = ($hr : $min : $sec) $($rest)*);
+    (@toplevel $root:ident [$($path:tt)*] $($($k:tt)-+).+ = $hr:tt : $min:tt : $sec:tt $($rest:tt)*) => {
+        toml_internal!(@topleveldatetime $root [$($path)*] $($($k)-+).+ = ($hr : $min : $sec) $($rest)*);
     };
 
     // Parse any other `key = value` including string, inline array, inline
     // table, number, and boolean.
-    (@toplevel $root:ident [$($path:tt)*] $($k:tt)-+ = $v:tt $($rest:tt)*) => {
+    (@toplevel $root:ident [$($path:tt)*] $($($k:tt)-+).+ = $v:tt $($rest:tt)*) => {{
         $crate::macros::insert_toml(
             &mut $root,
-            &[$($path)* &concat!($("-", toml_internal!(@path $k),)+)[1..]],
+            &[$($path)* $(&concat!($("-", toml_internal!(@path $k),)+)[1..], )+],
             toml_internal!(@value $v));
         toml_internal!(@toplevel $root [$($path)*] $($rest)*);
-    };
+    }};
 
     // Parse array header `[[bin]]`.
     (@toplevel $root:ident $oldpath:tt [[$($($path:tt)-+).+]] $($rest:tt)*) => {
@@ -147,10 +168,10 @@ macro_rules! toml_internal {
     };
 
     // Parse datetime from string and insert into table.
-    (@topleveldatetime $root:ident [$($path:tt)*] $($k:tt)-+ = ($($datetime:tt)+) $($rest:tt)*) => {
+    (@topleveldatetime $root:ident [$($path:tt)*] $($($k:tt)-+).+ = ($($datetime:tt)+) $($rest:tt)*) => {
         $crate::macros::insert_toml(
             &mut $root,
-            &[$($path)* &concat!($("-", toml_internal!(@path $k),)+)[1..]],
+            &[$($path)* $(&concat!($("-", toml_internal!(@path $k),)+)[1..], )+],
             $crate::Value::Datetime(concat!($(stringify!($datetime)),+).parse().unwrap()));
         toml_internal!(@toplevel $root [$($path)*] $($rest)*);
     };
@@ -168,9 +189,9 @@ macro_rules! toml_internal {
 
     // Construct a Value from an inline table.
     (@value { $($inline:tt)* }) => {{
-        let mut table = $crate::value::Table::new();
+        let mut table = $crate::Value::Table($crate::value::Table::new());
         toml_internal!(@trailingcomma (@table table) $($inline)*);
-        $crate::Value::Table(table)
+        table
     }};
 
     // Construct a Value from an inline array.
@@ -179,6 +200,30 @@ macro_rules! toml_internal {
         toml_internal!(@trailingcomma (@array array) $($inline)*);
         $crate::Value::Array(array)
     }};
+
+    (@value (-nan)) => {
+        $crate::Value::Float(-::std::f64::NAN)
+    };
+
+    (@value (nan)) => {
+        $crate::Value::Float(::std::f64::NAN)
+    };
+
+    (@value nan) => {
+        $crate::Value::Float(::std::f64::NAN)
+    };
+
+    (@value (-inf)) => {
+        $crate::Value::Float(::std::f64::NEG_INFINITY)
+    };
+
+    (@value (inf)) => {
+        $crate::Value::Float(::std::f64::INFINITY)
+    };
+
+    (@value inf) => {
+        $crate::Value::Float(::std::f64::INFINITY)
+    };
 
     // Construct a Value from any other type, probably string or boolean or number.
     (@value $v:tt) => {{
@@ -191,57 +236,80 @@ macro_rules! toml_internal {
     (@table $root:ident) => {};
 
     // Parse negative number `key = -value`.
-    (@table $root:ident $($k:tt)-+ = - $v:tt , $($rest:tt)*) => {
-        toml_internal!(@table $root $($k)-+ = (-$v) , $($rest)*);
+    (@table $root:ident $($($k:tt)-+).+ = - $v:tt , $($rest:tt)*) => {
+        toml_internal!(@table $root $($($k)-+).+ = (-$v) , $($rest)*);
+    };
+
+    // Parse positive number `key = +value`.
+    (@table $root:ident $($($k:tt)-+).+ = + $v:tt , $($rest:tt)*) => {
+        toml_internal!(@table $root $($($k)-+).+ = ($v) , $($rest)*);
     };
 
     // Parse offset datetime `key = 1979-05-27T00:32:00.999999-07:00`.
-    (@table $root:ident $($k:tt)-+ = $yr:tt - $mo:tt - $dhr:tt : $min:tt : $sec:tt . $frac:tt - $tzh:tt : $tzm:tt , $($rest:tt)*) => {
-        toml_internal!(@tabledatetime $root $($k)-+ = ($yr - $mo - $dhr : $min : $sec . $frac - $tzh : $tzm) $($rest)*);
+    (@table $root:ident $($($k:tt)-+).+ = $yr:tt - $mo:tt - $dhr:tt : $min:tt : $sec:tt . $frac:tt - $tzh:tt : $tzm:tt , $($rest:tt)*) => {
+        toml_internal!(@tabledatetime $root $($($k)-+).+ = ($yr - $mo - $dhr : $min : $sec . $frac - $tzh : $tzm) $($rest)*);
+    };
+    // Space instead of T.
+    (@table $root:ident $($($k:tt)-+).+ = $yr:tt - $mo:tt - $day:tt $hr:tt : $min:tt : $sec:tt . $frac:tt - $tzh:tt : $tzm:tt , $($rest:tt)*) => {
+        toml_internal!(@tabledatetime $root $($($k)-+).+ = ($yr - $mo - $day T $hr : $min : $sec . $frac - $tzh : $tzm) $($rest)*);
     };
 
     // Parse offset datetime `key = 1979-05-27T00:32:00-07:00`.
-    (@table $root:ident $($k:tt)-+ = $yr:tt - $mo:tt - $dhr:tt : $min:tt : $sec:tt - $tzh:tt : $tzm:tt , $($rest:tt)*) => {
-        toml_internal!(@tabledatetime $root $($k)-+ = ($yr - $mo - $dhr : $min : $sec - $tzh : $tzm) $($rest)*);
+    (@table $root:ident $($($k:tt)-+).+ = $yr:tt - $mo:tt - $dhr:tt : $min:tt : $sec:tt - $tzh:tt : $tzm:tt , $($rest:tt)*) => {
+        toml_internal!(@tabledatetime $root $($($k)-+).+ = ($yr - $mo - $dhr : $min : $sec - $tzh : $tzm) $($rest)*);
+    };
+    // Space instead of T.
+    (@table $root:ident $($($k:tt)-+).+ = $yr:tt - $mo:tt - $day:tt $hr:tt : $min:tt : $sec:tt - $tzh:tt : $tzm:tt , $($rest:tt)*) => {
+        toml_internal!(@tabledatetime $root $($($k)-+).+ = ($yr - $mo - $day T $hr : $min : $sec - $tzh : $tzm) $($rest)*);
     };
 
     // Parse local datetime `key = 1979-05-27T00:32:00.999999`.
-    (@table $root:ident $($k:tt)-+ = $yr:tt - $mo:tt - $dhr:tt : $min:tt : $sec:tt . $frac:tt , $($rest:tt)*) => {
-        toml_internal!(@tabledatetime $root $($k)-+ = ($yr - $mo - $dhr : $min : $sec . $frac) $($rest)*);
+    (@table $root:ident $($($k:tt)-+).+ = $yr:tt - $mo:tt - $dhr:tt : $min:tt : $sec:tt . $frac:tt , $($rest:tt)*) => {
+        toml_internal!(@tabledatetime $root $($($k)-+).+ = ($yr - $mo - $dhr : $min : $sec . $frac) $($rest)*);
+    };
+    // Space instead of T.
+    (@table $root:ident $($($k:tt)-+).+ = $yr:tt - $mo:tt - $day:tt $hr:tt : $min:tt : $sec:tt . $frac:tt , $($rest:tt)*) => {
+        toml_internal!(@tabledatetime $root $($($k)-+).+ = ($yr - $mo - $day T $hr : $min : $sec . $frac) $($rest)*);
     };
 
     // Parse offset datetime `key = 1979-05-27T07:32:00Z` and local datetime `key = 1979-05-27T07:32:00`.
-    (@table $root:ident $($k:tt)-+ = $yr:tt - $mo:tt - $dhr:tt : $min:tt : $sec:tt , $($rest:tt)*) => {
-        toml_internal!(@tabledatetime $root $($k)-+ = ($yr - $mo - $dhr : $min : $sec) $($rest)*);
+    (@table $root:ident $($($k:tt)-+).+ = $yr:tt - $mo:tt - $dhr:tt : $min:tt : $sec:tt , $($rest:tt)*) => {
+        toml_internal!(@tabledatetime $root $($($k)-+).+ = ($yr - $mo - $dhr : $min : $sec) $($rest)*);
+    };
+    // Space instead of T.
+    (@table $root:ident $($($k:tt)-+).+ = $yr:tt - $mo:tt - $day:tt $hr:tt : $min:tt : $sec:tt , $($rest:tt)*) => {
+        toml_internal!(@tabledatetime $root $($($k)-+).+ = ($yr - $mo - $day T $hr : $min : $sec) $($rest)*);
     };
 
     // Parse local date `key = 1979-05-27`.
-    (@table $root:ident $($k:tt)-+ = $yr:tt - $mo:tt - $day:tt , $($rest:tt)*) => {
-        toml_internal!(@tabledatetime $root $($k)-+ = ($yr - $mo - $day) $($rest)*);
+    (@table $root:ident $($($k:tt)-+).+ = $yr:tt - $mo:tt - $day:tt , $($rest:tt)*) => {
+        toml_internal!(@tabledatetime $root $($($k)-+).+ = ($yr - $mo - $day) $($rest)*);
     };
 
     // Parse local time `key = 00:32:00.999999`.
-    (@table $root:ident $($k:tt)-+ = $hr:tt : $min:tt : $sec:tt . $frac:tt , $($rest:tt)*) => {
-        toml_internal!(@tabledatetime $root $($k)-+ = ($hr : $min : $sec . $frac) $($rest)*);
+    (@table $root:ident $($($k:tt)-+).+ = $hr:tt : $min:tt : $sec:tt . $frac:tt , $($rest:tt)*) => {
+        toml_internal!(@tabledatetime $root $($($k)-+).+ = ($hr : $min : $sec . $frac) $($rest)*);
     };
 
     // Parse local time `key = 07:32:00`.
-    (@table $root:ident $($k:tt)-+ = $hr:tt : $min:tt : $sec:tt , $($rest:tt)*) => {
-        toml_internal!(@tabledatetime $root $($k)-+ = ($hr : $min : $sec) $($rest)*);
+    (@table $root:ident $($($k:tt)-+).+ = $hr:tt : $min:tt : $sec:tt , $($rest:tt)*) => {
+        toml_internal!(@tabledatetime $root $($($k)-+).+ = ($hr : $min : $sec) $($rest)*);
     };
 
     // Parse any other type, probably string or boolean or number.
-    (@table $root:ident $($k:tt)-+ = $v:tt , $($rest:tt)*) => {
-        $root.insert(
-            concat!($("-", toml_internal!(@path $k),)+)[1..].to_owned(),
+    (@table $root:ident $($($k:tt)-+).+ = $v:tt , $($rest:tt)*) => {
+        $crate::macros::insert_toml(
+            &mut $root,
+            &[$(&concat!($("-", toml_internal!(@path $k),)+)[1..], )+],
             toml_internal!(@value $v));
         toml_internal!(@table $root $($rest)*);
     };
 
     // Parse a Datetime from string and continue in @table state.
-    (@tabledatetime $root:ident $($k:tt)-+ = ($($datetime:tt)*) $($rest:tt)*) => {
-        $root.insert(
-            concat!($("-", toml_internal!(@path $k),)+)[1..].to_owned(),
+    (@tabledatetime $root:ident $($($k:tt)-+).+ = ($($datetime:tt)*) $($rest:tt)*) => {
+        $crate::macros::insert_toml(
+            &mut $root,
+            &[$(&concat!($("-", toml_internal!(@path $k),)+)[1..], )+],
             $crate::Value::Datetime(concat!($(stringify!($datetime)),+).parse().unwrap()));
         toml_internal!(@table $root $($rest)*);
     };
@@ -254,24 +322,45 @@ macro_rules! toml_internal {
         toml_internal!(@array $root (-$v) , $($rest)*);
     };
 
+    // Parse positive number `+value`.
+    (@array $root:ident + $v:tt , $($rest:tt)*) => {
+        toml_internal!(@array $root ($v) , $($rest)*);
+    };
+
     // Parse offset datetime `1979-05-27T00:32:00.999999-07:00`.
     (@array $root:ident $yr:tt - $mo:tt - $dhr:tt : $min:tt : $sec:tt . $frac:tt - $tzh:tt : $tzm:tt , $($rest:tt)*) => {
         toml_internal!(@arraydatetime $root ($yr - $mo - $dhr : $min : $sec . $frac - $tzh : $tzm) $($rest)*);
+    };
+    // Space instead of T.
+    (@array $root:ident $yr:tt - $mo:tt - $day:tt $hr:tt : $min:tt : $sec:tt . $frac:tt - $tzh:tt : $tzm:tt , $($rest:tt)*) => {
+        toml_internal!(@arraydatetime $root ($yr - $mo - $day T $hr : $min : $sec . $frac - $tzh : $tzm) $($rest)*);
     };
 
     // Parse offset datetime `1979-05-27T00:32:00-07:00`.
     (@array $root:ident $yr:tt - $mo:tt - $dhr:tt : $min:tt : $sec:tt - $tzh:tt : $tzm:tt , $($rest:tt)*) => {
         toml_internal!(@arraydatetime $root ($yr - $mo - $dhr : $min : $sec - $tzh : $tzm) $($rest)*);
     };
+    // Space instead of T.
+    (@array $root:ident $yr:tt - $mo:tt - $day:tt $hr:tt : $min:tt : $sec:tt - $tzh:tt : $tzm:tt , $($rest:tt)*) => {
+        toml_internal!(@arraydatetime $root ($yr - $mo - $day T $hr : $min : $sec - $tzh : $tzm) $($rest)*);
+    };
 
     // Parse local datetime `1979-05-27T00:32:00.999999`.
     (@array $root:ident $yr:tt - $mo:tt - $dhr:tt : $min:tt : $sec:tt . $frac:tt , $($rest:tt)*) => {
         toml_internal!(@arraydatetime $root ($yr - $mo - $dhr : $min : $sec . $frac) $($rest)*);
     };
+    // Space instead of T.
+    (@array $root:ident $yr:tt - $mo:tt - $day:tt $hr:tt : $min:tt : $sec:tt . $frac:tt , $($rest:tt)*) => {
+        toml_internal!(@arraydatetime $root ($yr - $mo - $day T $hr : $min : $sec . $frac) $($rest)*);
+    };
 
     // Parse offset datetime `1979-05-27T07:32:00Z` and local datetime `1979-05-27T07:32:00`.
     (@array $root:ident $yr:tt - $mo:tt - $dhr:tt : $min:tt : $sec:tt , $($rest:tt)*) => {
         toml_internal!(@arraydatetime $root ($yr - $mo - $dhr : $min : $sec) $($rest)*);
+    };
+    // Space instead of T.
+    (@array $root:ident $yr:tt - $mo:tt - $day:tt $hr:tt : $min:tt : $sec:tt , $($rest:tt)*) => {
+        toml_internal!(@arraydatetime $root ($yr - $mo - $day T $hr : $min : $sec) $($rest)*);
     };
 
     // Parse local date `1979-05-27`.
