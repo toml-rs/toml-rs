@@ -19,16 +19,6 @@
       }
     },
     "in": {
-      "bar": {
-        "type": "integer",
-        "value": "2"
-      },
-      "foo": {
-        "type": "integer",
-        "value": "1"
-      }
-    },
-    "in2": {
       "type": {
         "color": {
           "type": "string",

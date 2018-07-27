@@ -3,7 +3,5 @@ a.b = 123
 [table]
 a.b.c = 1
 a  .  b  .  d = 2
-in = {foo = 1}
-in.bar = 2
 
-in2 = { type.name = "cat", type.color = "blue" }
+in = { type.name = "cat", type.color = "blue" }

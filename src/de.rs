@@ -526,7 +526,7 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
                 s.end()?;
                 Ok(ret)
             }
-            E::InlineTable(values) => {
+            E::InlineTable(values) | E::DottedTable(values) => {
                 visitor.visit_map(InlineTableDeserializer {
                     values: values.into_iter(),
                     next_value: None,
@@ -1180,7 +1180,7 @@ impl<'a> Deserializer<'a> {
             return Ok(());
         }
         match values.iter_mut().find(|&&mut (ref k, _)| *k == key) {
-            Some(&mut (_, Value { e: E::InlineTable(ref mut v), .. })) => {
+            Some(&mut (_, Value { e: E::DottedTable(ref mut v), .. })) => {
                 return self.add_dotted_key(key_parts, value, v);
             }
             Some(&mut (_, Value { start, .. })) => {
@@ -1190,13 +1190,13 @@ impl<'a> Deserializer<'a> {
         }
         // The start/end value is somewhat misleading here.
         let inline_table = Value {
-            e: E::InlineTable(Vec::new()),
+            e: E::DottedTable(Vec::new()),
             start: value.start,
             end: value.end,
         };
         values.push((key, inline_table));
         let last_i = values.len() - 1;
-        if let (_, Value { e: E::InlineTable(ref mut v), .. }) = values[last_i] {
+        if let (_, Value { e: E::DottedTable(ref mut v), .. }) = values[last_i] {
             self.add_dotted_key(key_parts, value, v)?;
         }
         Ok(())
@@ -1499,6 +1499,7 @@ enum E<'a> {
     Datetime(&'a str),
     Array(Vec<Value<'a>>),
     InlineTable(Vec<(Cow<'a, str>, Value<'a>)>),
+    DottedTable(Vec<(Cow<'a, str>, Value<'a>)>),
 }
 
 impl<'a> Value<'a> {
@@ -1511,6 +1512,7 @@ impl<'a> Value<'a> {
             (&E::Datetime(..), &E::Datetime(..)) |
             (&E::Array(..), &E::Array(..)) |
             (&E::InlineTable(..), &E::InlineTable(..)) => true,
+            (&E::DottedTable(..), &E::DottedTable(..)) => true,
 
             _ => false,
         }
