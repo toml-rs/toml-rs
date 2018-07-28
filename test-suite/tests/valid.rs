@@ -45,7 +45,7 @@ fn to_json(toml: toml::Value) -> Json {
 fn run_pretty(toml: Toml) {
     // Assert toml == json
     println!("### pretty round trip parse.");
-    
+
     // standard pretty
     let toml_raw = to_string_pretty(&toml).expect("to string");
     let toml2 = toml_raw.parse().expect("from string");
@@ -247,3 +247,6 @@ test!(key_quote_newline,
 test!(table_array_nest_no_keys,
       include_str!("valid/table-array-nest-no-keys.toml"),
       include_str!("valid/table-array-nest-no-keys.json"));
+test!(dotted_keys,
+      include_str!("valid/dotted-keys.toml"),
+      include_str!("valid/dotted-keys.json"));

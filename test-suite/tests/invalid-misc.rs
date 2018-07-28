@@ -17,4 +17,12 @@ fn bad() {
 
     bad("a = -0x1");
     bad("a = 0x-1");
+
+    // Dotted keys.
+    bad("a.b.c = 1
+         a.b = 2
+        ");
+    bad("a = 1
+         a.b = 2");
+    bad("a = {k1 = 1, k1.name = \"joe\"}")
 }
