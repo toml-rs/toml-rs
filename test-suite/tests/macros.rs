@@ -1,7 +1,9 @@
-#![recursion_limit = "128"]
+#![recursion_limit = "256"]
 
 #[macro_use]
 extern crate toml;
+
+use std::f64;
 
 macro_rules! table {
     ($($key:expr => $value:expr,)*) => {{
@@ -143,6 +145,19 @@ fn test_number() {
         negative = -1
         table = { positive = 1, negative = -1 }
         array = [ 1, -1 ]
+        neg_zero = -0
+        pos_zero = +0
+        float = 3.14
+
+        sf1 = inf
+        sf2 = +inf
+        sf3 = -inf
+        sf7 = +0.0
+        sf8 = -0.0
+
+        hex = 0xa_b_c
+        oct = 0o755
+        bin = 0b11010110
     };
 
     let expected = table! {
@@ -156,9 +171,32 @@ fn test_number() {
             1,
             -1,
         },
+        "neg_zero" => -0,
+        "pos_zero" => 0,
+        "float" => 3.14,
+        "sf1" => f64::INFINITY,
+        "sf2" => f64::INFINITY,
+        "sf3" => f64::NEG_INFINITY,
+        "sf7" => 0.0,
+        "sf8" => -0.0,
+        "hex" => 2748,
+        "oct" => 493,
+        "bin" => 214,
     };
 
     assert_eq!(actual, expected);
+}
+
+#[test]
+fn test_nan() {
+    let actual = toml! {
+        sf4 = nan
+        sf5 = +nan
+        sf6 = -nan
+    };
+    assert!(actual["sf4"].as_float().unwrap().is_nan());
+    assert!(actual["sf5"].as_float().unwrap().is_nan());
+    assert!(actual["sf6"].as_float().unwrap().is_nan());
 }
 
 #[test]
@@ -168,6 +206,7 @@ fn test_datetime() {
         odt1 = 1979-05-27T07:32:00Z
         odt2 = 1979-05-27T00:32:00-07:00
         odt3 = 1979-05-27T00:32:00.999999-07:00
+        odt4 = 1979-05-27 07:32:00Z
         ldt1 = 1979-05-27T07:32:00
         ldt2 = 1979-05-27T00:32:00.999999
         ld1 = 1979-05-27
@@ -178,6 +217,7 @@ fn test_datetime() {
             odt1 = 1979-05-27T07:32:00Z,
             odt2 = 1979-05-27T00:32:00-07:00,
             odt3 = 1979-05-27T00:32:00.999999-07:00,
+            odt4 = 1979-05-27 07:32:00Z,
             ldt1 = 1979-05-27T07:32:00,
             ldt2 = 1979-05-27T00:32:00.999999,
             ld1 = 1979-05-27,
@@ -189,6 +229,7 @@ fn test_datetime() {
             1979-05-27T07:32:00Z,
             1979-05-27T00:32:00-07:00,
             1979-05-27T00:32:00.999999-07:00,
+            1979-05-27 07:32:00Z,
             1979-05-27T07:32:00,
             1979-05-27T00:32:00.999999,
             1979-05-27,
@@ -201,6 +242,7 @@ fn test_datetime() {
         "odt1" => datetime!("1979-05-27T07:32:00Z"),
         "odt2" => datetime!("1979-05-27T00:32:00-07:00"),
         "odt3" => datetime!("1979-05-27T00:32:00.999999-07:00"),
+        "odt4" => datetime!("1979-05-27 07:32:00Z"),
         "ldt1" => datetime!("1979-05-27T07:32:00"),
         "ldt2" => datetime!("1979-05-27T00:32:00.999999"),
         "ld1" => datetime!("1979-05-27"),
@@ -211,6 +253,7 @@ fn test_datetime() {
             "odt1" => datetime!("1979-05-27T07:32:00Z"),
             "odt2" => datetime!("1979-05-27T00:32:00-07:00"),
             "odt3" => datetime!("1979-05-27T00:32:00.999999-07:00"),
+            "odt4" => datetime!("1979-05-27 07:32:00Z"),
             "ldt1" => datetime!("1979-05-27T07:32:00"),
             "ldt2" => datetime!("1979-05-27T00:32:00.999999"),
             "ld1" => datetime!("1979-05-27"),
@@ -222,6 +265,7 @@ fn test_datetime() {
             datetime!("1979-05-27T07:32:00Z"),
             datetime!("1979-05-27T00:32:00-07:00"),
             datetime!("1979-05-27T00:32:00.999999-07:00"),
+            datetime!("1979-05-27 07:32:00Z"),
             datetime!("1979-05-27T07:32:00"),
             datetime!("1979-05-27T00:32:00.999999"),
             datetime!("1979-05-27"),
@@ -279,6 +323,41 @@ fn test_empty() {
         "empty_table" => table! {},
         "empty_array" => array! {
             table! {},
+        },
+    };
+
+    assert_eq!(actual, expected);
+}
+
+#[test]
+fn test_dotted_keys() {
+    let actual = toml! {
+        a.b = 123
+        a.c = 1979-05-27T07:32:00Z
+        [table]
+        a.b.c = 1
+        a  .  b  .  d = 2
+        in = { type.name = "cat", type.color = "blue" }
+    };
+
+    let expected = table! {
+        "a" => table! {
+            "b" => 123,
+            "c" => datetime!("1979-05-27T07:32:00Z"),
+        },
+        "table" => table! {
+            "a" => table! {
+                "b" => table! {
+                    "c" => 1,
+                    "d" => 2,
+                },
+            },
+            "in" => table! {
+                "type" => table! {
+                    "name" => "cat",
+                    "color" => "blue",
+                },
+            },
         },
     };
 
