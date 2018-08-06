@@ -1,4 +1,5 @@
 extern crate serde;
+extern crate serde_json;
 extern crate toml;
 #[macro_use]
 extern crate serde_derive;
@@ -588,4 +589,16 @@ fn fixed_size_array() {
     let expected = Entity { pos: [1, 2] };
     assert_eq!(value, expected);
     assert_eq!(toml::to_string(&value).unwrap(), text);
+}
+
+#[test]
+fn json_interoperability() {
+    #[derive(Serialize, Deserialize)]
+    struct Foo {
+        any: toml::Value
+    }
+
+    let _foo: Foo = serde_json::from_str(r#"
+        {"any":1}
+    "#).unwrap();
 }
