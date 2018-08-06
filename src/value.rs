@@ -423,6 +423,22 @@ impl<'de> de::Deserialize<'de> for Value {
                 Ok(Value::Integer(value))
             }
 
+            fn visit_u64<E: de::Error>(self, value: u64) -> Result<Value, E> {
+                if value <= i64::max_value() as u64 {
+                    Ok(Value::Integer(value as i64))
+                } else {
+                    Err(de::Error::custom("u64 value was too large"))
+                }
+            }
+
+            fn visit_u32<E>(self, value: u32) -> Result<Value, E> {
+                Ok(Value::Integer(value.into()))
+            }
+
+            fn visit_i32<E>(self, value: i32) -> Result<Value, E> {
+                Ok(Value::Integer(value.into()))
+            }
+
             fn visit_f64<E>(self, value: f64) -> Result<Value, E> {
                 Ok(Value::Float(value))
             }
