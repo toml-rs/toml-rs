@@ -164,7 +164,7 @@ pub mod ser;
 pub use ser::{to_string, to_string_pretty, to_vec, Serializer};
 pub mod de;
 #[doc(no_inline)]
-pub use de::{from_slice, from_str, Deserializer};
+pub use de::{from_reader, from_slice, from_str, Deserializer};
 mod tokens;
 
 #[doc(hidden)]

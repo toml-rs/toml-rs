@@ -5,10 +5,13 @@
 //! provided at the top of the crate.
 
 use std::borrow::Cow;
+use std::convert::From;
 use std::error;
 use std::f64;
 use std::fmt;
+use std::io;
 use std::str;
+use std::sync::Arc;
 use std::vec;
 
 use serde::de;
@@ -74,6 +77,50 @@ pub fn from_str<'de, T>(s: &'de str) -> Result<T, Error>
     let ret = T::deserialize(&mut d)?;
     d.end()?;
     Ok(ret)
+}
+
+/// Deserializes an IO stream into a type.
+///
+/// This function will attempt to read a TOML document from `r` and
+/// deserialize to `T` .
+///
+/// # Examples
+///
+/// ```rust
+/// #[macro_use]
+/// extern crate serde_derive;
+/// extern crate toml;
+///
+/// use std::fs::File;
+///
+/// #[derive(Debug, Deserialize)]
+/// struct Config {
+///     title: String,
+///     owner: Owner,
+/// }
+///
+/// #[derive(Debug, Deserialize)]
+/// struct Owner {
+///     name: String,
+/// }
+///
+/// fn main() {
+/// # }
+/// # fn fake_main() {
+///     let mut file = File::open("config.toml").unwrap();
+///     let config: Config = toml::from_reader(&mut file).unwrap();
+///
+///     println!("{:?}", config);
+/// }
+/// ```
+pub fn from_reader<R, T>(r: &mut R) -> Result<T, Error>
+where
+    R: io::Read,
+    T: de::DeserializeOwned,
+{
+    let mut buf = Vec::new();
+    r.read_to_end(&mut buf)?;
+    from_slice(&buf)
 }
 
 /// Errors that can occur when deserializing a type.
@@ -161,6 +208,9 @@ enum ErrorKind {
 
     /// Dotted key attempted to extend something that is not a table.
     DottedKeyInvalidType,
+
+    /// An IO error occurred.
+    Io(Arc<io::Error>),
 
     #[doc(hidden)]
     __Nonexhaustive,
@@ -1119,7 +1169,7 @@ impl<'a> Deserializer<'a> {
     fn array(&mut self) -> Result<(Span, Vec<Value<'a>>), Error> {
         let mut ret = Vec::new();
 
-        let intermediate = |me: &mut Deserializer| {
+        let intermediate = |me: &mut Deserializer| -> Result<(), Error> {
             loop {
                 me.eat_whitespace()?;
                 if !me.eat(Token::Newline)? && !me.eat_comment()? {
@@ -1340,6 +1390,20 @@ impl Error {
     }
 }
 
+impl From<io::Error> for Error {
+    fn from(error: io::Error) -> Self {
+        Error {
+            inner: Box::new(ErrorInner {
+                kind: ErrorKind::Io(Arc::new(error)),
+                line: None,
+                col: 0,
+                message: String::new(),
+                key: Vec::new(),
+            }),
+        }
+    }
+}
+
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self.inner.kind {
@@ -1380,6 +1444,7 @@ impl fmt::Display for Error {
             ErrorKind::Custom => self.inner.message.fmt(f)?,
             ErrorKind::ExpectedString => "expected string".fmt(f)?,
             ErrorKind::DottedKeyInvalidType => "dotted key attempted to extend non-table type".fmt(f)?,
+            ErrorKind::Io(ref err) => err.fmt(f)?,
             ErrorKind::__Nonexhaustive => panic!(),
         }
 
@@ -1424,6 +1489,7 @@ impl error::Error for Error {
             ErrorKind::Custom => "a custom error",
             ErrorKind::ExpectedString => "expected string",
             ErrorKind::DottedKeyInvalidType => "dotted key invalid type",
+            ErrorKind::Io(_) => "an IO error",
             ErrorKind::__Nonexhaustive => panic!(),
         }
     }
