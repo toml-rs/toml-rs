@@ -152,6 +152,9 @@ enum ErrorKind {
     /// An empty table key was found.
     EmptyTableKey,
 
+    /// Multiline strings are not allowed for key
+    MultilineStringKey,
+
     /// A custom error which could be generated when deserializing a particular
     /// type.
     Custom,
@@ -1274,6 +1277,9 @@ impl<'a> Deserializer<'a> {
             TokenError::EmptyTableKey(at) => {
                 self.error(at, ErrorKind::EmptyTableKey)
             }
+            TokenError::MultilineStringKey(at) => {
+                self.error(at, ErrorKind::MultilineStringKey)
+            }
         }
     }
 
@@ -1377,6 +1383,7 @@ impl fmt::Display for Error {
             }
             ErrorKind::RedefineAsArray => "table redefined as array".fmt(f)?,
             ErrorKind::EmptyTableKey => "empty table key found".fmt(f)?,
+            ErrorKind::MultilineStringKey => "multiline strings are not allowed for key".fmt(f)?,
             ErrorKind::Custom => self.inner.message.fmt(f)?,
             ErrorKind::ExpectedString => "expected string".fmt(f)?,
             ErrorKind::DottedKeyInvalidType => "dotted key attempted to extend non-table type".fmt(f)?,
@@ -1421,6 +1428,7 @@ impl error::Error for Error {
             ErrorKind::DuplicateTable(_) => "duplicate table",
             ErrorKind::RedefineAsArray => "table redefined as array",
             ErrorKind::EmptyTableKey => "empty table key found",
+            ErrorKind::MultilineStringKey => "invalid multiline string for key",
             ErrorKind::Custom => "a custom error",
             ErrorKind::ExpectedString => "expected string",
             ErrorKind::DottedKeyInvalidType => "dotted key invalid type",
