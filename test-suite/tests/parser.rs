@@ -275,6 +275,10 @@ fn bad_keys() {
     "\"\"|=3".parse::<Value>().unwrap_err();
     "\"\n\"|=3".parse::<Value>().unwrap_err();
     "\"\r\"|=3".parse::<Value>().unwrap_err();
+    "''''''=3".parse::<Value>().unwrap_err();
+    "\"\"\"\"\"\"=3".parse::<Value>().unwrap_err();
+    "'''key'''=3".parse::<Value>().unwrap_err();
+    "\"\"\"key\"\"\"=3".parse::<Value>().unwrap_err();
 }
 
 #[test]
@@ -290,6 +294,8 @@ fn bad_table_names() {
     "[']".parse::<Value>().unwrap_err();
     "[''']".parse::<Value>().unwrap_err();
     "['''''']".parse::<Value>().unwrap_err();
+    "['''foo''']".parse::<Value>().unwrap_err();
+    "[\"\"\"bar\"\"\"]".parse::<Value>().unwrap_err();
     "['\n']".parse::<Value>().unwrap_err();
     "['\r\n']".parse::<Value>().unwrap_err();
 }

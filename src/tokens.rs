@@ -38,7 +38,7 @@ pub enum Token<'a> {
     RightBracket,
 
     Keylike(&'a str),
-    String { src: &'a str, val: Cow<'a, str> },
+    String { src: &'a str, val: Cow<'a, str>, multiline: bool },
 }
 
 #[derive(Eq, PartialEq, Debug)]
@@ -51,6 +51,7 @@ pub enum Error {
     Unexpected(usize, char),
     UnterminatedString(usize),
     NewlineInTableKey(usize),
+    MultilineStringKey(usize),
     EmptyTableKey(usize),
     Wanted { at: usize, expected: &'static str, found: &'static str },
 }
@@ -169,8 +170,11 @@ impl<'a> Tokenizer<'a> {
         let current = self.current();
         match self.next()? {
             Some((span, Token::Keylike(k))) => Ok((span, k.into())),
-            Some((span, Token::String { src, val })) => {
+            Some((span, Token::String { src, val, multiline })) => {
                 let offset = self.substr_offset(src);
+                if multiline {
+                    return Err(Error::MultilineStringKey(offset))
+                }
                 if val == "" {
                     return Err(Error::EmptyTableKey(offset))
                 }
@@ -286,6 +290,7 @@ impl<'a> Tokenizer<'a> {
                 return Ok(String {
                     src: &self.input[start..start+2],
                     val: Cow::Borrowed(""),
+                    multiline: false,
                 })
             }
         }
@@ -321,6 +326,7 @@ impl<'a> Tokenizer<'a> {
                     return Ok(String {
                         src: &self.input[start..self.current()],
                         val: val.into_cow(&self.input[..i]),
+                        multiline: multiline,
                     })
                 }
                 Some((i, c)) => new_ch(self, &mut val, multiline, i, c)?,
@@ -497,7 +503,7 @@ impl<'a> Token<'a> {
             Token::LeftBrace => "a left brace",
             Token::RightBracket => "a right bracket",
             Token::LeftBracket => "a left bracket",
-            Token::String { .. } => "a string",
+            Token::String { multiline, .. } => if multiline { "a multiline string" } else { "a string" },
             Token::Colon => "a colon",
             Token::Plus => "a plus",
         }
@@ -518,56 +524,58 @@ mod tests {
 
     #[test]
     fn literal_strings() {
-        fn t(input: &str, val: &str) {
+        fn t(input: &str, val: &str, multiline: bool) {
             let mut t = Tokenizer::new(input);
             let (_, token) = t.next().unwrap().unwrap();
             assert_eq!(token, Token::String {
                 src: input,
                 val: Cow::Borrowed(val),
+                multiline: multiline,
             });
             assert!(t.next().unwrap().is_none());
         }
 
-        t("''", "");
-        t("''''''", "");
-        t("'''\n'''", "");
-        t("'a'", "a");
-        t("'\"a'", "\"a");
-        t("''''a'''", "'a");
-        t("'''\n'a\n'''", "'a\n");
-        t("'''a\n'a\r\n'''", "a\n'a\n");
+        t("''", "", false);
+        t("''''''", "", true);
+        t("'''\n'''", "", true);
+        t("'a'", "a", false);
+        t("'\"a'", "\"a", false);
+        t("''''a'''", "'a", true);
+        t("'''\n'a\n'''", "'a\n", true);
+        t("'''a\n'a\r\n'''", "a\n'a\n", true);
     }
 
     #[test]
     fn basic_strings() {
-        fn t(input: &str, val: &str) {
+        fn t(input: &str, val: &str, multiline: bool) {
             let mut t = Tokenizer::new(input);
             let (_, token) = t.next().unwrap().unwrap();
             assert_eq!(token, Token::String {
                 src: input,
                 val: Cow::Borrowed(val),
+                multiline: multiline,
             });
             assert!(t.next().unwrap().is_none());
         }
 
-        t(r#""""#, "");
-        t(r#""""""""#, "");
-        t(r#""a""#, "a");
-        t(r#""""a""""#, "a");
-        t(r#""\t""#, "\t");
-        t(r#""\u0000""#, "\0");
-        t(r#""\U00000000""#, "\0");
-        t(r#""\U000A0000""#, "\u{A0000}");
-        t(r#""\\t""#, "\\t");
-        t("\"\"\"\\\n\"\"\"", "");
-        t("\"\"\"\\\n     \t   \t  \\\r\n  \t \n  \t \r\n\"\"\"", "");
-        t(r#""\r""#, "\r");
-        t(r#""\n""#, "\n");
-        t(r#""\b""#, "\u{8}");
-        t(r#""a\fa""#, "a\u{c}a");
-        t(r#""\"a""#, "\"a");
-        t("\"\"\"\na\"\"\"", "a");
-        t("\"\"\"\n\"\"\"", "");
+        t(r#""""#, "", false);
+        t(r#""""""""#, "", true);
+        t(r#""a""#, "a", false);
+        t(r#""""a""""#, "a", true);
+        t(r#""\t""#, "\t", false);
+        t(r#""\u0000""#, "\0", false);
+        t(r#""\U00000000""#, "\0", false);
+        t(r#""\U000A0000""#, "\u{A0000}", false);
+        t(r#""\\t""#, "\\t", false);
+        t("\"\"\"\\\n\"\"\"", "", true);
+        t("\"\"\"\\\n     \t   \t  \\\r\n  \t \n  \t \r\n\"\"\"", "", true);
+        t(r#""\r""#, "\r", false);
+        t(r#""\n""#, "\n", false);
+        t(r#""\b""#, "\u{8}", false);
+        t(r#""a\fa""#, "a\u{c}a", false);
+        t(r#""\"a""#, "\"a", false);
+        t("\"\"\"\na\"\"\"", "a", true);
+        t("\"\"\"\n\"\"\"", "", true);
         err(r#""\a"#, Error::InvalidEscape(2, 'a'));
         err("\"\\\n", Error::InvalidEscape(2, '\n'));
         err("\"\\\r\n", Error::InvalidEscape(2, '\n'));
