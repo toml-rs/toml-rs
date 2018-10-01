@@ -250,3 +250,7 @@ test!(table_array_nest_no_keys,
 test!(dotted_keys,
       include_str!("valid/dotted-keys.toml"),
       include_str!("valid/dotted-keys.json"));
+
+test!(quote_surrounded_value,
+      include_str!("valid/quote-surrounded-value.toml"),
+      include_str!("valid/quote-surrounded-value.json"));
