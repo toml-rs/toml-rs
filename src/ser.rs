@@ -585,6 +585,10 @@ impl<'a> Serializer<'a> {
                     }
                 }
             }
+            if can_be_pretty && found_singles > 0 && value.ends_with('\'') {
+                // We cannot escape the ending quote so we must use """
+                can_be_pretty = false;
+            }
             if !can_be_pretty {
                 debug_assert!(ty != Type::OnelineTripple);
                 return Repr::Std(ty);
