@@ -1,0 +1,40 @@
+//! An example showing off the usage of `Deserialize` to automatically decode
+//! TOML into a Rust `struct`, with enums.
+
+#![deny(warnings)]
+
+extern crate toml;
+#[macro_use]
+extern crate serde_derive;
+
+/// This is what we're going to decode into.
+#[derive(Debug, Deserialize)]
+struct Config {
+    plain: MyEnum,
+    // tuple: MyEnum,
+    #[serde(rename = "struct")]
+    structv: MyEnum,
+    my_enum: Vec<MyEnum>,
+}
+
+#[derive(Debug, Deserialize)]
+enum MyEnum {
+    Plain,
+    Tuple(i64, bool),
+    Struct { value: i64 },
+}
+
+fn main() {
+    let toml_str = r#"
+    plain = "Plain"
+    # tuple = { 0 = 123, 1 = true }
+    struct = { Struct = { value = 123 } }
+    my_enum = [
+        { Plain = {} },
+        # { Tuple = { 0 = 123, 1 = true } },
+        { Struct = { value = 123 } }
+    ]"#;
+
+    let decoded: Config = toml::from_str(toml_str).unwrap();
+    println!("{:#?}", decoded);
+}

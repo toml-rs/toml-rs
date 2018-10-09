@@ -610,7 +610,27 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
     {
         match self.value.e {
             E::String(val) => visitor.visit_enum(val.into_deserializer()),
-            _ => Err(Error::from_kind(ErrorKind::ExpectedString)),
+            E::InlineTable(values) | E::DottedTable(values) => {
+                if values.len() != 1 {
+                    Err(Error::from_kind(ErrorKind::Wanted {
+                        expected: "exactly 1 element",
+                        found: if values.is_empty() {
+                            "zero elements"
+                        } else {
+                            "more than 1 element"
+                        },
+                    }))
+                } else {
+                    visitor.visit_enum(InlineTableDeserializer {
+                        values: values.into_iter(),
+                        next_value: None,
+                    })
+                }
+            }
+            e @ _ => Err(Error::from_kind(ErrorKind::Wanted {
+                expected: "string or table",
+                found: e.type_name(),
+            })),
         }
     }
 
@@ -755,6 +775,71 @@ impl<'de> de::MapAccess<'de> for InlineTableDeserializer<'de> {
     {
         let value = self.next_value.take().expect("Unable to read table values");
         seed.deserialize(ValueDeserializer::new(value))
+    }
+}
+
+impl<'de> de::EnumAccess<'de> for InlineTableDeserializer<'de> {
+    type Error = Error;
+    type Variant = Self;
+
+    fn variant_seed<V>(mut self, seed: V) -> Result<(V::Value, Self::Variant), Self::Error>
+    where
+        V: de::DeserializeSeed<'de>,
+    {
+        let (key, value) = match self.values.next() {
+            Some(pair) => pair,
+            None => {
+                return Err(Error::from_kind(ErrorKind::Wanted {
+                    expected: "table with exactly 1 entry",
+                    found: "empty map",
+                }))
+            }
+        };
+        self.next_value = Some(value);
+
+        seed.deserialize(StrDeserializer::new(key))
+            .map(|val| (val, self))
+    }
+}
+
+impl<'de> de::VariantAccess<'de> for InlineTableDeserializer<'de> {
+    type Error = Error;
+
+    fn unit_variant(self) -> Result<(), Self::Error> {
+        // TODO: Error handling if there are entries
+        Ok(())
+    }
+
+    fn newtype_variant_seed<T>(self, seed: T) -> Result<T::Value, Self::Error>
+    where
+        T: de::DeserializeSeed<'de>,
+    {
+        seed.deserialize(ValueDeserializer::new(
+            self.next_value.expect("Expected value"),
+        ))
+    }
+
+    fn tuple_variant<V>(self, _len: usize, _visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: de::Visitor<'de>,
+    {
+        unimplemented!()
+    }
+
+    fn struct_variant<V>(
+        self,
+        fields: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: de::Visitor<'de>,
+    {
+        de::Deserializer::deserialize_struct(
+            ValueDeserializer::new(self.next_value.expect("Expected value")),
+            "", // TODO: this should be the variant name
+            fields,
+            visitor,
+        )
     }
 }
 
@@ -1607,6 +1692,21 @@ enum E<'a> {
     Array(Vec<Value<'a>>),
     InlineTable(Vec<(Cow<'a, str>, Value<'a>)>),
     DottedTable(Vec<(Cow<'a, str>, Value<'a>)>),
+}
+
+impl<'a> E<'a> {
+    fn type_name(&self) -> &'static str {
+        match *self {
+            E::String(..) => "string",
+            E::Integer(..) => "integer",
+            E::Float(..) => "float",
+            E::Boolean(..) => "boolean",
+            E::Datetime(..) => "datetime",
+            E::Array(..) => "array",
+            E::InlineTable(..) => "inline table",
+            E::DottedTable(..) => "dotted table",
+        }
+    }
 }
 
 impl<'a> Value<'a> {
