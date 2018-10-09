@@ -14,6 +14,7 @@ struct Config {
     // tuple: MyEnum,
     #[serde(rename = "struct")]
     structv: MyEnum,
+    newtype: MyEnum,
     my_enum: Vec<MyEnum>,
 }
 
@@ -21,6 +22,7 @@ struct Config {
 enum MyEnum {
     Plain,
     Tuple(i64, bool),
+    NewType(String),
     Struct { value: i64 },
 }
 
@@ -29,9 +31,11 @@ fn main() {
     plain = "Plain"
     # tuple = { 0 = 123, 1 = true }
     struct = { Struct = { value = 123 } }
+    newtype = { NewType = "value" }
     my_enum = [
         { Plain = {} },
         # { Tuple = { 0 = 123, 1 = true } },
+        { NewType = "value" },
         { Struct = { value = 123 } }
     ]"#;
 
