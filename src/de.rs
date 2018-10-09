@@ -162,6 +162,12 @@ enum ErrorKind {
     /// A struct was expected but something else was found
     ExpectedString,
 
+    /// A tuple with a certain number of elements was expected but something else was found
+    ExpectedTuple(usize),
+
+    /// An empty table was expected but entries were found
+    ExpectedEmptyTable,
+
     /// Dotted key attempted to extend something that is not a table.
     DottedKeyInvalidType,
 
@@ -757,7 +763,7 @@ impl<'de> de::EnumAccess<'de> for InlineTableDeserializer<'de> {
             None => {
                 return Err(Error::from_kind(ErrorKind::Wanted {
                     expected: "table with exactly 1 entry",
-                    found: "empty map",
+                    found: "empty table",
                 }))
             }
         };
@@ -772,8 +778,19 @@ impl<'de> de::VariantAccess<'de> for InlineTableDeserializer<'de> {
     type Error = Error;
 
     fn unit_variant(self) -> Result<(), Self::Error> {
-        // TODO: Error handling if there are entries
-        Ok(())
+        match self.next_value.expect("Expected value").e {
+            E::InlineTable(values) | E::DottedTable(values) => {
+                if values.len() == 0 {
+                    Ok(())
+                } else {
+                    Err(Error::from_kind(ErrorKind::ExpectedEmptyTable))
+                }
+            }
+            e @ _ => Err(Error::from_kind(ErrorKind::Wanted {
+                expected: "table",
+                found: e.type_name(),
+            })),
+        }
     }
 
     fn newtype_variant_seed<T>(self, seed: T) -> Result<T::Value, Self::Error>
@@ -785,11 +802,45 @@ impl<'de> de::VariantAccess<'de> for InlineTableDeserializer<'de> {
         ))
     }
 
-    fn tuple_variant<V>(self, _len: usize, _visitor: V) -> Result<V::Value, Self::Error>
+    fn tuple_variant<V>(self, len: usize, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: de::Visitor<'de>,
     {
-        unimplemented!()
+        let next_value = self.next_value.expect("Expected value");
+        match next_value.e {
+            E::InlineTable(values) | E::DottedTable(values) => {
+                let tuple_values = values
+                    .into_iter()
+                    .enumerate()
+                    .filter_map(|(index, (key, value))| {
+                        // TODO: Is this expensive?
+                        if key == format!("{}", index) {
+                            Some(value)
+                        } else {
+                            // TODO: Err()
+                            unimplemented!()
+                        }
+                    })
+                    .collect::<Vec<_>>(); // TODO: is this expensive?
+
+                if tuple_values.len() == len {
+                    de::Deserializer::deserialize_seq(
+                        ValueDeserializer::new(Value {
+                            e: E::Array(tuple_values),
+                            start: next_value.start,
+                            end: next_value.end,
+                        }),
+                        visitor,
+                    )
+                } else {
+                    Err(Error::from_kind(ErrorKind::ExpectedTuple(len)))
+                }
+            }
+            e @ _ => Err(Error::from_kind(ErrorKind::Wanted {
+                expected: "table",
+                found: e.type_name(),
+            })),
+        }
     }
 
     fn struct_variant<V>(
@@ -1470,7 +1521,11 @@ impl fmt::Display for Error {
             ErrorKind::MultilineStringKey => "multiline strings are not allowed for key".fmt(f)?,
             ErrorKind::Custom => self.inner.message.fmt(f)?,
             ErrorKind::ExpectedString => "expected string".fmt(f)?,
-            ErrorKind::DottedKeyInvalidType => "dotted key attempted to extend non-table type".fmt(f)?,
+            ErrorKind::ExpectedTuple(l) => write!(f, "expected tuple with length {}", l)?,
+            ErrorKind::ExpectedEmptyTable => "expected empty table".fmt(f)?,
+            ErrorKind::DottedKeyInvalidType => {
+                "dotted key attempted to extend non-table type".fmt(f)?
+            }
             ErrorKind::__Nonexhaustive => panic!(),
         }
 
@@ -1515,6 +1570,8 @@ impl error::Error for Error {
             ErrorKind::MultilineStringKey => "invalid multiline string for key",
             ErrorKind::Custom => "a custom error",
             ErrorKind::ExpectedString => "expected string",
+            ErrorKind::ExpectedTuple(_) => "expected tuple",
+            ErrorKind::ExpectedEmptyTable => "expected empty table",
             ErrorKind::DottedKeyInvalidType => "dotted key invalid type",
             ErrorKind::__Nonexhaustive => panic!(),
         }

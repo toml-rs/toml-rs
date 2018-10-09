@@ -11,7 +11,8 @@ extern crate serde_derive;
 #[derive(Debug, Deserialize)]
 struct Config {
     plain: MyEnum,
-    // tuple: MyEnum,
+    plain_table: MyEnum,
+    tuple: MyEnum,
     #[serde(rename = "struct")]
     structv: MyEnum,
     newtype: MyEnum,
@@ -29,12 +30,13 @@ enum MyEnum {
 fn main() {
     let toml_str = r#"
     plain = "Plain"
-    # tuple = { 0 = 123, 1 = true }
+    plain_table = { Plain = {} }
+    tuple = { Tuple = { 0 = 123, 1 = true } }
     struct = { Struct = { value = 123 } }
     newtype = { NewType = "value" }
     my_enum = [
         { Plain = {} },
-        # { Tuple = { 0 = 123, 1 = true } },
+        { Tuple = { 0 = 123, 1 = true } },
         { NewType = "value" },
         { Struct = { value = 123 } }
     ]"#;
