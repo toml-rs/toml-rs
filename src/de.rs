@@ -164,8 +164,18 @@ enum ErrorKind {
     /// A struct was expected but something else was found
     ExpectedString,
 
-    /// A tuple with a certain number of elements was expected but something else was found
+    /// A tuple with a certain number of elements was expected but something
+    /// else was found.
     ExpectedTuple(usize),
+
+    /// Expected table keys to be in increasing tuple index order, but something
+    /// else was found.
+    ExpectedTupleIndex {
+        /// Expected index.
+        expected: usize,
+        /// Key that was specified.
+        found: String,
+    },
 
     /// An empty table was expected but entries were found
     ExpectedEmptyTable,
@@ -846,16 +856,24 @@ impl<'de> de::VariantAccess<'de> for InlineTableDeserializer<'de> {
                 let tuple_values = values
                     .into_iter()
                     .enumerate()
-                    .filter_map(|(index, (key, value))| {
-                        // TODO: Is this expensive?
-                        if key == format!("{}", index) {
-                            Some(value)
-                        } else {
-                            // TODO: Err()
-                            unimplemented!()
-                        }
+                    .map(|(index, (key, value))| match key.parse::<usize>() {
+                        Ok(key_index) if key_index == index => Ok(value),
+                        Ok(_) | Err(_) => Err(Error::from_kind(ErrorKind::ExpectedTupleIndex {
+                            expected: index,
+                            found: key.to_string(),
+                        })),
                     })
-                    .collect::<Vec<_>>(); // TODO: is this expensive?
+                    // Fold all values into a `Vec`, or return the first error.
+                    .fold(Ok(Vec::with_capacity(len)), |result, value_result| {
+                        result.and_then(|mut tuple_values| match value_result {
+                            Ok(value) => {
+                                tuple_values.push(value);
+                                Ok(tuple_values)
+                            }
+                            // `Result<de::Value, Self::Error>` to `Result<Vec<_>, Self::Error>`
+                            Err(e) => Err(e),
+                        })
+                    })?;
 
                 if tuple_values.len() == len {
                     de::Deserializer::deserialize_seq(
@@ -1617,7 +1635,11 @@ impl fmt::Display for Error {
             ErrorKind::MultilineStringKey => "multiline strings are not allowed for key".fmt(f)?,
             ErrorKind::Custom => self.inner.message.fmt(f)?,
             ErrorKind::ExpectedString => "expected string".fmt(f)?,
-            ErrorKind::ExpectedTuple(l) => write!(f, "expected tuple with length {}", l)?,
+            ErrorKind::ExpectedTuple(l) => write!(f, "expected table with length {}", l)?,
+            ErrorKind::ExpectedTupleIndex {
+                expected,
+                ref found,
+            } => write!(f, "expected table key `{}`, but was `{}`", expected, found)?,
             ErrorKind::ExpectedEmptyTable => "expected empty table".fmt(f)?,
             ErrorKind::DottedKeyInvalidType => {
                 "dotted key attempted to extend non-table type".fmt(f)?
@@ -1666,7 +1688,8 @@ impl error::Error for Error {
             ErrorKind::MultilineStringKey => "invalid multiline string for key",
             ErrorKind::Custom => "a custom error",
             ErrorKind::ExpectedString => "expected string",
-            ErrorKind::ExpectedTuple(_) => "expected tuple",
+            ErrorKind::ExpectedTuple(_) => "expected table length",
+            ErrorKind::ExpectedTupleIndex { .. } => "expected table key",
             ErrorKind::ExpectedEmptyTable => "expected empty table",
             ErrorKind::DottedKeyInvalidType => "dotted key invalid type",
             ErrorKind::__Nonexhaustive => panic!(),
