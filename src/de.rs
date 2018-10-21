@@ -159,9 +159,6 @@ enum ErrorKind {
     /// type.
     Custom,
 
-    /// A struct was expected but something else was found
-    ExpectedString,
-
     /// A tuple with a certain number of elements was expected but something
     /// else was found.
     ExpectedTuple(usize),
@@ -198,47 +195,8 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
     fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, Error>
         where V: de::Visitor<'de>,
     {
-        let mut tables = Vec::new();
-        let mut cur_table = Table {
-            at: 0,
-            header: Vec::new(),
-            values: None,
-            array: false,
-        };
 
-        while let Some(line) = self.line()? {
-            match line {
-                Line::Table { at, mut header, array } => {
-                    if !cur_table.header.is_empty() || cur_table.values.is_some() {
-                        tables.push(cur_table);
-                    }
-                    cur_table = Table {
-                        at: at,
-                        header: Vec::new(),
-                        values: Some(Vec::new()),
-                        array: array,
-                    };
-                    loop {
-                        let part = header.next().map_err(|e| {
-                            self.token_error(e)
-                        });
-                        match part? {
-                            Some(part) => cur_table.header.push(part),
-                            None => break,
-                        }
-                    }
-                }
-                Line::KeyValue(key, value) => {
-                    if cur_table.values.is_none() {
-                        cur_table.values = Some(Vec::new());
-                    }
-                    self.add_dotted_key(key, value, cur_table.values.as_mut().unwrap())?;
-                }
-            }
-        }
-        if !cur_table.header.is_empty() || cur_table.values.is_some() {
-            tables.push(cur_table);
-        }
+        let mut tables = self.tables()?;
 
         visitor.visit_map(MapVisitor {
             values: Vec::new().into_iter(),
@@ -253,6 +211,7 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
         })
     }
 
+    // Called when the type to deserialize is an enum, as opposed to a field in the type.
     fn deserialize_enum<V>(
         self,
         _name: &'static str,
@@ -261,15 +220,34 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
     ) -> Result<V::Value, Error>
         where V: de::Visitor<'de>
     {
-        if let Some(next) = self.next()? {
-            match next {
-                (_, Token::String { val, .. }) => {
-                    visitor.visit_enum(val.into_deserializer())
-                },
-                _ => Err(Error::from_kind(ErrorKind::ExpectedString))
+        let (value, name) = self.string_or_table()?;
+        match value.e {
+            E::String(val) => visitor.visit_enum(val.into_deserializer()),
+            E::InlineTable(values) => {
+                if values.len() != 1 {
+                    Err(Error::from_kind(ErrorKind::Wanted {
+                        expected: "exactly 1 element",
+                        found: if values.is_empty() {
+                            "zero elements"
+                        } else {
+                            "more than 1 element"
+                        },
+                    }))
+                } else {
+                    visitor.visit_enum(InlineTableDeserializer {
+                        values: values.into_iter(),
+                        next_value: None,
+                    })
+                }
             }
-        } else {
-            Err(Error::from_kind(ErrorKind::UnexpectedEof))
+            E::DottedTable(_) => visitor.visit_enum(DottedTableDeserializer {
+                name: name.expect("Expected table header to be passed."),
+                value: value,
+            }),
+            e @ _ => Err(Error::from_kind(ErrorKind::Wanted {
+                expected: "string or table",
+                found: e.type_name(),
+            })),
         }
     }
 
@@ -601,7 +579,7 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
     {
         match self.value.e {
             E::String(val) => visitor.visit_enum(val.into_deserializer()),
-            E::InlineTable(values) | E::DottedTable(values) => {
+            E::InlineTable(values) => {
                 if values.len() != 1 {
                     Err(Error::from_kind(ErrorKind::Wanted {
                         expected: "exactly 1 element",
@@ -619,7 +597,7 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
                 }
             }
             e @ _ => Err(Error::from_kind(ErrorKind::Wanted {
-                expected: "string or table",
+                expected: "string or inline table",
                 found: e.type_name(),
             })),
         }
@@ -733,6 +711,25 @@ impl<'de> de::Deserializer<'de> for DatetimeFieldDeserializer {
     }
 }
 
+struct DottedTableDeserializer<'a> {
+    name: Cow<'a, str>,
+    value: Value<'a>,
+}
+
+impl<'de> de::EnumAccess<'de> for DottedTableDeserializer<'de> {
+    type Error = Error;
+    type Variant = TableEnumDeserializer<'de>;
+
+    fn variant_seed<V>(self, seed: V) -> Result<(V::Value, Self::Variant), Self::Error>
+    where
+        V: de::DeserializeSeed<'de>,
+    {
+        let (name, value) = (self.name, self.value);
+        seed.deserialize(StrDeserializer::new(name))
+            .map(|val| (val, TableEnumDeserializer { value: value }))
+    }
+}
+
 struct InlineTableDeserializer<'a> {
     values: vec::IntoIter<(Cow<'a, str>, Value<'a>)>,
     next_value: Option<Value<'a>>,
@@ -762,7 +759,7 @@ impl<'de> de::MapAccess<'de> for InlineTableDeserializer<'de> {
 
 impl<'de> de::EnumAccess<'de> for InlineTableDeserializer<'de> {
     type Error = Error;
-    type Variant = Self;
+    type Variant = TableEnumDeserializer<'de>;
 
     fn variant_seed<V>(mut self, seed: V) -> Result<(V::Value, Self::Variant), Self::Error>
     where
@@ -777,18 +774,22 @@ impl<'de> de::EnumAccess<'de> for InlineTableDeserializer<'de> {
                 }))
             }
         };
-        self.next_value = Some(value);
 
         seed.deserialize(StrDeserializer::new(key))
-            .map(|val| (val, self))
+            .map(|val| (val, TableEnumDeserializer { value: value }))
     }
 }
 
-impl<'de> de::VariantAccess<'de> for InlineTableDeserializer<'de> {
+/// Deserializes table values into enum variants.
+struct TableEnumDeserializer<'a> {
+    value: Value<'a>,
+}
+
+impl<'de> de::VariantAccess<'de> for TableEnumDeserializer<'de> {
     type Error = Error;
 
     fn unit_variant(self) -> Result<(), Self::Error> {
-        match self.next_value.expect("Expected value").e {
+        match self.value.e {
             E::InlineTable(values) | E::DottedTable(values) => {
                 if values.len() == 0 {
                     Ok(())
@@ -807,17 +808,14 @@ impl<'de> de::VariantAccess<'de> for InlineTableDeserializer<'de> {
     where
         T: de::DeserializeSeed<'de>,
     {
-        seed.deserialize(ValueDeserializer::new(
-            self.next_value.expect("Expected value"),
-        ))
+        seed.deserialize(ValueDeserializer::new(self.value))
     }
 
     fn tuple_variant<V>(self, len: usize, visitor: V) -> Result<V::Value, Self::Error>
     where
         V: de::Visitor<'de>,
     {
-        let next_value = self.next_value.expect("Expected value");
-        match next_value.e {
+        match self.value.e {
             E::InlineTable(values) | E::DottedTable(values) => {
                 let tuple_values = values
                     .into_iter()
@@ -845,8 +843,8 @@ impl<'de> de::VariantAccess<'de> for InlineTableDeserializer<'de> {
                     de::Deserializer::deserialize_seq(
                         ValueDeserializer::new(Value {
                             e: E::Array(tuple_values),
-                            start: next_value.start,
-                            end: next_value.end,
+                            start: self.value.start,
+                            end: self.value.end,
                         }),
                         visitor,
                     )
@@ -870,7 +868,7 @@ impl<'de> de::VariantAccess<'de> for InlineTableDeserializer<'de> {
         V: de::Visitor<'de>,
     {
         de::Deserializer::deserialize_struct(
-            ValueDeserializer::new(self.next_value.expect("Expected value")),
+            ValueDeserializer::new(self.value),
             "", // TODO: this should be the variant name
             fields,
             visitor,
@@ -905,6 +903,53 @@ impl<'a> Deserializer<'a> {
     /// this behavior for backwards compatibility with older toml-rs versions.
     pub fn set_require_newline_after_table(&mut self, require: bool) {
         self.require_newline_after_table = require;
+    }
+
+    fn tables(&mut self) -> Result<Vec<Table<'a>>, Error> {
+        let mut tables = Vec::new();
+        let mut cur_table = Table {
+            at: 0,
+            header: Vec::new(),
+            values: None,
+            array: false,
+        };
+
+        while let Some(line) = self.line()? {
+            match line {
+                Line::Table {
+                    at,
+                    mut header,
+                    array,
+                } => {
+                    if !cur_table.header.is_empty() || cur_table.values.is_some() {
+                        tables.push(cur_table);
+                    }
+                    cur_table = Table {
+                        at: at,
+                        header: Vec::new(),
+                        values: Some(Vec::new()),
+                        array: array,
+                    };
+                    loop {
+                        let part = header.next().map_err(|e| self.token_error(e));
+                        match part? {
+                            Some(part) => cur_table.header.push(part),
+                            None => break,
+                        }
+                    }
+                }
+                Line::KeyValue(key, value) => {
+                    if cur_table.values.is_none() {
+                        cur_table.values = Some(Vec::new());
+                    }
+                    self.add_dotted_key(key, value, cur_table.values.as_mut().unwrap())?;
+                }
+            }
+        }
+        if !cur_table.header.is_empty() || cur_table.values.is_some() {
+            tables.push(cur_table);
+        }
+        Ok(tables)
     }
 
     fn line(&mut self) -> Result<Option<Line<'a>>, Error> {
@@ -1029,7 +1074,56 @@ impl<'a> Deserializer<'a> {
         }
     }
 
-    fn number(&mut self, Span { start, end}: Span, s: &'a str) -> Result<Value<'a>, Error> {
+    /// Returns a string or table value type.
+    ///
+    /// Used to deserialize enums. Unit enums may be represented as a string or a table, all other
+    /// structures (tuple, newtype, struct) must be represented as a table.
+    fn string_or_table(&mut self) -> Result<(Value<'a>, Option<Cow<'a, str>>), Error> {
+        match self.peek()? {
+            Some((_, Token::LeftBracket)) => {
+                let tables = self.tables()?;
+                if tables.len() != 1 {
+                    return Err(Error::from_kind(ErrorKind::Wanted {
+                        expected: "exactly 1 table",
+                        found: if tables.is_empty() {
+                            "zero tables"
+                        } else {
+                            "more than 1 table"
+                        },
+                    }));
+                }
+
+                let table = tables
+                    .into_iter()
+                    .next()
+                    .expect("Expected exactly one table");
+                let header = table
+                    .header
+                    .last()
+                    .expect("Expected at least one header value for table.");
+
+                let start = table.at;
+                let end = table
+                    .values
+                    .as_ref()
+                    .and_then(|values| values.last())
+                    .map(|&(_, ref val)| val.end)
+                    .unwrap_or_else(|| header.len());
+                Ok((
+                    Value {
+                        e: E::DottedTable(table.values.unwrap_or_else(Vec::new)),
+                        start: start,
+                        end: end,
+                    },
+                    Some(header.clone()),
+                ))
+            }
+            Some(_) => self.value().map(|val| (val, None)),
+            None => Err(self.eof()),
+        }
+    }
+
+    fn number(&mut self, Span { start, end }: Span, s: &'a str) -> Result<Value<'a>, Error> {
         let to_integer = |f| Value { e: E::Integer(f), start: start, end: end };
         if s.starts_with("0x") {
             self.integer(&s[2..], 16).map(to_integer)
@@ -1324,6 +1418,18 @@ impl<'a> Deserializer<'a> {
         Ok(result)
     }
 
+    /// Stores a value in the appropriate hierachical structure positioned based on the dotted key.
+    ///
+    /// Given the following definition: `multi.part.key = "value"`, `multi` and `part` are
+    /// intermediate parts which are mapped to the relevant fields in the deserialized type's data
+    /// hierarchy.
+    ///
+    /// # Parameters
+    ///
+    /// * `key_parts`: Each segment of the dotted key, e.g. `part.one` maps to
+    ///                `vec![Cow::Borrowed("part"), Cow::Borrowed("one")].`
+    /// * `value`: The parsed value.
+    /// * `values`: The `Vec` to store the value in.
     fn add_dotted_key(
         &self,
         mut key_parts: Vec<Cow<'a, str>>,
@@ -1345,12 +1451,12 @@ impl<'a> Deserializer<'a> {
             None => {}
         }
         // The start/end value is somewhat misleading here.
-        let inline_table = Value {
+        let table_values = Value {
             e: E::DottedTable(Vec::new()),
             start: value.start,
             end: value.end,
         };
-        values.push((key, inline_table));
+        values.push((key, table_values));
         let last_i = values.len() - 1;
         if let (_, Value { e: E::DottedTable(ref mut v), .. }) = values[last_i] {
             self.add_dotted_key(key_parts, value, v)?;
@@ -1538,7 +1644,6 @@ impl fmt::Display for Error {
             ErrorKind::EmptyTableKey => "empty table key found".fmt(f)?,
             ErrorKind::MultilineStringKey => "multiline strings are not allowed for key".fmt(f)?,
             ErrorKind::Custom => self.inner.message.fmt(f)?,
-            ErrorKind::ExpectedString => "expected string".fmt(f)?,
             ErrorKind::ExpectedTuple(l) => write!(f, "expected table with length {}", l)?,
             ErrorKind::ExpectedTupleIndex {
                 expected,
@@ -1591,7 +1696,6 @@ impl error::Error for Error {
             ErrorKind::EmptyTableKey => "empty table key found",
             ErrorKind::MultilineStringKey => "invalid multiline string for key",
             ErrorKind::Custom => "a custom error",
-            ErrorKind::ExpectedString => "expected string",
             ErrorKind::ExpectedTuple(_) => "expected table length",
             ErrorKind::ExpectedTupleIndex { .. } => "expected table key",
             ErrorKind::ExpectedEmptyTable => "expected empty table",
