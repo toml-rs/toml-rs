@@ -912,7 +912,17 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
         _variant_index: u32,
         variant: &'static str,
     ) -> Result<(), Self::Error> {
-        self.serialize_str(variant)
+        match self.state {
+            State::Array { .. } => {
+                self.array_type("inline_table")?;
+
+                self.dst.push_str("{ ");
+                self.emit_str(variant, true)?;
+                self.dst.push_str(" = {} }");
+            }
+            _ => self.serialize_str(variant)?,
+        }
+        Ok(())
     }
 
     fn serialize_newtype_struct<T: ?Sized>(
