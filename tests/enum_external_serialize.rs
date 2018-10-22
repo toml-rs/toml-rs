@@ -40,3 +40,11 @@ fn enum_newtype_serializes_to_inline_table() {
         toml::to_string(&TheEnum::NewType("value".to_string())).unwrap()
     );
 }
+
+#[test]
+fn enum_struct_serializes_to_inline_table() {
+    assert_eq!(
+        r#"{ Struct = { value = -123 } }"#,
+        toml::to_string(&TheEnum::Struct { value: -123 }).unwrap()
+    );
+}

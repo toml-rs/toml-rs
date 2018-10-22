@@ -822,7 +822,7 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
     type SerializeTupleVariant = SerializeInlineTable<'a, 'b>;
     type SerializeMap = SerializeTable<'a, 'b>;
     type SerializeStruct = SerializeTable<'a, 'b>;
-    type SerializeStructVariant = ser::Impossible<(), Error>;
+    type SerializeStructVariant = SerializeInlineTable<'a, 'b>;
 
     fn serialize_bool(self, v: bool) -> Result<(), Self::Error> {
         self.display(v, "bool")
@@ -980,7 +980,7 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
         self.dst.push_str(variant);
         self.dst.push_str(" = ");
 
-        self.array_type("table")?;
+        self.array_type("inline_table")?;
         Ok(SerializeInlineTable {
             ser: self,
             key: String::new(),
@@ -1023,10 +1023,21 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
         self,
         _name: &'static str,
         _variant_index: u32,
-        _variant: &'static str,
+        variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeStructVariant, Self::Error> {
-        Err(Error::UnsupportedType)
+        self.dst.push_str("{ ");
+        self.dst.push_str(variant);
+        self.dst.push_str(" = ");
+
+        self.array_type("inline_table")?;
+        Ok(SerializeInlineTable {
+            ser: self,
+            key: String::new(),
+            first: Cell::new(true),
+            table_emitted: Cell::new(false),
+            field_index: Some(0),
+        })
     }
 }
 
@@ -1168,6 +1179,38 @@ impl<'a, 'b> ser::SerializeTupleVariant for SerializeInlineTable<'a, 'b> {
         }
         self.ser.dst.push_str(" }");
 
+        Ok(())
+    }
+}
+
+impl<'a, 'b> ser::SerializeStructVariant for SerializeInlineTable<'a, 'b> {
+    type Ok = ();
+    type Error = Error;
+
+    fn serialize_field<T: ?Sized>(&mut self, key: &'static str, value: &T) -> Result<(), Error>
+    where
+        T: ser::Serialize,
+    {
+        let res = value.serialize(&mut Serializer {
+            dst: &mut *self.ser.dst,
+            state: State::InlineTable {
+                key: key,
+                parent: &self.ser.state,
+                first: &self.first,
+                table_emitted: &self.table_emitted,
+            },
+            settings: self.ser.settings.clone(),
+        });
+        match res {
+            Ok(()) => self.first.set(false),
+            Err(Error::UnsupportedNone) => {}
+            Err(e) => return Err(e),
+        }
+        Ok(())
+    }
+
+    fn end(self) -> Result<(), Error> {
+        self.ser.dst.push_str(" } }");
         Ok(())
     }
 }
