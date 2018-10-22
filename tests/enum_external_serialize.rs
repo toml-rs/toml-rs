@@ -32,3 +32,11 @@ fn enum_tuple_serializes_to_inline_table() {
         toml::to_string(&TheEnum::Tuple(-123, true)).unwrap()
     );
 }
+
+#[test]
+fn enum_newtype_serializes_to_inline_table() {
+    assert_eq!(
+        r#"{ NewType = "value" }"#,
+        toml::to_string(&TheEnum::NewType("value".to_string())).unwrap()
+    );
+}

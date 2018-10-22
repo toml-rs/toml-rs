@@ -928,15 +928,23 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
 
     fn serialize_newtype_variant<T: ?Sized>(
         self,
-        _name: &'static str,
+        name: &'static str,
         _variant_index: u32,
-        _variant: &'static str,
-        _value: &T,
+        variant: &'static str,
+        value: &T,
     ) -> Result<(), Self::Error>
     where
         T: ser::Serialize,
     {
-        Err(Error::UnsupportedType)
+        self.dst.push_str("{ ");
+        self.dst.push_str(variant);
+        self.dst.push_str(" = ");
+
+        self.serialize_newtype_struct(name, value)?;
+
+        self.dst.push_str(" }");
+
+        Ok(())
     }
 
     fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
