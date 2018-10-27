@@ -364,7 +364,24 @@ impl<'a> Tokenizer<'a> {
                             let len = if c == 'u' {4} else {8};
                             val.push(me.hex(start, i, len)?);
                         }
-                        Some((_, '\n')) if multi => {
+                        Some((i, c @ ' ')) |
+                        Some((i, c @ '\t')) |
+                        Some((i, c @ '\n')) if multi => {
+                            if c != '\n' {
+                                while let Some((_, ch)) = me.chars.clone().next() {
+                                    match ch {
+                                        ' ' | '\t' => {
+                                            me.chars.next();
+                                            continue
+                                        },
+                                        '\n' => {
+                                            me.chars.next();
+                                            break
+                                        },
+                                        _ => return Err(Error::InvalidEscape(i, c)),
+                                    }
+                                }
+                            }
                             while let Some((_, ch)) = me.chars.clone().next() {
                                 match ch {
                                     ' ' | '\t' | '\n' => {
