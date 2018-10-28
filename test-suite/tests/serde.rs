@@ -580,15 +580,63 @@ fn table_structs_empty() {
 
 #[test]
 fn fixed_size_array() {
-    #[derive(Serialize, PartialEq, Eq, Deserialize, Debug)]
+    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
     struct Entity {
         pos: [i32; 2]
     }
-    let text = "pos = [1, 2]\n";
-    let value: Entity = toml::from_str(text).unwrap();
-    let expected = Entity { pos: [1, 2] };
-    assert_eq!(value, expected);
-    assert_eq!(toml::to_string(&value).unwrap(), text);
+
+    equivalent! {
+        Entity { pos: [1, 2] },
+        Table(map! {
+            pos: Array(vec![
+                Integer(1),
+                Integer(2),
+            ])
+        }),
+    }
+}
+
+#[test]
+fn homogeneous_tuple() {
+    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+    struct Collection {
+        elems: (i64, i64, i64),
+    }
+
+    equivalent! {
+        Collection { elems: (0, 1, 2) },
+        Table(map! {
+            elems: Array(vec![
+                Integer(0),
+                Integer(1),
+                Integer(2),
+            ])
+        }),
+    }
+}
+
+#[test]
+fn homogeneous_tuple_struct() {
+    #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
+    struct Object(Vec<String>, Vec<String>, Vec<String>);
+
+    equivalent! {
+        map! {
+            obj: Object(vec!["foo".to_string()], vec![], vec!["bar".to_string(), "baz".to_string()])
+        },
+        Table(map! {
+            obj: Array(vec![
+                Array(vec![
+                    Value::String("foo".to_string()),
+                ]),
+                Array(vec![]),
+                Array(vec![
+                    Value::String("bar".to_string()),
+                    Value::String("baz".to_string()),
+                ]),
+            ])
+        }),
+    }
 }
 
 #[test]
