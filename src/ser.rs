@@ -1420,11 +1420,11 @@ impl ser::Serializer for StringExtractor {
         Err(Error::KeyNotString)
     }
 
-    fn serialize_newtype_struct<T: ?Sized>(self, _name: &'static str, _value: &T)
+    fn serialize_newtype_struct<T: ?Sized>(self, _name: &'static str, value: &T)
                                            -> Result<String, Self::Error>
         where T: ser::Serialize,
     {
-        Err(Error::KeyNotString)
+        value.serialize(self)
     }
 
     fn serialize_newtype_variant<T: ?Sized>(self,
