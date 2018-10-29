@@ -7,6 +7,11 @@ multiline_empty_four = """\
    \
    \
    """
+multiline_empty_five = """\
+   \ 
+   \	
+   \ 	
+   """
 
 equivalent_one = "The quick brown fox jumps over the lazy dog."
 equivalent_two = """
@@ -20,4 +25,10 @@ equivalent_three = """\
        The quick brown \
        fox jumps over \
        the lazy dog.\
+       """
+
+equivalent_four = """\
+       The quick brown \ 
+       fox jumps over \				
+       the lazy dog.\	
        """
