@@ -178,6 +178,16 @@ enum ErrorKind {
     /// Dotted key attempted to extend something that is not a table.
     DottedKeyInvalidType,
 
+    /// An unexpected key was encountered.
+    ///
+    /// Used when deserializing a struct with a limited set of fields.
+    UnexpectedKeys {
+        /// The unexpected keys.
+        keys: Vec<String>,
+        /// Keys that may be specified.
+        available: &'static [&'static str],
+    },
+
     #[doc(hidden)]
     __Nonexhaustive,
 }
@@ -545,6 +555,28 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
                     visited: false,
                 })
             }
+        }
+
+        match &self.value.e {
+            E::InlineTable(values) | E::DottedTable(values) => {
+                let extra_fields = values.iter()
+                    .filter_map(|(key, _val)| {
+                        if !fields.contains(&&(**key)) {
+                            Some(key.clone())
+                        } else {
+                            None
+                        }
+                    })
+                    .collect::<Vec<Cow<'de, str>>>();
+
+                if !extra_fields.is_empty() {
+                    return Err(Error::from_kind(ErrorKind::UnexpectedKeys {
+                        keys: extra_fields.iter().map(|k| k.to_string()).collect::<Vec<_>>(),
+                        available: fields,
+                    }));
+                }
+            }
+            _ => {}
         }
 
         if name == spanned::NAME && fields == &[spanned::START, spanned::END, spanned::VALUE] {
@@ -1653,6 +1685,14 @@ impl fmt::Display for Error {
             ErrorKind::DottedKeyInvalidType => {
                 "dotted key attempted to extend non-table type".fmt(f)?
             }
+            ErrorKind::UnexpectedKeys { ref keys, available } => {
+                write!(
+                    f,
+                    "unexpected keys in table: `{:?}`, available keys: `{:?}`",
+                    keys,
+                    available
+                )?
+            }
             ErrorKind::__Nonexhaustive => panic!(),
         }
 
@@ -1700,6 +1740,7 @@ impl error::Error for Error {
             ErrorKind::ExpectedTupleIndex { .. } => "expected table key",
             ErrorKind::ExpectedEmptyTable => "expected empty table",
             ErrorKind::DottedKeyInvalidType => "dotted key invalid type",
+            ErrorKind::UnexpectedKeys { .. } => "unexpected keys in table",
             ErrorKind::__Nonexhaustive => panic!(),
         }
     }

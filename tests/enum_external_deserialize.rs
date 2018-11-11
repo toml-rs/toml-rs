@@ -20,6 +20,46 @@ struct Multi {
     enums: Vec<TheEnum>,
 }
 
+#[test]
+fn invalid_variant_returns_error_with_good_message_string() {
+    let error = toml::from_str::<TheEnum>("\"NonExistent\"")
+        .expect_err("Expected deserialization to fail.");
+
+    assert_eq!(
+        error.to_string(),
+        "unknown variant `NonExistent`, expected one of `Plain`, `Tuple`, `NewType`, `Struct`"
+    );
+}
+
+#[test]
+fn invalid_variant_returns_error_with_good_message_inline_table() {
+    let error = toml::from_str::<TheEnum>("{ NonExistent = {} }")
+        .expect_err("Expected deserialization to fail.");
+    assert_eq!(
+        error.to_string(),
+        "unknown variant `NonExistent`, expected one of `Plain`, `Tuple`, `NewType`, `Struct`"
+    );
+}
+
+#[test]
+fn extra_field_returns_expected_empty_table_error() {
+    let error = toml::from_str::<TheEnum>("{ Plain = { extra_field = 404 } }")
+        .expect_err("Expected deserialization to fail.");
+
+    assert_eq!(error.to_string(), "expected empty table");
+}
+
+#[test]
+fn extra_field_returns_expected_empty_table_error_struct_variant() {
+    let error = toml::from_str::<TheEnum>("{ Struct = { value = 123, extra_0 = 0, extra_1 = 1 } }")
+        .expect_err("Expected deserialization to fail.");
+
+    assert_eq!(
+        error.to_string(),
+        r#"unexpected keys in table: `["extra_0", "extra_1"]`, available keys: `["value"]`"#
+    );
+}
+
 mod enum_unit {
     use super::*;
 
