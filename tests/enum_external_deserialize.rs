@@ -93,6 +93,26 @@ mod enum_newtype {
             toml::from_str(r#"val = { NewType = "value" }"#).unwrap()
         );
     }
+
+    #[test]
+    #[ignore = "Unimplemented: https://github.com/alexcrichton/toml-rs/pull/264#issuecomment-431707209"]
+    fn from_dotted_table() {
+        assert_eq!(
+            TheEnum::NewType("value".to_string()),
+            toml::from_str(r#"NewType = "value""#).unwrap()
+        );
+        assert_eq!(
+            Val {
+                val: TheEnum::NewType("value".to_string()),
+            },
+            toml::from_str(
+                r#"[val]
+                NewType = "value"
+                "#
+            )
+            .unwrap()
+        );
+    }
 }
 
 mod enum_struct {
@@ -138,6 +158,34 @@ mod enum_array {
                 { NewType = "value" },
                 { Struct = { value = -123 } }
             ]"#;
+        assert_eq!(
+            Multi {
+                enums: vec![
+                    TheEnum::Plain,
+                    TheEnum::Tuple(-123, true),
+                    TheEnum::NewType("value".to_string()),
+                    TheEnum::Struct { value: -123 },
+                ]
+            },
+            toml::from_str(toml_str).unwrap()
+        );
+    }
+
+    #[test]
+    #[ignore = "Unimplemented: https://github.com/alexcrichton/toml-rs/pull/264#issuecomment-431707209"]
+    fn from_dotted_table() {
+        let toml_str = r#"[[enums]]
+            Plain = {}
+
+            [[enums]]
+            Tuple = { 0 = -123, 1 = true }
+
+            [[enums]]
+            NewType = "value"
+
+            [[enums]]
+            Struct = { value = -123 }
+            "#;
         assert_eq!(
             Multi {
                 enums: vec![
