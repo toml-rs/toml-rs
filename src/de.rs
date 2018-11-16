@@ -558,9 +558,9 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
         }
 
         match &self.value.e {
-            E::InlineTable(values) | E::DottedTable(values) => {
+            &E::InlineTable(ref values) | &E::DottedTable(ref values) => {
                 let extra_fields = values.iter()
-                    .filter_map(|(key, _val)| {
+                    .filter_map(|(ref key, ref _val)| {
                         if !fields.contains(&&(**key)) {
                             Some(key.clone())
                         } else {
