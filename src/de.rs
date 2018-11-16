@@ -501,13 +501,20 @@ impl<'de> de::Deserializer<'de> for StrDeserializer<'de> {
 
 struct ValueDeserializer<'a> {
     value: Value<'a>,
+    validate_struct_keys: bool,
 }
 
 impl<'a> ValueDeserializer<'a> {
     fn new(value: Value<'a>) -> ValueDeserializer<'a> {
         ValueDeserializer {
             value: value,
+            validate_struct_keys: false,
         }
+    }
+
+    fn with_struct_key_validation(mut self) -> Self {
+        self.validate_struct_keys = true;
+        self
     }
 }
 
@@ -557,26 +564,28 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
             }
         }
 
-        match &self.value.e {
-            &E::InlineTable(ref values) | &E::DottedTable(ref values) => {
-                let extra_fields = values.iter()
-                    .filter_map(|(ref key, ref _val)| {
-                        if !fields.contains(&&(**key)) {
-                            Some(key.clone())
-                        } else {
-                            None
-                        }
-                    })
-                    .collect::<Vec<Cow<'de, str>>>();
+        if self.validate_struct_keys {
+            match &self.value.e {
+                &E::InlineTable(ref values) | &E::DottedTable(ref values) => {
+                    let extra_fields = values.iter()
+                        .filter_map(|(ref key, ref _val)| {
+                            if !fields.contains(&&(**key)) {
+                                Some(key.clone())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect::<Vec<Cow<'de, str>>>();
 
-                if !extra_fields.is_empty() {
-                    return Err(Error::from_kind(ErrorKind::UnexpectedKeys {
-                        keys: extra_fields.iter().map(|k| k.to_string()).collect::<Vec<_>>(),
-                        available: fields,
-                    }));
+                    if !extra_fields.is_empty() {
+                        return Err(Error::from_kind(ErrorKind::UnexpectedKeys {
+                            keys: extra_fields.iter().map(|k| k.to_string()).collect::<Vec<_>>(),
+                            available: fields,
+                        }));
+                    }
                 }
+                _ => {}
             }
-            _ => {}
         }
 
         if name == spanned::NAME && fields == &[spanned::START, spanned::END, spanned::VALUE] {
@@ -900,7 +909,7 @@ impl<'de> de::VariantAccess<'de> for TableEnumDeserializer<'de> {
         V: de::Visitor<'de>,
     {
         de::Deserializer::deserialize_struct(
-            ValueDeserializer::new(self.value),
+            ValueDeserializer::new(self.value).with_struct_key_validation(),
             "", // TODO: this should be the variant name
             fields,
             visitor,
