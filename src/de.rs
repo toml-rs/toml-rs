@@ -1035,13 +1035,12 @@ impl<'a> Deserializer<'a> {
         let start = self.tokens.substr_offset(date);
 
         // Check for space separated date and time.
-        if let Some((_, Token::Whitespace(s))) = self.peek()? {
-            if s == " " {
-                self.next()?;
-                // Skip past the hour.
-                if let Some((_, Token::Keylike(_))) = self.peek()? {
-                    self.next()?;
-                }
+        let mut lookahead = self.tokens.clone();
+        if let Ok(Some((_, Token::Whitespace(" ")))) = lookahead.next() {
+            // Check if hour follows.
+            if let Ok(Some((_, Token::Keylike(_)))) = lookahead.next() {
+                self.next()?;  // skip space
+                self.next()?;  // skip keylike hour
             }
         }
 
