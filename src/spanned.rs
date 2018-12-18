@@ -78,15 +78,18 @@ impl<T> Spanned<T> {
 }
 
 impl<'de, T> de::Deserialize<'de> for Spanned<T>
-    where T: de::Deserialize<'de>
+where
+    T: de::Deserialize<'de>,
 {
     fn deserialize<D>(deserializer: D) -> Result<Spanned<T>, D::Error>
-        where D: de::Deserializer<'de>
+    where
+        D: de::Deserializer<'de>,
     {
         struct SpannedVisitor<T>(::std::marker::PhantomData<T>);
 
         impl<'de, T> de::Visitor<'de> for SpannedVisitor<T>
-            where T: de::Deserialize<'de>
+        where
+            T: de::Deserialize<'de>,
         {
             type Value = Spanned<T>;
 
@@ -95,22 +98,23 @@ impl<'de, T> de::Deserialize<'de> for Spanned<T>
             }
 
             fn visit_map<V>(self, mut visitor: V) -> Result<Spanned<T>, V::Error>
-                where V: de::MapAccess<'de>
+            where
+                V: de::MapAccess<'de>,
             {
                 if visitor.next_key()? != Some(START) {
-                    return Err(de::Error::custom("spanned start key not found"))
+                    return Err(de::Error::custom("spanned start key not found"));
                 }
 
                 let start: usize = visitor.next_value()?;
 
                 if visitor.next_key()? != Some(END) {
-                    return Err(de::Error::custom("spanned end key not found"))
+                    return Err(de::Error::custom("spanned end key not found"));
                 }
 
                 let end: usize = visitor.next_value()?;
 
                 if visitor.next_key()? != Some(VALUE) {
-                    return Err(de::Error::custom("spanned value key not found"))
+                    return Err(de::Error::custom("spanned value key not found"));
                 }
 
                 let value: T = visitor.next_value()?;
@@ -118,7 +122,7 @@ impl<'de, T> de::Deserialize<'de> for Spanned<T>
                 Ok(Spanned {
                     start: start,
                     end: end,
-                    value: value
+                    value: value,
                 })
             }
         }

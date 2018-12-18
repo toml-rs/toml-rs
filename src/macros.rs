@@ -1,6 +1,6 @@
 pub use serde::de::{Deserialize, IntoDeserializer};
 
-use value::{Value, Table, Array};
+use value::{Array, Table, Value};
 
 /// Construct a [`toml::Value`] from TOML syntax.
 ///
@@ -424,7 +424,10 @@ pub fn push_toml(root: &mut Value, path: &[&str]) {
     if !target.is_array() {
         *target = Value::Array(Array::new());
     }
-    target.as_array_mut().unwrap().push(Value::Table(Table::new()));
+    target
+        .as_array_mut()
+        .unwrap()
+        .push(Value::Table(Table::new()));
 }
 
 fn traverse<'a>(root: &'a mut Value, path: &[&str]) -> &'a mut Value {

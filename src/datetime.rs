@@ -1,6 +1,6 @@
+use std::error;
 use std::fmt;
 use std::str::{self, FromStr};
-use std::error;
 
 use serde::{de, ser};
 
@@ -109,9 +109,7 @@ impl fmt::Display for Offset {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
             Offset::Z => write!(f, "Z"),
-            Offset::Custom { hours, minutes } => {
-                write!(f, "{:+03}:{:02}", hours, minutes)
-            }
+            Offset::Custom { hours, minutes } => write!(f, "{:+03}:{:02}", hours, minutes),
         }
     }
 }
@@ -127,7 +125,7 @@ impl FromStr for Datetime {
         // 0000-00-00
         // 00:00:00.00
         if date.len() < 3 {
-            return Err(DatetimeParseError { _private: () })
+            return Err(DatetimeParseError { _private: () });
         }
         let mut offset_allowed = true;
         let mut chars = date.chars();
@@ -165,19 +163,19 @@ impl FromStr for Datetime {
             };
 
             if date.month < 1 || date.month > 12 {
-                return Err(DatetimeParseError { _private: () })
+                return Err(DatetimeParseError { _private: () });
             }
             if date.day < 1 || date.day > 31 {
-                return Err(DatetimeParseError { _private: () })
+                return Err(DatetimeParseError { _private: () });
             }
 
             Some(date)
         };
 
         // Next parse the "partial-time" if available
-        let partial_time = if full_date.is_some() &&
-                              (chars.clone().next() == Some('T')
-                              || chars.clone().next() == Some(' ')) {
+        let partial_time = if full_date.is_some()
+            && (chars.clone().next() == Some('T') || chars.clone().next() == Some(' '))
+        {
             chars.next();
             true
         } else {
@@ -208,7 +206,7 @@ impl FromStr for Datetime {
                 let mut end = whole.len();
                 for (i, byte) in whole.bytes().enumerate() {
                     match byte {
-                        b'0' ... b'9' => {
+                        b'0'...b'9' => {
                             if i < 9 {
                                 let p = 10_u32.pow(8 - i as u32);
                                 nanosecond += p * (byte - b'0') as u32;
@@ -221,7 +219,7 @@ impl FromStr for Datetime {
                     }
                 }
                 if end == 0 {
-                    return Err(DatetimeParseError { _private: () })
+                    return Err(DatetimeParseError { _private: () });
                 }
                 chars = whole[end..].chars();
             }
@@ -234,16 +232,16 @@ impl FromStr for Datetime {
             };
 
             if time.hour > 24 {
-                return Err(DatetimeParseError { _private: () })
+                return Err(DatetimeParseError { _private: () });
             }
             if time.minute > 59 {
-                return Err(DatetimeParseError { _private: () })
+                return Err(DatetimeParseError { _private: () });
             }
             if time.second > 59 {
-                return Err(DatetimeParseError { _private: () })
+                return Err(DatetimeParseError { _private: () });
             }
             if time.nanosecond > 999_999_999 {
-                return Err(DatetimeParseError { _private: () })
+                return Err(DatetimeParseError { _private: () });
             }
 
             Some(time)
@@ -288,7 +286,7 @@ impl FromStr for Datetime {
         // Return an error if we didn't hit eof, otherwise return our parsed
         // date
         if chars.next().is_some() {
-            return Err(DatetimeParseError { _private: () })
+            return Err(DatetimeParseError { _private: () });
         }
 
         Ok(Datetime {
@@ -308,7 +306,8 @@ fn digit(chars: &mut str::Chars) -> Result<u8, DatetimeParseError> {
 
 impl ser::Serialize for Datetime {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-        where S: ser::Serializer
+    where
+        S: ser::Serializer,
     {
         use serde::ser::SerializeStruct;
 
@@ -320,7 +319,8 @@ impl ser::Serialize for Datetime {
 
 impl<'de> de::Deserialize<'de> for Datetime {
     fn deserialize<D>(deserializer: D) -> Result<Datetime, D::Error>
-        where D: de::Deserializer<'de>
+    where
+        D: de::Deserializer<'de>,
     {
         struct DatetimeVisitor;
 
@@ -332,15 +332,15 @@ impl<'de> de::Deserialize<'de> for Datetime {
             }
 
             fn visit_map<V>(self, mut visitor: V) -> Result<Datetime, V::Error>
-                where V: de::MapAccess<'de>
+            where
+                V: de::MapAccess<'de>,
             {
                 let value = visitor.next_key::<DatetimeKey>()?;
                 if value.is_none() {
-                    return Err(de::Error::custom("datetime key not found"))
+                    return Err(de::Error::custom("datetime key not found"));
                 }
                 let v: DatetimeFromString = visitor.next_value()?;
                 Ok(v.value)
-
             }
         }
 
@@ -353,7 +353,8 @@ struct DatetimeKey;
 
 impl<'de> de::Deserialize<'de> for DatetimeKey {
     fn deserialize<D>(deserializer: D) -> Result<DatetimeKey, D::Error>
-        where D: de::Deserializer<'de>
+    where
+        D: de::Deserializer<'de>,
     {
         struct FieldVisitor;
 
@@ -365,7 +366,8 @@ impl<'de> de::Deserialize<'de> for DatetimeKey {
             }
 
             fn visit_str<E>(self, s: &str) -> Result<(), E>
-                where E: de::Error
+            where
+                E: de::Error,
             {
                 if s == FIELD {
                     Ok(())
@@ -386,7 +388,8 @@ pub struct DatetimeFromString {
 
 impl<'de> de::Deserialize<'de> for DatetimeFromString {
     fn deserialize<D>(deserializer: D) -> Result<DatetimeFromString, D::Error>
-        where D: de::Deserializer<'de>
+    where
+        D: de::Deserializer<'de>,
     {
         struct Visitor;
 
@@ -398,7 +401,8 @@ impl<'de> de::Deserialize<'de> for DatetimeFromString {
             }
 
             fn visit_str<E>(self, s: &str) -> Result<DatetimeFromString, E>
-                where E: de::Error,
+            where
+                E: de::Error,
             {
                 match s.parse() {
                     Ok(date) => Ok(DatetimeFromString { value: date }),
