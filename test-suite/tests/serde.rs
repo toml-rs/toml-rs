@@ -65,7 +65,7 @@ macro_rules! error {
 
 macro_rules! map( ($($k:ident: $v:expr),*) => ({
     let mut _m = Map::new();
-    $(_m.insert(stringify!($k).to_string(), $v);)*
+    $(_m.insert(stringify!($k).to_string(), t!(Value::try_from($v)));)*
     _m
 }) );
 
