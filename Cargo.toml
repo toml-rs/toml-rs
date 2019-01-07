@@ -15,6 +15,9 @@ facilitate deserializing and serializing Rust structures.
 """
 categories = ["config", "encoding", "parser-implementations"]
 
+[workspace]
+members = ['test-suite']
+
 [badges]
 travis-ci = { repository = "alexcrichton/toml-rs" }
 
