@@ -153,7 +153,10 @@
 
 #[macro_use]
 extern crate serde;
+#[cfg(feature = "preserve_order")]
+extern crate linked_hash_map;
 
+pub mod map;
 pub mod value;
 #[doc(no_inline)]
 pub use value::Value;

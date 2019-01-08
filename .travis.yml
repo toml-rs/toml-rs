@@ -16,6 +16,7 @@ matrix:
           branch: master
 script:
   - cargo test
+  - cargo test --features preserve_order
   - cargo test --manifest-path test-suite/Cargo.toml
   - rustdoc --test README.md -L target
 notifications:
