@@ -197,6 +197,7 @@ enum ErrorKind {
 /// Deserialization implementation for TOML.
 pub struct Deserializer<'a> {
     require_newline_after_table: bool,
+    allow_duplciate_after_longer_table: bool,
     input: &'a str,
     tokens: Tokenizer<'a>,
 }
@@ -335,12 +336,24 @@ impl<'de, 'b> de::MapAccess<'de> for MapVisitor<'de, 'b> {
 
             // Test to see if we're duplicating our parent's table, and if so
             // then this is an error in the toml format
-            if self.cur_parent != pos
-                && self.tables[self.cur_parent].header == self.tables[pos].header
-            {
-                let at = self.tables[pos].at;
-                let name = self.tables[pos].header.join(".");
-                return Err(self.de.error(at, ErrorKind::DuplicateTable(name)));
+            if self.cur_parent != pos {
+                if self.tables[self.cur_parent].header == self.tables[pos].header {
+                    let at = self.tables[pos].at;
+                    let name = self.tables[pos].header.join(".");
+                    return Err(self.de.error(at, ErrorKind::DuplicateTable(name)));
+                }
+
+                // If we're here we know we should share the same prefix, and if
+                // the longer table was defined first then we want to narrow
+                // down our parent's length if possible to ensure that we catch
+                // duplicate tables defined afterwards.
+                if !self.de.allow_duplciate_after_longer_table {
+                    let parent_len = self.tables[self.cur_parent].header.len();
+                    let cur_len = self.tables[pos].header.len();
+                    if cur_len < parent_len {
+                        self.cur_parent = pos;
+                    }
+                }
             }
 
             let table = &mut self.tables[pos];
@@ -965,6 +978,7 @@ impl<'a> Deserializer<'a> {
             tokens: Tokenizer::new(input),
             input: input,
             require_newline_after_table: true,
+            allow_duplciate_after_longer_table: false,
         }
     }
 
@@ -984,6 +998,16 @@ impl<'a> Deserializer<'a> {
     /// this behavior for backwards compatibility with older toml-rs versions.
     pub fn set_require_newline_after_table(&mut self, require: bool) {
         self.require_newline_after_table = require;
+    }
+
+    /// Historical versions of toml-rs accidentally allowed a duplicate table
+    /// header after a longer table header was previously defined. This is
+    /// invalid according to the TOML spec, however.
+    ///
+    /// This option can be set to `true` (the default is `false`) to emulate
+    /// this behavior for backwards compatibility with older toml-rs versions.
+    pub fn set_allow_duplicate_after_longer_table(&mut self, allow: bool) {
+        self.allow_duplciate_after_longer_table = allow;
     }
 
     fn tables(&mut self) -> Result<Vec<Table<'a>>, Error> {

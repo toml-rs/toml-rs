@@ -96,3 +96,5 @@ test!(text_before_array_separator,
       include_str!("invalid/text-before-array-separator.toml"));
 test!(text_in_array,
       include_str!("invalid/text-in-array.toml"));
+test!(duplicate_table,
+      include_str!("invalid/duplicate-table.toml"));
