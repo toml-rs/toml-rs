@@ -129,6 +129,12 @@ test!(empty,
 test!(bool,
        include_str!("valid/bool.toml"),
        include_str!("valid/bool.json"));
+test!(curlytable_empty,
+       include_str!("valid/curlytable-empty.toml"),
+       include_str!("valid/table-empty.json"));
+test!(curlytable_empty_multiline,
+       include_str!("valid/curlytable-empty-multiline.toml"),
+       include_str!("valid/table-empty.json"));
 test!(datetime,
        include_str!("valid/datetime.toml"),
        include_str!("valid/datetime.json"));
