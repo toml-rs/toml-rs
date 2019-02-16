@@ -19,7 +19,7 @@ fn to_json(toml: toml::Value) -> Json {
         Toml::Integer(i) => doit("integer", Json::String(i.to_string())),
         Toml::Float(f) => doit("float", Json::String({
             let s = format!("{:.15}", f);
-            let s = format!("{}", s.trim_right_matches('0'));
+            let s = format!("{}", s.trim_end_matches('0'));
             if s.ends_with('.') {format!("{}0", s)} else {s}
         })),
         Toml::Boolean(b) => doit("bool", Json::String(format!("{}", b))),

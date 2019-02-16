@@ -151,6 +151,7 @@
 #![doc(html_root_url = "https://docs.rs/toml/0.4")]
 #![deny(missing_docs)]
 
+extern crate chrono;
 #[macro_use]
 extern crate serde;
 #[cfg(feature = "preserve_order")]
