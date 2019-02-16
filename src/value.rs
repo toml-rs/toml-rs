@@ -12,7 +12,7 @@ use serde::de::IntoDeserializer;
 use serde::ser;
 
 use datetime::{self, DatetimeFromString};
-pub use datetime::Datetime;
+pub use datetime::{Datetime, DatetimeParseError};
 
 pub use map::Map;
 
