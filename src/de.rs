@@ -1169,7 +1169,10 @@ impl<'a> Deserializer<'a> {
     }
 
     fn number_or_date(&mut self, span: Span, s: &'a str) -> Result<Value<'a>, Error> {
-        if s.contains('T') || (s.len() > 1 && s[1..].contains('-')) && !s.contains("e-") {
+        if s.contains('T')
+            || s.contains('t')
+            || (s.len() > 1 && s[1..].contains('-') && !s.contains("e-") && !s.contains("E-"))
+        {
             self.datetime(span, s, false)
                 .map(|(Span { start, end }, d)| Value {
                     e: E::Datetime(d),

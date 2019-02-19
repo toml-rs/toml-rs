@@ -173,8 +173,9 @@ impl FromStr for Datetime {
         };
 
         // Next parse the "partial-time" if available
+        let next = chars.clone().next();
         let partial_time = if full_date.is_some()
-            && (chars.clone().next() == Some('T') || chars.clone().next() == Some(' '))
+            && (next == Some('T') || next == Some('t') || next == Some(' '))
         {
             chars.next();
             true
@@ -253,7 +254,7 @@ impl FromStr for Datetime {
         // And finally, parse the offset
         let offset = if offset_allowed {
             let next = chars.clone().next();
-            if next == Some('Z') {
+            if next == Some('Z') || next == Some('z') {
                 chars.next();
                 Some(Offset::Z)
             } else if next.is_none() {
