@@ -336,11 +336,14 @@ impl<'a> Tokenizer<'a> {
                 }
                 Some((i, ch)) if ch == delim => {
                     if multiline {
-                        for _ in 0..2 {
-                            if !self.eatc(delim) {
-                                val.push(delim);
-                                continue 'outer;
-                            }
+                        if !self.eatc(delim) {
+                            val.push(delim);
+                            continue 'outer;
+                        }
+                        if !self.eatc(delim) {
+                            val.push(delim);
+                            val.push(delim);
+                            continue 'outer;
                         }
                     }
                     return Ok(String {
@@ -630,6 +633,7 @@ mod tests {
         t(r#""\"a""#, "\"a", false);
         t("\"\"\"\na\"\"\"", "a", true);
         t("\"\"\"\n\"\"\"", "", true);
+        t(r#""""a\"""b""""#, "a\"\"\"b", true);
         err(r#""\a"#, Error::InvalidEscape(2, 'a'));
         err("\"\\\n", Error::InvalidEscape(2, '\n'));
         err("\"\\\r\n", Error::InvalidEscape(2, '\n'));
