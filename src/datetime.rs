@@ -99,7 +99,7 @@ impl fmt::Display for Time {
         write!(f, "{:02}:{:02}:{:02}", self.hour, self.minute, self.second)?;
         if self.nanosecond != 0 {
             let s = format!("{:09}", self.nanosecond);
-            write!(f, ".{}", s.trim_right_matches('0'))?;
+            write!(f, ".{}", s.trim_end_matches('0'))?;
         }
         Ok(())
     }
