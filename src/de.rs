@@ -1321,7 +1321,7 @@ impl<'a> Deserializer<'a> {
         if suffix != "" {
             return Err(self.error(start, ErrorKind::NumberInvalid));
         }
-        i64::from_str_radix(&prefix.replace("_", "").trim_left_matches('+'), radix)
+        i64::from_str_radix(&prefix.replace("_", "").trim_start_matches('+'), radix)
             .map_err(|_e| self.error(start, ErrorKind::NumberInvalid))
     }
 
@@ -1399,7 +1399,7 @@ impl<'a> Deserializer<'a> {
         }
 
         let mut number = integral
-            .trim_left_matches('+')
+            .trim_start_matches('+')
             .chars()
             .filter(|c| *c != '_')
             .collect::<String>();
