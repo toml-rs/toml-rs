@@ -1396,6 +1396,8 @@ impl<'a> Deserializer<'a> {
                 return Err(self.error(start, ErrorKind::NumberInvalid));
             }
             exponent = Some(a);
+        } else if !suffix.is_empty() {
+            return Err(self.error(start, ErrorKind::NumberInvalid));
         }
 
         let mut number = integral

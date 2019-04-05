@@ -38,6 +38,8 @@ test!(empty_table,
       include_str!("invalid/empty-table.toml"));
 test!(float_no_leading_zero,
       include_str!("invalid/float-no-leading-zero.toml"));
+test!(float_no_suffix,
+      include_str!("invalid/float-no-suffix.toml"));
 test!(float_no_trailing_digits,
       include_str!("invalid/float-no-trailing-digits.toml"));
 test!(key_after_array,
