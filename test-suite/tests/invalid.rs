@@ -26,10 +26,12 @@ test!(datetime_malformed_no_t,
       include_str!("invalid/datetime-malformed-no-t.toml"));
 test!(datetime_malformed_with_milli,
       include_str!("invalid/datetime-malformed-with-milli.toml"));
-test!(duplicate_keys,
-      include_str!("invalid/duplicate-keys.toml"));
 test!(duplicate_key_table,
       include_str!("invalid/duplicate-key-table.toml"));
+test!(duplicate_keys,
+      include_str!("invalid/duplicate-keys.toml"));
+test!(duplicate_table,
+      include_str!("invalid/duplicate-table.toml"));
 test!(duplicate_tables,
       include_str!("invalid/duplicate-tables.toml"));
 test!(empty_implicit_table,
@@ -64,6 +66,8 @@ test!(string_bad_byte_escape,
       include_str!("invalid/string-bad-byte-escape.toml"));
 test!(string_bad_escape,
       include_str!("invalid/string-bad-escape.toml"));
+test!(string_bad_line_ending_escape,
+      include_str!("invalid/string-bad-line-ending-escape.toml"));
 test!(string_byte_escapes,
       include_str!("invalid/string-byte-escapes.toml"));
 test!(string_no_close,
@@ -96,5 +100,3 @@ test!(text_before_array_separator,
       include_str!("invalid/text-before-array-separator.toml"));
 test!(text_in_array,
       include_str!("invalid/text-in-array.toml"));
-test!(duplicate_table,
-      include_str!("invalid/duplicate-table.toml"));

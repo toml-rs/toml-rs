@@ -129,6 +129,9 @@ test!(empty,
 test!(bool,
        include_str!("valid/bool.toml"),
        include_str!("valid/bool.json"));
+test!(comments_everywhere,
+       include_str!("valid/comments-everywhere.toml"),
+       include_str!("valid/comments-everywhere.json"));
 test!(datetime,
        include_str!("valid/datetime.toml"),
        include_str!("valid/datetime.json"));
