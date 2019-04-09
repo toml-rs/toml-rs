@@ -310,6 +310,7 @@ impl_into_value!(Float: f64);
 impl_into_value!(Float: f32);
 impl_into_value!(Boolean: bool);
 impl_into_value!(Datetime: Datetime);
+impl_into_value!(Table: Table);
 
 /// Types that can be used to index a `toml::Value`
 ///
