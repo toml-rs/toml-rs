@@ -159,15 +159,15 @@ extern crate linked_hash_map;
 pub mod map;
 pub mod value;
 #[doc(no_inline)]
-pub use value::Value;
+pub use crate::value::Value;
 mod datetime;
 
 pub mod ser;
 #[doc(no_inline)]
-pub use ser::{to_string, to_string_pretty, to_vec, Serializer};
+pub use crate::ser::{to_string, to_string_pretty, to_vec, Serializer};
 pub mod de;
 #[doc(no_inline)]
-pub use de::{from_slice, from_str, Deserializer};
+pub use crate::de::{from_slice, from_str, Deserializer};
 mod tokens;
 
 #[doc(hidden)]
@@ -175,4 +175,4 @@ pub mod macros;
 
 mod spanned;
 #[doc(no_inline)]
-pub use spanned::Spanned;
+pub use crate::spanned::Spanned;

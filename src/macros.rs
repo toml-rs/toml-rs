@@ -1,6 +1,6 @@
 pub use serde::de::{Deserialize, IntoDeserializer};
 
-use value::{Array, Table, Value};
+use crate::value::{Array, Table, Value};
 
 /// Construct a [`toml::Value`] from TOML syntax.
 ///

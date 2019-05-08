@@ -32,7 +32,7 @@ use std::fmt::{self, Write};
 use std::marker;
 use std::rc::Rc;
 
-use datetime;
+use crate::datetime;
 use serde::ser;
 
 /// Serialize the given data structure as a TOML byte vector.

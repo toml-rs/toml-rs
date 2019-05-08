@@ -15,9 +15,9 @@ use serde::de;
 use serde::de::value::BorrowedStrDeserializer;
 use serde::de::IntoDeserializer;
 
-use datetime;
-use spanned;
-use tokens::{Error as TokenError, Span, Token, Tokenizer};
+use crate::datetime;
+use crate::spanned;
+use crate::tokens::{Error as TokenError, Span, Token, Tokenizer};
 
 /// Deserializes a byte slice into a type.
 ///

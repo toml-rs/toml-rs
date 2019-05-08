@@ -4,6 +4,7 @@ version = "0.0.0"
 authors = ["Alex Crichton <alex@alexcrichton.com>"]
 build = "build.rs"
 publish = false
+edition = "2018"
 
 [build-dependencies]
 rustc_version = "0.2"
