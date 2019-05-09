@@ -77,9 +77,7 @@
 //! An example of deserializing with TOML is:
 //!
 //! ```rust
-//! #[macro_use]
-//! extern crate serde_derive;
-//! extern crate toml;
+//! use serde_derive::Deserialize;
 //!
 //! #[derive(Deserialize)]
 //! struct Config {
@@ -113,9 +111,7 @@
 //! You can serialize types in a similar fashion:
 //!
 //! ```rust
-//! #[macro_use]
-//! extern crate serde_derive;
-//! extern crate toml;
+//! use serde_derive::Serialize;
 //!
 //! #[derive(Serialize)]
 //! struct Config {
@@ -150,11 +146,7 @@
 
 #![doc(html_root_url = "https://docs.rs/toml/0.5")]
 #![deny(missing_docs)]
-
-#[macro_use]
-extern crate serde;
-#[cfg(feature = "preserve_order")]
-extern crate linked_hash_map;
+#![warn(rust_2018_idioms)]
 
 pub mod map;
 pub mod value;

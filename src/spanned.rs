@@ -1,8 +1,5 @@
 //! ```
-//! #[macro_use]
-//! extern crate serde_derive;
-//!
-//! extern crate toml;
+//! use serde_derive::Deserialize;
 //! use toml::Spanned;
 //!
 //! #[derive(Deserialize)]
@@ -93,7 +90,7 @@ where
         {
             type Value = Spanned<T>;
 
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("a TOML spanned")
             }
 

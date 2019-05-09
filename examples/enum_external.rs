@@ -3,9 +3,7 @@
 
 #![deny(warnings)]
 
-extern crate toml;
-#[macro_use]
-extern crate serde_derive;
+use serde_derive::Deserialize;
 
 /// This is what we're going to decode into.
 #[derive(Debug, Deserialize)]

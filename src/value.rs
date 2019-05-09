@@ -391,7 +391,7 @@ where
 }
 
 impl fmt::Display for Value {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         crate::ser::to_string(self)
             .expect("Unable to represent value as string")
             .fmt(f)
@@ -462,7 +462,7 @@ impl<'de> de::Deserialize<'de> for Value {
         impl<'de> de::Visitor<'de> for ValueVisitor {
             type Value = Value;
 
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("any valid TOML value")
             }
 
@@ -628,7 +628,7 @@ impl<'de> de::Deserializer<'de> for Value {
         visitor.visit_newtype_struct(self)
     }
 
-    forward_to_deserialize_any! {
+    serde::forward_to_deserialize_any! {
         bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string unit seq
         bytes byte_buf map unit_struct tuple_struct struct
         tuple ignored_any identifier
@@ -1060,7 +1060,7 @@ impl<'a, 'de> de::DeserializeSeed<'de> for DatetimeOrTable<'a> {
 impl<'a, 'de> de::Visitor<'de> for DatetimeOrTable<'a> {
     type Value = bool;
 
-    fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str("a string key")
     }
 

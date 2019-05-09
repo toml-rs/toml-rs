@@ -7,11 +7,8 @@ use crate::value::{Array, Table, Value};
 /// [`toml::Value`]: value/enum.Value.html
 ///
 /// ```rust
-/// #[macro_use]
-/// extern crate toml;
-///
 /// fn main() {
-///     let cargo_toml = toml! {
+///     let cargo_toml = toml::toml! {
 ///         [package]
 ///         name = "toml"
 ///         version = "0.4.5"

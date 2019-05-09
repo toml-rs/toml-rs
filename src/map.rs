@@ -140,7 +140,7 @@ impl Map<String, Value> {
 
     /// Gets the given key's corresponding entry in the map for in-place
     /// manipulation.
-    pub fn entry<S>(&mut self, key: S) -> Entry
+    pub fn entry<S>(&mut self, key: S) -> Entry<'_>
     where
         S: Into<String>,
     {
@@ -169,7 +169,7 @@ impl Map<String, Value> {
 
     /// Gets an iterator over the entries of the map.
     #[inline]
-    pub fn iter(&self) -> Iter {
+    pub fn iter(&self) -> Iter<'_> {
         Iter {
             iter: self.map.iter(),
         }
@@ -177,7 +177,7 @@ impl Map<String, Value> {
 
     /// Gets a mutable iterator over the entries of the map.
     #[inline]
-    pub fn iter_mut(&mut self) -> IterMut {
+    pub fn iter_mut(&mut self) -> IterMut<'_> {
         IterMut {
             iter: self.map.iter_mut(),
         }
@@ -185,7 +185,7 @@ impl Map<String, Value> {
 
     /// Gets an iterator over the keys of the map.
     #[inline]
-    pub fn keys(&self) -> Keys {
+    pub fn keys(&self) -> Keys<'_> {
         Keys {
             iter: self.map.keys(),
         }
@@ -193,7 +193,7 @@ impl Map<String, Value> {
 
     /// Gets an iterator over the values of the map.
     #[inline]
-    pub fn values(&self) -> Values {
+    pub fn values(&self) -> Values<'_> {
         Values {
             iter: self.map.values(),
         }
@@ -253,7 +253,7 @@ where
 
 impl Debug for Map<String, Value> {
     #[inline]
-    fn fmt(&self, formatter: &mut fmt::Formatter) -> Result<(), fmt::Error> {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         self.map.fmt(formatter)
     }
 }
@@ -285,7 +285,7 @@ impl<'de> de::Deserialize<'de> for Map<String, Value> {
         impl<'de> de::Visitor<'de> for Visitor {
             type Value = Map<String, Value>;
 
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("a map")
             }
 

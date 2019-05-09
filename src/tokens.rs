@@ -294,8 +294,8 @@ impl<'a> Tokenizer<'a> {
         &mut self,
         delim: char,
         start: usize,
-        new_ch: &mut FnMut(
-            &mut Tokenizer,
+        new_ch: &mut dyn FnMut(
+            &mut Tokenizer<'_>,
             &mut MaybeString,
             bool,
             usize,
@@ -514,7 +514,7 @@ impl MaybeString {
         }
     }
 
-    fn into_cow(self, input: &str) -> Cow<str> {
+    fn into_cow(self, input: &str) -> Cow<'_, str> {
         match self {
             MaybeString::NotEscaped(start) => Cow::Borrowed(&input[start..]),
             MaybeString::Owned(s) => Cow::Owned(s),
@@ -665,9 +665,9 @@ mod tests {
 
     #[test]
     fn all() {
-        fn t(input: &str, expected: &[((usize, usize), Token, &str)]) {
+        fn t(input: &str, expected: &[((usize, usize), Token<'_>, &str)]) {
             let mut tokens = Tokenizer::new(input);
-            let mut actual: Vec<((usize, usize), Token, &str)> = Vec::new();
+            let mut actual: Vec<((usize, usize), Token<'_>, &str)> = Vec::new();
             while let Some((span, token)) = tokens.next().unwrap() {
                 actual.push((span.into(), token, &input[span.start..span.end]));
             }
