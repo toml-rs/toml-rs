@@ -72,7 +72,6 @@ sf8 = -0.0
 }
 
 #[test]
-#[cfg(feature = "test-nan-sign")]
 fn float_inf() {
     float_inf_tests!(f32);
     float_inf_tests!(f64);

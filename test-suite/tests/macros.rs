@@ -279,7 +279,6 @@ fn test_datetime() {
 
 // This test requires rustc >= 1.20.
 #[test]
-#[cfg(feature = "test-quoted-keys-in-macro")]
 fn test_quoted_key() {
     let actual = toml! {
         "quoted" = true
