@@ -4,22 +4,24 @@ extern crate toml;
 #[macro_use]
 extern crate serde_derive;
 
-use std::collections::{BTreeMap, HashSet};
 use serde::{Deserialize, Deserializer};
+use std::collections::{BTreeMap, HashSet};
 
-use toml::Value;
-use toml::Value::{Table, Integer, Array, Float};
 use toml::map::Map;
+use toml::Value;
+use toml::Value::{Array, Float, Integer, Table};
 
 macro_rules! t {
-    ($e:expr) => (match $e {
-        Ok(t) => t,
-        Err(e) => panic!("{} failed with {}", stringify!($e), e),
-    })
+    ($e:expr) => {
+        match $e {
+            Ok(t) => t,
+            Err(e) => panic!("{} failed with {}", stringify!($e), e),
+        }
+    };
 }
 
 macro_rules! equivalent {
-    ($literal:expr, $toml:expr,) => ({
+    ($literal:expr, $toml:expr,) => {{
         let toml = $toml;
         let literal = $literal;
 
@@ -38,17 +40,16 @@ macro_rules! equivalent {
         assert_eq!(literal, t!(toml::from_str(&toml.to_string())));
         println!("toml, from_str(toml)");
         assert_eq!(toml, t!(toml::from_str(&toml.to_string())));
-    })
+    }};
 }
 
 macro_rules! error {
-    ($ty:ty, $toml:expr, $error:expr) => ({
+    ($ty:ty, $toml:expr, $error:expr) => {{
         println!("attempting parsing");
         match toml::from_str::<$ty>(&$toml.to_string()) {
             Ok(_) => panic!("successful"),
             Err(e) => {
-                assert!(e.to_string().contains($error),
-                        "bad error: {}", e);
+                assert!(e.to_string().contains($error), "bad error: {}", e);
             }
         }
 
@@ -56,11 +57,10 @@ macro_rules! error {
         match $toml.try_into::<$ty>() {
             Ok(_) => panic!("successful"),
             Err(e) => {
-                assert!(e.to_string().contains($error),
-                        "bad error: {}", e);
+                assert!(e.to_string().contains($error), "bad error: {}", e);
             }
         }
-    })
+    }};
 }
 
 macro_rules! map( ($($k:ident: $v:expr),*) => ({
@@ -72,12 +72,11 @@ macro_rules! map( ($($k:ident: $v:expr),*) => ({
 #[test]
 fn smoke() {
     #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-    struct Foo { a: isize }
+    struct Foo {
+        a: isize,
+    }
 
-    equivalent!(
-        Foo { a: 2 },
-        Table(map! { a: Integer(2) }),
-    );
+    equivalent!(Foo { a: 2 }, Table(map! { a: Integer(2) }),);
 }
 
 #[test]
@@ -109,9 +108,14 @@ fn smoke_hyphen() {
 #[test]
 fn nested() {
     #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-    struct Foo { a: isize, b: Bar }
+    struct Foo {
+        a: isize,
+        b: Bar,
+    }
     #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-    struct Bar { a: String }
+    struct Bar {
+        a: String,
+    }
 
     equivalent! {
         Foo { a: 2, b: Bar { a: "test".to_string() } },
@@ -129,14 +133,14 @@ fn application_decode_error() {
     #[derive(PartialEq, Debug)]
     struct Range10(usize);
     impl<'de> Deserialize<'de> for Range10 {
-         fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Range10, D::Error> {
-             let x: usize = Deserialize::deserialize(d)?;
-             if x > 10 {
-                 Err(serde::de::Error::custom("more than 10"))
-             } else {
-                 Ok(Range10(x))
-             }
-         }
+        fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Range10, D::Error> {
+            let x: usize = Deserialize::deserialize(d)?;
+            if x > 10 {
+                Err(serde::de::Error::custom("more than 10"))
+            } else {
+                Ok(Range10(x))
+            }
+        }
     }
     let d_good = Integer(5);
     let d_bad1 = Value::String("not an isize".to_string());
@@ -153,7 +157,9 @@ fn application_decode_error() {
 #[test]
 fn array() {
     #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-    struct Foo { a: Vec<isize> }
+    struct Foo {
+        a: Vec<isize>,
+    }
 
     equivalent! {
         Foo { a: vec![1, 2, 3, 4] },
@@ -239,9 +245,13 @@ fn hashmap() {
 #[test]
 fn table_array() {
     #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-    struct Foo { a: Vec<Bar>, }
+    struct Foo {
+        a: Vec<Bar>,
+    }
     #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-    struct Bar { a: isize }
+    struct Bar {
+        a: isize,
+    }
 
     equivalent! {
         Foo { a: vec![Bar { a: 1 }, Bar { a: 2 }] },
@@ -258,7 +268,9 @@ fn table_array() {
 fn type_errors() {
     #[derive(Deserialize)]
     #[allow(dead_code)]
-    struct Foo { bar: isize }
+    struct Foo {
+        bar: isize,
+    }
 
     error! {
         Foo,
@@ -270,7 +282,9 @@ fn type_errors() {
 
     #[derive(Deserialize)]
     #[allow(dead_code)]
-    struct Bar { foo: Foo }
+    struct Bar {
+        foo: Foo,
+    }
 
     error! {
         Bar,
@@ -286,7 +300,9 @@ fn type_errors() {
 #[test]
 fn missing_errors() {
     #[derive(Serialize, Deserialize, PartialEq, Debug)]
-    struct Foo { bar: isize }
+    struct Foo {
+        bar: isize,
+    }
 
     error! {
         Foo,
@@ -298,7 +314,9 @@ fn missing_errors() {
 #[test]
 fn parse_enum() {
     #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-    struct Foo { a: E }
+    struct Foo {
+        a: E,
+    }
     #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
     #[serde(untagged)]
     enum E {
@@ -330,7 +348,9 @@ fn parse_enum() {
 #[test]
 fn parse_enum_string() {
     #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-    struct Foo { a: Sort }
+    struct Foo {
+        a: Sort,
+    }
 
     #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
     #[serde(rename_all = "lowercase")]
@@ -343,7 +363,6 @@ fn parse_enum_string() {
         Foo { a: Sort::Desc },
         Table(map! { a: Value::String("desc".to_string()) }),
     }
-
 }
 
 // #[test]
@@ -474,7 +493,9 @@ fn parse_enum_string() {
 #[test]
 fn empty_arrays() {
     #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-    struct Foo { a: Vec<Bar> }
+    struct Foo {
+        a: Vec<Bar>,
+    }
     #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
     struct Bar;
 
@@ -487,7 +508,9 @@ fn empty_arrays() {
 #[test]
 fn empty_arrays2() {
     #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
-    struct Foo { a: Option<Vec<Bar>> }
+    struct Foo {
+        a: Option<Vec<Bar>>,
+    }
     #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
     struct Bar;
 
@@ -496,7 +519,7 @@ fn empty_arrays2() {
         Table(map! {}),
     }
 
-    equivalent!{
+    equivalent! {
         Foo { a: Some(vec![]) },
         Table(map! { a: Array(vec![]) }),
     }
@@ -505,7 +528,9 @@ fn empty_arrays2() {
 #[test]
 fn extra_keys() {
     #[derive(Serialize, Deserialize)]
-    struct Foo { a: isize }
+    struct Foo {
+        a: isize,
+    }
 
     let toml = Table(map! { a: Integer(2), b: Integer(2) });
     assert!(toml.clone().try_into::<Foo>().is_ok());
@@ -516,7 +541,7 @@ fn extra_keys() {
 fn newtypes() {
     #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
     struct A {
-        b: B
+        b: B,
     }
 
     #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
@@ -531,19 +556,19 @@ fn newtypes() {
 #[test]
 fn newtypes2() {
     #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
-	struct A {
-		b: B
-	}
+    struct A {
+        b: B,
+    }
 
     #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
-	struct B(Option<C>);
+    struct B(Option<C>);
 
     #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
-	struct C {
-		x: u32,
-		y: u32,
-		z: u32
-	}
+    struct C {
+        x: u32,
+        y: u32,
+        z: u32,
+    }
 
     equivalent! {
         A { b: B(Some(C { x: 0, y: 1, z: 2 })) },
@@ -572,7 +597,10 @@ fn table_structs_empty() {
     expected.insert("baz".to_string(), CanBeEmpty::default());
     expected.insert(
         "bazv".to_string(),
-        CanBeEmpty {a: Some("foo".to_string()), b: None},
+        CanBeEmpty {
+            a: Some("foo".to_string()),
+            b: None,
+        },
     );
     expected.insert("foo".to_string(), CanBeEmpty::default());
     assert_eq!(value, expected);
@@ -583,7 +611,7 @@ fn table_structs_empty() {
 fn fixed_size_array() {
     #[derive(Serialize, Deserialize, PartialEq, Debug, Clone)]
     struct Entity {
-        pos: [i32; 2]
+        pos: [i32; 2],
     }
 
     equivalent! {
@@ -644,10 +672,13 @@ fn homogeneous_tuple_struct() {
 fn json_interoperability() {
     #[derive(Serialize, Deserialize)]
     struct Foo {
-        any: toml::Value
+        any: toml::Value,
     }
 
-    let _foo: Foo = serde_json::from_str(r#"
+    let _foo: Foo = serde_json::from_str(
+        r#"
         {"any":1}
-    "#).unwrap();
+    "#,
+    )
+    .unwrap();
 }

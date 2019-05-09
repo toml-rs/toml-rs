@@ -24,31 +24,33 @@ struct TwoUsers {
 #[test]
 fn no_unnecessary_newlines_array() {
     assert!(!to_string(&Users {
-            user: vec![
-                    User {
-                        name: "John".to_string(),
-                        surname: "Doe".to_string(),
-                    },
-                    User {
-                        name: "Jane".to_string(),
-                        surname: "Dough".to_string(),
-                    },
-                ],
-        }).unwrap()
-        .starts_with("\n"));
+        user: vec![
+            User {
+                name: "John".to_string(),
+                surname: "Doe".to_string(),
+            },
+            User {
+                name: "Jane".to_string(),
+                surname: "Dough".to_string(),
+            },
+        ],
+    })
+    .unwrap()
+    .starts_with("\n"));
 }
 
 #[test]
 fn no_unnecessary_newlines_table() {
     assert!(!to_string(&TwoUsers {
-            user0: User {
-                name: "John".to_string(),
-                surname: "Doe".to_string(),
-            },
-            user1: User {
-                name: "Jane".to_string(),
-                surname: "Dough".to_string(),
-            },
-        }).unwrap()
-        .starts_with("\n"));
+        user0: User {
+            name: "John".to_string(),
+            surname: "Doe".to_string(),
+        },
+        user1: User {
+            name: "Jane".to_string(),
+            surname: "Dough".to_string(),
+        },
+    })
+    .unwrap()
+    .starts_with("\n"));
 }

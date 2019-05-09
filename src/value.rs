@@ -16,7 +16,6 @@ pub use crate::datetime::{Datetime, DatetimeParseError};
 
 pub use crate::map::Map;
 
-
 /// Representation of a TOML value.
 #[derive(PartialEq, Clone, Debug)]
 pub enum Value {

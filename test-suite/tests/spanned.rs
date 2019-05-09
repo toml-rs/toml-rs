@@ -3,9 +3,9 @@ extern crate toml;
 #[macro_use]
 extern crate serde_derive;
 
-use toml::Spanned;
-use toml::value::Datetime;
 use std::collections::HashMap;
+use toml::value::Datetime;
+use toml::Spanned;
 
 /// A set of good datetimes.
 pub fn good_datetimes() -> Vec<&'static str> {
@@ -31,7 +31,10 @@ fn test_spanned_field() {
         foo: Spanned<T>,
     }
 
-    fn good<'de, T>(s: &'de str, expected: &str) where T: serde::Deserialize<'de> {
+    fn good<'de, T>(s: &'de str, expected: &str)
+    where
+        T: serde::Deserialize<'de>,
+    {
         let foo: Foo<T> = toml::from_str(s).unwrap();
 
         assert_eq!(6, foo.foo.start());
@@ -46,18 +49,12 @@ fn test_spanned_field() {
     // table
     good::<HashMap<String, u32>>(
         "foo = {\"foo\" = 42, \"bar\" = 42}",
-        "{\"foo\" = 42, \"bar\" = 42}"
+        "{\"foo\" = 42, \"bar\" = 42}",
     );
     // array
-    good::<Vec<u32>>(
-        "foo = [0, 1, 2, 3, 4]",
-        "[0, 1, 2, 3, 4]"
-    );
+    good::<Vec<u32>>("foo = [0, 1, 2, 3, 4]", "[0, 1, 2, 3, 4]");
     // datetime
-    good::<String>(
-        "foo = \"1997-09-09T09:09:09Z\"",
-        "\"1997-09-09T09:09:09Z\""
-    );
+    good::<String>("foo = \"1997-09-09T09:09:09Z\"", "\"1997-09-09T09:09:09Z\"");
 
     for expected in good_datetimes() {
         let s = format!("foo = {}", expected);

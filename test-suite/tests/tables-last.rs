@@ -19,7 +19,9 @@ enum Value {
 
 #[test]
 fn always_works() {
-    let mut a = A { vals: HashMap::new() };
+    let mut a = A {
+        vals: HashMap::new(),
+    };
     a.vals.insert("foo", Value::Int(0));
 
     let mut sub = HashMap::new();
