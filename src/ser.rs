@@ -12,8 +12,7 @@
 //! may use the `tables_last` function in this module like so:
 //!
 //! ```rust
-//! # #[macro_use] extern crate serde_derive;
-//! # extern crate toml;
+//! # use serde_derive::Serialize;
 //! # use std::collections::HashMap;
 //! #[derive(Serialize)]
 //! struct Manifest {
@@ -32,7 +31,7 @@ use std::fmt::{self, Write};
 use std::marker;
 use std::rc::Rc;
 
-use datetime;
+use crate::datetime;
 use serde::ser;
 
 /// Serialize the given data structure as a TOML byte vector.
@@ -56,9 +55,7 @@ where
 /// # Examples
 ///
 /// ```
-/// #[macro_use]
-/// extern crate serde_derive;
-/// extern crate toml;
+/// use serde_derive::Serialize;
 ///
 /// #[derive(Serialize)]
 /// struct Config {
@@ -442,7 +439,7 @@ impl<'a> Serializer<'a> {
     }
 
     // recursive implementation of `emit_key` above
-    fn _emit_key(&mut self, state: &State) -> Result<(), Error> {
+    fn _emit_key(&mut self, state: &State<'_>) -> Result<(), Error> {
         match *state {
             State::End => Ok(()),
             State::Array {
@@ -479,7 +476,7 @@ impl<'a> Serializer<'a> {
 
     fn emit_array(&mut self, first: &Cell<bool>, len: Option<usize>) -> Result<(), Error> {
         match (len, &self.settings.array) {
-            (Some(0...1), _) | (_, &None) => {
+            (Some(0..=1), _) | (_, &None) => {
                 if first.get() {
                     self.dst.push_str("[")
                 } else {
@@ -517,7 +514,7 @@ impl<'a> Serializer<'a> {
 
     fn escape_key(&mut self, key: &str) -> Result<(), Error> {
         let ok = key.chars().all(|c| match c {
-            'a'...'z' | 'A'...'Z' | '0'...'9' | '-' | '_' => true,
+            'a'..='z' | 'A'..='Z' | '0'..='9' | '-' | '_' => true,
             _ => false,
         });
         if ok {
@@ -666,7 +663,7 @@ impl<'a> Serializer<'a> {
         Ok(())
     }
 
-    fn emit_table_header(&mut self, state: &State) -> Result<(), Error> {
+    fn emit_table_header(&mut self, state: &State<'_>) -> Result<(), Error> {
         let array_of_tables = match *state {
             State::End => return Ok(()),
             State::Array { .. } => true,
@@ -730,7 +727,7 @@ impl<'a> Serializer<'a> {
         Ok(())
     }
 
-    fn emit_key_part(&mut self, key: &State) -> Result<bool, Error> {
+    fn emit_key_part(&mut self, key: &State<'_>) -> Result<bool, Error> {
         match *key {
             State::Array { parent, .. } => self.emit_key_part(parent),
             State::End => Ok(true),
@@ -997,7 +994,7 @@ impl<'a, 'b> ser::SerializeSeq for SerializeSeq<'a, 'b> {
         match self.type_.get() {
             Some("table") => return Ok(()),
             Some(_) => match (self.len, &self.ser.settings.array) {
-                (Some(0...1), _) | (_, &None) => {
+                (Some(0..=1), _) | (_, &None) => {
                     self.ser.dst.push_str("]");
                 }
                 (_, &Some(ref a)) => {
@@ -1531,7 +1528,7 @@ impl ser::Serializer for StringExtractor {
 }
 
 impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Error::UnsupportedType => "unsupported Rust type".fmt(f),
             Error::KeyNotString => "map key was not a string".fmt(f),
@@ -1584,8 +1581,7 @@ enum Category {
 /// helper can be used like so:
 ///
 /// ```rust
-/// # #[macro_use] extern crate serde_derive;
-/// # extern crate toml;
+/// # use serde_derive::Serialize;
 /// # use std::collections::HashMap;
 /// #[derive(Serialize)]
 /// struct Manifest {

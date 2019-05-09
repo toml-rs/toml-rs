@@ -32,7 +32,9 @@ macro_rules! float_inf_tests {
         # zero
         sf7 = +0.0
         sf8 = -0.0
-        ").expect("Parse infinities.");
+        ",
+        )
+        .expect("Parse infinities.");
 
         assert!(inf.sf1.is_infinite());
         assert!(inf.sf1.is_sign_positive());
@@ -55,8 +57,9 @@ macro_rules! float_inf_tests {
 
         let s = toml::to_string(&inf).unwrap();
         assert_eq!(
-            s, "\
-sf1 = inf
+            s,
+            "\
+        sf1 = inf
 sf2 = inf
 sf3 = -inf
 sf4 = nan

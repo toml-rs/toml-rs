@@ -7,6 +7,8 @@ use std::f64;
 
 macro_rules! table {
     ($($key:expr => $value:expr,)*) => {{
+        // https://github.com/rust-lang/rust/issues/60643
+        #[allow(unused_mut)]
         let mut table = toml::value::Table::new();
         $(
             table.insert($key.to_string(), $value.into());
@@ -17,6 +19,8 @@ macro_rules! table {
 
 macro_rules! array {
     ($($element:expr,)*) => {{
+        // https://github.com/rust-lang/rust/issues/60643
+        #[allow(unused_mut)]
         let mut array = toml::value::Array::new();
         $(
             array.push($element.into());

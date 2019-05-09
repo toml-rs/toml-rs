@@ -77,9 +77,7 @@
 //! An example of deserializing with TOML is:
 //!
 //! ```rust
-//! #[macro_use]
-//! extern crate serde_derive;
-//! extern crate toml;
+//! use serde_derive::Deserialize;
 //!
 //! #[derive(Deserialize)]
 //! struct Config {
@@ -113,9 +111,7 @@
 //! You can serialize types in a similar fashion:
 //!
 //! ```rust
-//! #[macro_use]
-//! extern crate serde_derive;
-//! extern crate toml;
+//! use serde_derive::Serialize;
 //!
 //! #[derive(Serialize)]
 //! struct Config {
@@ -150,24 +146,20 @@
 
 #![doc(html_root_url = "https://docs.rs/toml/0.5")]
 #![deny(missing_docs)]
-
-#[macro_use]
-extern crate serde;
-#[cfg(feature = "preserve_order")]
-extern crate linked_hash_map;
+#![warn(rust_2018_idioms)]
 
 pub mod map;
 pub mod value;
 #[doc(no_inline)]
-pub use value::Value;
+pub use crate::value::Value;
 mod datetime;
 
 pub mod ser;
 #[doc(no_inline)]
-pub use ser::{to_string, to_string_pretty, to_vec, Serializer};
+pub use crate::ser::{to_string, to_string_pretty, to_vec, Serializer};
 pub mod de;
 #[doc(no_inline)]
-pub use de::{from_slice, from_str, Deserializer};
+pub use crate::de::{from_slice, from_str, Deserializer};
 mod tokens;
 
 #[doc(hidden)]
@@ -175,4 +167,4 @@ pub mod macros;
 
 mod spanned;
 #[doc(no_inline)]
-pub use spanned::Spanned;
+pub use crate::spanned::Spanned;

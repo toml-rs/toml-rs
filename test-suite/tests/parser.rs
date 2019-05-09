@@ -3,7 +3,7 @@ extern crate toml;
 use toml::Value;
 
 macro_rules! bad {
-    ($s:expr, $msg:expr) => ({
+    ($s:expr, $msg:expr) => {{
         match $s.parse::<Value>() {
             Ok(s) => panic!("successfully parsed as {}", s),
             Err(e) => {
@@ -11,29 +11,31 @@ macro_rules! bad {
                 assert!(e.contains($msg), "error: {}", e);
             }
         }
-    })
+    }};
 }
 
 #[test]
 fn crlf() {
     "\
-[project]\r\n\
-\r\n\
-name = \"splay\"\r\n\
-version = \"0.1.0\"\r\n\
-authors = [\"alex@crichton.co\"]\r\n\
-\r\n\
-[[lib]]\r\n\
-\r\n\
-path = \"lib.rs\"\r\n\
-name = \"splay\"\r\n\
-description = \"\"\"\
-A Rust implementation of a TAR file reader and writer. This library does not\r\n\
-currently handle compression, but it is abstract over all I/O readers and\r\n\
-writers. Additionally, great lengths are taken to ensure that the entire\r\n\
-contents are never required to be entirely resident in memory all at once.\r\n\
-\"\"\"\
-".parse::<Value>().unwrap();
+     [project]\r\n\
+     \r\n\
+     name = \"splay\"\r\n\
+     version = \"0.1.0\"\r\n\
+     authors = [\"alex@crichton.co\"]\r\n\
+     \r\n\
+     [[lib]]\r\n\
+     \r\n\
+     path = \"lib.rs\"\r\n\
+     name = \"splay\"\r\n\
+     description = \"\"\"\
+     A Rust implementation of a TAR file reader and writer. This library does not\r\n\
+     currently handle compression, but it is abstract over all I/O readers and\r\n\
+     writers. Additionally, great lengths are taken to ensure that the entire\r\n\
+     contents are never required to be entirely resident in memory all at once.\r\n\
+     \"\"\"\
+     "
+    .parse::<Value>()
+    .unwrap();
 }
 
 #[test]
@@ -71,7 +73,9 @@ trimmed in raw strings.
 All other whitespace
 is preserved.
 '''
-"#.parse::<Value>().unwrap();
+"#
+    .parse::<Value>()
+    .unwrap();
     assert_eq!(table["bar"].as_str(), Some("\0"));
     assert_eq!(table["key1"].as_str(), Some("One\nTwo"));
     assert_eq!(table["key2"].as_str(), Some("One\nTwo"));
@@ -82,16 +86,32 @@ is preserved.
     assert_eq!(table["key5"].as_str(), Some(msg));
     assert_eq!(table["key6"].as_str(), Some(msg));
 
-    assert_eq!(table["winpath"].as_str(), Some(r"C:\Users\nodejs\templates"));
-    assert_eq!(table["winpath2"].as_str(), Some(r"\\ServerX\admin$\system32\"));
-    assert_eq!(table["quoted"].as_str(), Some(r#"Tom "Dubs" Preston-Werner"#));
+    assert_eq!(
+        table["winpath"].as_str(),
+        Some(r"C:\Users\nodejs\templates")
+    );
+    assert_eq!(
+        table["winpath2"].as_str(),
+        Some(r"\\ServerX\admin$\system32\")
+    );
+    assert_eq!(
+        table["quoted"].as_str(),
+        Some(r#"Tom "Dubs" Preston-Werner"#)
+    );
     assert_eq!(table["regex"].as_str(), Some(r"<\i\c*\s*>"));
-    assert_eq!(table["regex2"].as_str(), Some(r"I [dw]on't need \d{2} apples"));
-    assert_eq!(table["lines"].as_str(),
-               Some("The first newline is\n\
-                     trimmed in raw strings.\n\
-                        All other whitespace\n\
-                        is preserved.\n"));
+    assert_eq!(
+        table["regex2"].as_str(),
+        Some(r"I [dw]on't need \d{2} apples")
+    );
+    assert_eq!(
+        table["lines"].as_str(),
+        Some(
+            "The first newline is\n\
+             trimmed in raw strings.\n\
+             All other whitespace\n\
+             is preserved.\n"
+        )
+    );
 }
 
 #[test]
@@ -106,7 +126,9 @@ fn tables_in_arrays() {
 #…
 [foo.bar]
 #...
-"#.parse::<Value>().unwrap();
+"#
+    .parse::<Value>()
+    .unwrap();
     table["foo"][0]["bar"].as_table().unwrap();
     table["foo"][1]["bar"].as_table().unwrap();
 }
@@ -114,7 +136,9 @@ fn tables_in_arrays() {
 #[test]
 fn empty_table() {
     let table = r#"
-[foo]"#.parse::<Value>().unwrap();
+[foo]"#
+        .parse::<Value>()
+        .unwrap();
     table["foo"].as_table().unwrap();
 }
 
@@ -139,14 +163,28 @@ name = "banana"
 
 [[fruit.variety]]
 name = "plantain"
-"#.parse::<Value>().unwrap();
+"#
+    .parse::<Value>()
+    .unwrap();
     assert_eq!(table["fruit"][0]["name"].as_str(), Some("apple"));
     assert_eq!(table["fruit"][0]["physical"]["color"].as_str(), Some("red"));
-    assert_eq!(table["fruit"][0]["physical"]["shape"].as_str(), Some("round"));
-    assert_eq!(table["fruit"][0]["variety"][0]["name"].as_str(), Some("red delicious"));
-    assert_eq!(table["fruit"][0]["variety"][1]["name"].as_str(), Some("granny smith"));
+    assert_eq!(
+        table["fruit"][0]["physical"]["shape"].as_str(),
+        Some("round")
+    );
+    assert_eq!(
+        table["fruit"][0]["variety"][0]["name"].as_str(),
+        Some("red delicious")
+    );
+    assert_eq!(
+        table["fruit"][0]["variety"][1]["name"].as_str(),
+        Some("granny smith")
+    );
     assert_eq!(table["fruit"][1]["name"].as_str(), Some("banana"));
-    assert_eq!(table["fruit"][1]["variety"][0]["name"].as_str(), Some("plantain"));
+    assert_eq!(
+        table["fruit"][1]["variety"][0]["name"].as_str(),
+        Some("plantain")
+    );
 }
 
 #[test]
@@ -177,7 +215,9 @@ fn literal_eats_crlf() {
     let table = "
         foo = \"\"\"\\\r\n\"\"\"
         bar = \"\"\"\\\r\n   \r\n   \r\n   a\"\"\"
-    ".parse::<Value>().unwrap();
+    "
+    .parse::<Value>()
+    .unwrap();
     assert_eq!(table["foo"].as_str(), Some(""));
     assert_eq!(table["bar"].as_str(), Some("a"));
 }
@@ -215,12 +255,12 @@ fn bad_floats() {
 #[test]
 fn floats() {
     macro_rules! t {
-        ($actual:expr, $expected:expr) => ({
+        ($actual:expr, $expected:expr) => {{
             let f = format!("foo = {}", $actual);
             println!("{}", f);
             let a = f.parse::<Value>().unwrap();
             assert_eq!(a["foo"].as_float().unwrap(), $expected);
-        })
+        }};
     }
 
     t!("1.0", 1.0);
@@ -252,7 +292,9 @@ fn bare_key_names() {
         \"\\\"\" = 3
         \"character encoding\" = \"value\"
         'ʎǝʞ' = \"value\"
-    ".parse::<Value>().unwrap();
+    "
+    .parse::<Value>()
+    .unwrap();
     &a["foo"];
     &a["-"];
     &a["_"];
@@ -310,7 +352,9 @@ fn table_names() {
         [\"\\\"\"]
         ['a.a']
         ['\"\"']
-    ".parse::<Value>().unwrap();
+    "
+    .parse::<Value>()
+    .unwrap();
     println!("{:?}", a);
     &a["a"]["b"];
     &a["f f"];
@@ -344,11 +388,11 @@ fn inline_tables() {
 #[test]
 fn number_underscores() {
     macro_rules! t {
-        ($actual:expr, $expected:expr) => ({
+        ($actual:expr, $expected:expr) => {{
             let f = format!("foo = {}", $actual);
             let table = f.parse::<Value>().unwrap();
             assert_eq!(table["foo"].as_integer().unwrap(), $expected);
-        })
+        }};
     }
 
     t!("1_0", 10);
@@ -381,11 +425,12 @@ fn bad_strings() {
 
 #[test]
 fn empty_string() {
-    assert_eq!("foo = \"\"".parse::<Value>()
-                           .unwrap()["foo"]
-                           .as_str()
-                           .unwrap(),
-               "");
+    assert_eq!(
+        "foo = \"\"".parse::<Value>().unwrap()["foo"]
+            .as_str()
+            .unwrap(),
+        ""
+    );
 }
 
 #[test]
@@ -404,67 +449,94 @@ fn booleans() {
 
 #[test]
 fn bad_nesting() {
-    bad!("
+    bad!(
+        "
         a = [2]
         [[a]]
         b = 5
-    ", "duplicate key: `a`");
-    bad!("
+        ",
+        "duplicate key: `a`"
+    );
+    bad!(
+        "
         a = 1
         [a.b]
-    ", "duplicate key: `a`");
-    bad!("
+        ",
+        "duplicate key: `a`"
+    );
+    bad!(
+        "
         a = []
         [a.b]
-    ", "duplicate key: `a`");
-    bad!("
+        ",
+        "duplicate key: `a`"
+    );
+    bad!(
+        "
         a = []
         [[a.b]]
-    ", "duplicate key: `a`");
-    bad!("
+        ",
+        "duplicate key: `a`"
+    );
+    bad!(
+        "
         [a]
         b = { c = 2, d = {} }
         [a.b]
         c = 2
-    ", "duplicate key: `b`");
+        ",
+        "duplicate key: `b`"
+    );
 }
 
 #[test]
 fn bad_table_redefine() {
-    bad!("
+    bad!(
+        "
         [a]
         foo=\"bar\"
         [a.b]
         foo=\"bar\"
         [a]
-    ", "redefinition of table `a`");
-    bad!("
+        ",
+        "redefinition of table `a`"
+    );
+    bad!(
+        "
         [a]
         foo=\"bar\"
         b = { foo = \"bar\" }
         [a]
-    ", "redefinition of table `a`");
-    bad!("
+        ",
+        "redefinition of table `a`"
+    );
+    bad!(
+        "
         [a]
         b = {}
         [a.b]
-    ", "duplicate key: `b`");
+        ",
+        "duplicate key: `b`"
+    );
 
-    bad!("
+    bad!(
+        "
         [a]
         b = {}
         [a]
-    ", "redefinition of table `a`");
+        ",
+        "redefinition of table `a`"
+    );
 }
 
 #[test]
 fn datetimes() {
     macro_rules! t {
-        ($actual:expr) => ({
+        ($actual:expr) => {{
             let f = format!("foo = {}", $actual);
             let toml = f.parse::<Value>().expect(&format!("failed: {}", f));
             assert_eq!(toml["foo"].as_datetime().unwrap().to_string(), $actual);
-        })
+        }};
     }
 
     t!("2016-09-09T09:09:09Z");
@@ -481,22 +553,37 @@ fn datetimes() {
 #[test]
 fn require_newline_after_value() {
     bad!("0=0r=false", "invalid number at line 1");
-    bad!(r#"
+    bad!(
+        r#"
 0=""o=""m=""r=""00="0"q="""0"""e="""0"""
-"#, "expected newline");
-    bad!(r#"
+"#,
+        "expected newline"
+    );
+    bad!(
+        r#"
 [[0000l0]]
 0="0"[[0000l0]]
 0="0"[[0000l0]]
 0="0"l="0"
-"#, "expected newline");
-    bad!(r#"
+"#,
+        "expected newline"
+    );
+    bad!(
+        r#"
 0=[0]00=[0,0,0]t=["0","0","0"]s=[1000-00-00T00:00:00Z,2000-00-00T00:00:00Z]
-"#, "expected newline");
-    bad!(r#"
+"#,
+        "expected newline"
+    );
+    bad!(
+        r#"
 0=0r0=0r=false
-"#, "invalid number at line 2");
-    bad!(r#"
+"#,
+        "invalid number at line 2"
+    );
+    bad!(
+        r#"
 0=0r0=0r=falsefal=false
-"#, "invalid number at line 2");
+"#,
+        "invalid number at line 2"
+    );
 }

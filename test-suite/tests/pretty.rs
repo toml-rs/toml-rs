@@ -1,5 +1,5 @@
-extern crate toml;
 extern crate serde;
+extern crate toml;
 
 use serde::ser::Serialize;
 
@@ -16,7 +16,9 @@ fn no_pretty() {
     let toml = NO_PRETTY;
     let value: toml::Value = toml::from_str(toml).unwrap();
     let mut result = String::with_capacity(128);
-    value.serialize(&mut toml::Serializer::new(&mut result)).unwrap();
+    value
+        .serialize(&mut toml::Serializer::new(&mut result))
+        .unwrap();
     println!("EXPECTED:\n{}", toml);
     println!("\nRESULT:\n{}", result);
     assert_eq!(toml, &result);
@@ -58,12 +60,13 @@ fn pretty_std() {
     let toml = PRETTY_STD;
     let value: toml::Value = toml::from_str(toml).unwrap();
     let mut result = String::with_capacity(128);
-    value.serialize(&mut toml::Serializer::pretty(&mut result)).unwrap();
+    value
+        .serialize(&mut toml::Serializer::pretty(&mut result))
+        .unwrap();
     println!("EXPECTED:\n{}", toml);
     println!("\nRESULT:\n{}", result);
     assert_eq!(toml, &result);
 }
-
 
 const PRETTY_INDENT_2: &'static str = "\
 [example]
@@ -110,7 +113,6 @@ oneline = \"this has no newlines.\"
 text = \"\\nthis is the first line\\nthis is the second line\\n\"
 ";
 
-
 #[test]
 /// Test pretty indent when gotten the other way
 fn pretty_indent_2_other() {
@@ -124,7 +126,6 @@ fn pretty_indent_2_other() {
     }
     assert_eq!(toml, &result);
 }
-
 
 const PRETTY_ARRAY_NO_COMMA: &'static str = "\
 [example]
@@ -149,7 +150,6 @@ fn pretty_indent_array_no_comma() {
     }
     assert_eq!(toml, &result);
 }
-
 
 const PRETTY_NO_STRING: &'static str = "\
 [example]
@@ -207,7 +207,9 @@ fn pretty_tricky() {
     let toml = PRETTY_TRICKY;
     let value: toml::Value = toml::from_str(toml).unwrap();
     let mut result = String::with_capacity(128);
-    value.serialize(&mut toml::Serializer::pretty(&mut result)).unwrap();
+    value
+        .serialize(&mut toml::Serializer::pretty(&mut result))
+        .unwrap();
     println!("EXPECTED:\n{}", toml);
     println!("\nRESULT:\n{}", result);
     assert_eq!(toml, &result);
@@ -231,7 +233,9 @@ fn pretty_table_array() {
     let toml = PRETTY_TABLE_ARRAY;
     let value: toml::Value = toml::from_str(toml).unwrap();
     let mut result = String::with_capacity(128);
-    value.serialize(&mut toml::Serializer::pretty(&mut result)).unwrap();
+    value
+        .serialize(&mut toml::Serializer::pretty(&mut result))
+        .unwrap();
     println!("EXPECTED:\n{}", toml);
     println!("\nRESULT:\n{}", result);
     assert_eq!(toml, &result);
@@ -255,7 +259,9 @@ fn table_array() {
     let toml = TABLE_ARRAY;
     let value: toml::Value = toml::from_str(toml).unwrap();
     let mut result = String::with_capacity(128);
-    value.serialize(&mut toml::Serializer::new(&mut result)).unwrap();
+    value
+        .serialize(&mut toml::Serializer::new(&mut result))
+        .unwrap();
     println!("EXPECTED:\n{}", toml);
     println!("\nRESULT:\n{}", result);
     assert_eq!(toml, &result);

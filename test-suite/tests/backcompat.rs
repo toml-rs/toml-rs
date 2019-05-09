@@ -1,5 +1,5 @@
-extern crate toml;
 extern crate serde;
+extern crate toml;
 
 use serde::de::Deserialize;
 
@@ -35,7 +35,10 @@ fn allow_duplicate_after_longer() {
     let mut d = toml::de::Deserializer::new(s);
     d.set_allow_duplicate_after_longer_table(true);
     let value = toml::Value::deserialize(&mut d).unwrap();
-    assert_eq!(value["dependencies"]["openssl-sys"]["version"].as_integer(), Some(1));
+    assert_eq!(
+        value["dependencies"]["openssl-sys"]["version"].as_integer(),
+        Some(1)
+    );
     assert_eq!(value["dependencies"]["libc"].as_integer(), Some(1));
     assert_eq!(value["dependencies"]["bitflags"].as_integer(), Some(1));
 }

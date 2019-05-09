@@ -15,9 +15,9 @@ use serde::de;
 use serde::de::value::BorrowedStrDeserializer;
 use serde::de::IntoDeserializer;
 
-use datetime;
-use spanned;
-use tokens::{Error as TokenError, Span, Token, Tokenizer};
+use crate::datetime;
+use crate::spanned;
+use crate::tokens::{Error as TokenError, Span, Token, Tokenizer};
 
 /// Deserializes a byte slice into a type.
 ///
@@ -41,9 +41,7 @@ where
 /// # Examples
 ///
 /// ```
-/// #[macro_use]
-/// extern crate serde_derive;
-/// extern crate toml;
+/// use serde_derive::Deserialize;
 ///
 /// #[derive(Deserialize)]
 /// struct Config {
@@ -265,7 +263,7 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
         }
     }
 
-    forward_to_deserialize_any! {
+    serde::forward_to_deserialize_any! {
         bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string seq
         bytes byte_buf map struct unit newtype_struct
         ignored_any unit_struct tuple_struct tuple option identifier
@@ -495,7 +493,7 @@ impl<'de, 'b> de::Deserializer<'de> for MapVisitor<'de, 'b> {
         visitor.visit_newtype_struct(self)
     }
 
-    forward_to_deserialize_any! {
+    serde::forward_to_deserialize_any! {
         bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string seq
         bytes byte_buf map struct unit identifier
         ignored_any unit_struct tuple_struct tuple enum
@@ -525,7 +523,7 @@ impl<'de> de::Deserializer<'de> for StrDeserializer<'de> {
         }
     }
 
-    forward_to_deserialize_any! {
+    serde::forward_to_deserialize_any! {
         bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string seq
         bytes byte_buf map struct option unit newtype_struct
         ignored_any unit_struct tuple_struct tuple enum identifier
@@ -699,7 +697,7 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
         visitor.visit_newtype_struct(self)
     }
 
-    forward_to_deserialize_any! {
+    serde::forward_to_deserialize_any! {
         bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string seq
         bytes byte_buf map unit identifier
         ignored_any unit_struct tuple_struct tuple
@@ -796,7 +794,7 @@ impl<'de> de::Deserializer<'de> for DatetimeFieldDeserializer {
         visitor.visit_borrowed_str(datetime::FIELD)
     }
 
-    forward_to_deserialize_any! {
+    serde::forward_to_deserialize_any! {
         bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string seq
         bytes byte_buf map struct option unit newtype_struct
         ignored_any unit_struct tuple_struct tuple enum identifier
@@ -1520,7 +1518,7 @@ impl<'a> Deserializer<'a> {
     fn array(&mut self) -> Result<(Span, Vec<Value<'a>>), Error> {
         let mut ret = Vec::new();
 
-        let intermediate = |me: &mut Deserializer| {
+        let intermediate = |me: &mut Deserializer<'_>| {
             loop {
                 me.eat_whitespace()?;
                 if !me.eat(Token::Newline)? && !me.eat_comment()? {
@@ -1775,7 +1773,7 @@ impl Error {
 }
 
 impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self.inner.kind {
             ErrorKind::UnexpectedEof => "unexpected eof encountered".fmt(f)?,
             ErrorKind::InvalidCharInString(c) => write!(

@@ -65,13 +65,13 @@ enum Offset {
 }
 
 impl fmt::Debug for Datetime {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         fmt::Display::fmt(self, f)
     }
 }
 
 impl fmt::Display for Datetime {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         if let Some(ref date) = self.date {
             write!(f, "{}", date)?;
         }
@@ -89,13 +89,13 @@ impl fmt::Display for Datetime {
 }
 
 impl fmt::Display for Date {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:04}-{:02}-{:02}", self.year, self.month, self.day)
     }
 }
 
 impl fmt::Display for Time {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:02}:{:02}:{:02}", self.hour, self.minute, self.second)?;
         if self.nanosecond != 0 {
             let s = format!("{:09}", self.nanosecond);
@@ -106,7 +106,7 @@ impl fmt::Display for Time {
 }
 
 impl fmt::Display for Offset {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match *self {
             Offset::Z => write!(f, "Z"),
             Offset::Custom { hours, minutes } => write!(f, "{:+03}:{:02}", hours, minutes),
@@ -207,7 +207,7 @@ impl FromStr for Datetime {
                 let mut end = whole.len();
                 for (i, byte) in whole.bytes().enumerate() {
                     match byte {
-                        b'0'...b'9' => {
+                        b'0'..=b'9' => {
                             if i < 9 {
                                 let p = 10_u32.pow(8 - i as u32);
                                 nanosecond += p * (byte - b'0') as u32;
@@ -298,7 +298,7 @@ impl FromStr for Datetime {
     }
 }
 
-fn digit(chars: &mut str::Chars) -> Result<u8, DatetimeParseError> {
+fn digit(chars: &mut str::Chars<'_>) -> Result<u8, DatetimeParseError> {
     match chars.next() {
         Some(c) if '0' <= c && c <= '9' => Ok(c as u8 - b'0'),
         _ => Err(DatetimeParseError { _private: () }),
@@ -328,7 +328,7 @@ impl<'de> de::Deserialize<'de> for Datetime {
         impl<'de> de::Visitor<'de> for DatetimeVisitor {
             type Value = Datetime;
 
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("a TOML datetime")
             }
 
@@ -362,7 +362,7 @@ impl<'de> de::Deserialize<'de> for DatetimeKey {
         impl<'de> de::Visitor<'de> for FieldVisitor {
             type Value = ();
 
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("a valid datetime field")
             }
 
@@ -397,7 +397,7 @@ impl<'de> de::Deserialize<'de> for DatetimeFromString {
         impl<'de> de::Visitor<'de> for Visitor {
             type Value = DatetimeFromString;
 
-            fn expecting(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
                 formatter.write_str("string containing a datetime")
             }
 
@@ -417,7 +417,7 @@ impl<'de> de::Deserialize<'de> for DatetimeFromString {
 }
 
 impl fmt::Display for DatetimeParseError {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         "failed to parse datetime".fmt(f)
     }
 }
