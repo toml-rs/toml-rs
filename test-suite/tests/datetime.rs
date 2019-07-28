@@ -50,11 +50,20 @@ fn bad_times() {
         "foo = 1997-09-0909:09:09",
         "failed to parse datetime for key `foo`"
     );
-    bad!("foo = 1997-09-09T09:09:09.", "invalid date at line 1");
+    bad!(
+        "foo = 1997-09-09T09:09:09.",
+        "invalid date at line 1 column 7"
+    );
     bad!("foo = T", "failed to parse datetime for key `foo`");
-    bad!("foo = T.", "expected newline, found a period at line 1");
+    bad!(
+        "foo = T.",
+        "expected newline, found a period at line 1 column 8"
+    );
     bad!("foo = TZ", "failed to parse datetime for key `foo`");
-    bad!("foo = 1997-09-09T09:09:09.09+", "invalid date at line 1");
+    bad!(
+        "foo = 1997-09-09T09:09:09.09+",
+        "invalid date at line 1 column 7"
+    );
     bad!(
         "foo = 1997-09-09T09:09:09.09+09",
         "failed to parse datetime for key `foo`"

@@ -186,22 +186,31 @@ name = "plantain"
 
 #[test]
 fn stray_cr() {
-    bad!("\r", "unexpected character found: `\\r` at line 1");
-    bad!("a = [ \r ]", "unexpected character found: `\\r` at line 1");
+    bad!("\r", "unexpected character found: `\\r` at line 1 column 1");
+    bad!(
+        "a = [ \r ]",
+        "unexpected character found: `\\r` at line 1 column 7"
+    );
     bad!(
         "a = \"\"\"\r\"\"\"",
-        "invalid character in string: `\\r` at line 1"
+        "invalid character in string: `\\r` at line 1 column 8"
     );
     bad!(
         "a = \"\"\"\\  \r  \"\"\"",
-        "invalid escape character in string: ` ` at line 1"
+        "invalid escape character in string: ` ` at line 1 column 9"
     );
     bad!(
         "a = '''\r'''",
-        "invalid character in string: `\\r` at line 1"
+        "invalid character in string: `\\r` at line 1 column 8"
     );
-    bad!("a = '\r'", "invalid character in string: `\\r` at line 1");
-    bad!("a = \"\r\"", "invalid character in string: `\\r` at line 1");
+    bad!(
+        "a = '\r'",
+        "invalid character in string: `\\r` at line 1 column 6"
+    );
+    bad!(
+        "a = \"\r\"",
+        "invalid character in string: `\\r` at line 1 column 6"
+    );
 }
 
 #[test]
@@ -230,32 +239,38 @@ fn literal_eats_crlf() {
 
 #[test]
 fn string_no_newline() {
-    bad!("a = \"\n\"", "newline in string found at line 1");
-    bad!("a = '\n'", "newline in string found at line 1");
+    bad!("a = \"\n\"", "newline in string found at line 1 column 6");
+    bad!("a = '\n'", "newline in string found at line 1 column 6");
 }
 
 #[test]
 fn bad_leading_zeros() {
-    bad!("a = 00", "invalid number at line 1");
-    bad!("a = -00", "invalid number at line 1");
-    bad!("a = +00", "invalid number at line 1");
-    bad!("a = 00.0", "invalid number at line 1");
-    bad!("a = -00.0", "invalid number at line 1");
-    bad!("a = +00.0", "invalid number at line 1");
-    bad!("a = 9223372036854775808", "invalid number at line 1");
-    bad!("a = -9223372036854775809", "invalid number at line 1");
+    bad!("a = 00", "invalid number at line 1 column 6");
+    bad!("a = -00", "invalid number at line 1 column 7");
+    bad!("a = +00", "invalid number at line 1 column 7");
+    bad!("a = 00.0", "invalid number at line 1 column 6");
+    bad!("a = -00.0", "invalid number at line 1 column 7");
+    bad!("a = +00.0", "invalid number at line 1 column 7");
+    bad!(
+        "a = 9223372036854775808",
+        "invalid number at line 1 column 5"
+    );
+    bad!(
+        "a = -9223372036854775809",
+        "invalid number at line 1 column 5"
+    );
 }
 
 #[test]
 fn bad_floats() {
-    bad!("a = 0.", "invalid number at line 1");
-    bad!("a = 0.e", "invalid number at line 1");
-    bad!("a = 0.E", "invalid number at line 1");
-    bad!("a = 0.0E", "invalid number at line 1");
-    bad!("a = 0.0e", "invalid number at line 1");
-    bad!("a = 0.0e-", "invalid number at line 1");
-    bad!("a = 0.0e+", "invalid number at line 1");
-    bad!("a = 0.0e+00", "invalid number at line 1");
+    bad!("a = 0.", "invalid number at line 1 column 7");
+    bad!("a = 0.e", "invalid number at line 1 column 7");
+    bad!("a = 0.E", "invalid number at line 1 column 7");
+    bad!("a = 0.0E", "invalid number at line 1 column 5");
+    bad!("a = 0.0e", "invalid number at line 1 column 5");
+    bad!("a = 0.0e-", "invalid number at line 1 column 9");
+    bad!("a = 0.0e+", "invalid number at line 1 column 5");
+    bad!("a = 0.0e+00", "invalid number at line 1 column 11");
 }
 
 #[test]
@@ -316,29 +331,44 @@ fn bare_key_names() {
 
 #[test]
 fn bad_keys() {
-    bad!("key\n=3", "expected an equals, found a newline at line 1");
-    bad!("key=\n3", "expected a value, found a newline at line 1");
-    bad!("key|=3", "unexpected character found: `|` at line 1");
-    bad!("\"\"=3", "empty table key found at line 1");
-    bad!("=3", "expected a table key, found an equals at line 1");
-    bad!("\"\"|=3", "empty table key found at line 1");
-    bad!("\"\n\"|=3", "newline in string found at line 1");
-    bad!("\"\r\"|=3", "invalid character in string: `\\r` at line 1");
+    bad!(
+        "key\n=3",
+        "expected an equals, found a newline at line 1 column 4"
+    );
+    bad!(
+        "key=\n3",
+        "expected a value, found a newline at line 1 column 5"
+    );
+    bad!(
+        "key|=3",
+        "unexpected character found: `|` at line 1 column 4"
+    );
+    bad!("\"\"=3", "empty table key found at line 1 column 1");
+    bad!(
+        "=3",
+        "expected a table key, found an equals at line 1 column 1"
+    );
+    bad!("\"\"|=3", "empty table key found at line 1 column 1");
+    bad!("\"\n\"|=3", "newline in string found at line 1 column 2");
+    bad!(
+        "\"\r\"|=3",
+        "invalid character in string: `\\r` at line 1 column 2"
+    );
     bad!(
         "''''''=3",
-        "multiline strings are not allowed for key at line 1"
+        "multiline strings are not allowed for key at line 1 column 1"
     );
     bad!(
         "\"\"\"\"\"\"=3",
-        "multiline strings are not allowed for key at line 1"
+        "multiline strings are not allowed for key at line 1 column 1"
     );
     bad!(
         "'''key'''=3",
-        "multiline strings are not allowed for key at line 1"
+        "multiline strings are not allowed for key at line 1 column 1"
     );
     bad!(
         "\"\"\"key\"\"\"=3",
-        "multiline strings are not allowed for key at line 1"
+        "multiline strings are not allowed for key at line 1 column 1"
     );
 }
 
@@ -346,37 +376,40 @@ fn bad_keys() {
 fn bad_table_names() {
     bad!(
         "[]",
-        "expected a table key, found a right bracket at line 1"
+        "expected a table key, found a right bracket at line 1 column 2"
     );
-    bad!("[.]", "expected a table key, found a period at line 1");
-    bad!("[\"\".\"\"]", "empty table key found at line 1");
+    bad!(
+        "[.]",
+        "expected a table key, found a period at line 1 column 2"
+    );
+    bad!("[\"\".\"\"]", "empty table key found at line 1 column 2");
     bad!(
         "[a.]",
-        "expected a table key, found a right bracket at line 1"
+        "expected a table key, found a right bracket at line 1 column 4"
     );
-    bad!("[\"\"]", "empty table key found at line 1");
-    bad!("[!]", "unexpected character found: `!` at line 1");
-    bad!("[\"\n\"]", "newline in string found at line 1");
+    bad!("[\"\"]", "empty table key found at line 1 column 2");
+    bad!("[!]", "unexpected character found: `!` at line 1 column 2");
+    bad!("[\"\n\"]", "newline in string found at line 1 column 3");
     bad!(
         "[a.b]\n[a.\"b\"]",
-        "redefinition of table `a.b` for key `a.b` at line 2"
+        "redefinition of table `a.b` for key `a.b` at line 2 column 1"
     );
-    bad!("[']", "unterminated string at line 1");
-    bad!("[''']", "unterminated string at line 1");
+    bad!("[']", "unterminated string at line 1 column 2");
+    bad!("[''']", "unterminated string at line 1 column 2");
     bad!(
         "['''''']",
-        "multiline strings are not allowed for key at line 1"
+        "multiline strings are not allowed for key at line 1 column 2"
     );
     bad!(
         "['''foo''']",
-        "multiline strings are not allowed for key at line 1"
+        "multiline strings are not allowed for key at line 1 column 2"
     );
     bad!(
         "[\"\"\"bar\"\"\"]",
-        "multiline strings are not allowed for key at line 1"
+        "multiline strings are not allowed for key at line 1 column 2"
     );
-    bad!("['\n']", "newline in string found at line 1");
-    bad!("['\r\n']", "newline in string found at line 1");
+    bad!("['\n']", "newline in string found at line 1 column 3");
+    bad!("['\r\n']", "newline in string found at line 1 column 3");
 }
 
 #[test]
@@ -401,7 +434,7 @@ fn table_names() {
 
 #[test]
 fn invalid_bare_numeral() {
-    bad!("4", "expected an equals, found eof at line 1");
+    bad!("4", "expected an equals, found eof at line 1 column 2");
 }
 
 #[test]
@@ -414,15 +447,21 @@ fn inline_tables() {
 
     bad!(
         "a = {a=1,}",
-        "expected a table key, found a right brace at line 1"
+        "expected a table key, found a right brace at line 1 column 10"
     );
-    bad!("a = {,}", "expected a table key, found a comma at line 1");
+    bad!(
+        "a = {,}",
+        "expected a table key, found a comma at line 1 column 6"
+    );
     bad!("a = {a=1,a=1}", "duplicate key: `a` for key `a`");
     bad!(
         "a = {\n}",
-        "expected a table key, found a newline at line 1"
+        "expected a table key, found a newline at line 1 column 6"
     );
-    bad!("a = {", "expected a table key, found eof at line 1");
+    bad!(
+        "a = {",
+        "expected a table key, found eof at line 1 column 6"
+    );
 
     "a = {a=[\n]}".parse::<Value>().unwrap();
     "a = {\"a\"=[\n]}".parse::<Value>().unwrap();
@@ -448,17 +487,17 @@ fn number_underscores() {
 
 #[test]
 fn bad_underscores() {
-    bad!("foo = 0_", "invalid number at line 1");
-    bad!("foo = 0__0", "invalid number at line 1");
-    bad!("foo = __0", "invalid number at line 1");
-    bad!("foo = 1_0_", "invalid number at line 1");
+    bad!("foo = 0_", "invalid number at line 1 column 7");
+    bad!("foo = 0__0", "invalid number at line 1 column 7");
+    bad!("foo = __0", "invalid number at line 1 column 7");
+    bad!("foo = 1_0_", "invalid number at line 1 column 7");
 }
 
 #[test]
 fn bad_unicode_codepoint() {
     bad!(
         "foo = \"\\uD800\"",
-        "invalid escape value: `55296` at line 1"
+        "invalid escape value: `55296` at line 1 column 9"
     );
 }
 
@@ -466,14 +505,14 @@ fn bad_unicode_codepoint() {
 fn bad_strings() {
     bad!(
         "foo = \"\\uxx\"",
-        "invalid hex escape character in string: `x` at line 1"
+        "invalid hex escape character in string: `x` at line 1 column 10"
     );
     bad!(
         "foo = \"\\u\"",
-        "invalid hex escape character in string: `\\\"` at line 1"
+        "invalid hex escape character in string: `\\\"` at line 1 column 10"
     );
-    bad!("foo = \"\\", "unterminated string at line 1");
-    bad!("foo = '", "unterminated string at line 1");
+    bad!("foo = \"\\", "unterminated string at line 1 column 7");
+    bad!("foo = '", "unterminated string at line 1 column 7");
 }
 
 #[test]
@@ -495,9 +534,9 @@ fn booleans() {
     assert_eq!(table["foo"].as_bool(), Some(false));
 
     bad!("foo = true2", "failed to parse datetime for key `foo`");
-    bad!("foo = false2", "invalid number at line 1");
+    bad!("foo = false2", "invalid number at line 1 column 7");
     bad!("foo = t1", "failed to parse datetime for key `foo`");
-    bad!("foo = f2", "invalid number at line 1");
+    bad!("foo = f2", "invalid number at line 1 column 7");
 }
 
 #[test]
@@ -552,7 +591,7 @@ fn bad_table_redefine() {
         foo=\"bar\"
         [a]
         ",
-        "redefinition of table `a` for key `a` at line 6"
+        "redefinition of table `a` for key `a` at line 6 column 9"
     );
     bad!(
         "
@@ -561,7 +600,7 @@ fn bad_table_redefine() {
         b = { foo = \"bar\" }
         [a]
         ",
-        "redefinition of table `a` for key `a` at line 5"
+        "redefinition of table `a` for key `a` at line 5 column 9"
     );
     bad!(
         "
@@ -578,7 +617,7 @@ fn bad_table_redefine() {
         b = {}
         [a]
         ",
-        "redefinition of table `a` for key `a` at line 4"
+        "redefinition of table `a` for key `a` at line 4 column 9"
     );
 }
 
@@ -620,12 +659,12 @@ fn datetimes() {
 
 #[test]
 fn require_newline_after_value() {
-    bad!("0=0r=false", "invalid number at line 1");
+    bad!("0=0r=false", "invalid number at line 1 column 3");
     bad!(
         r#"
 0=""o=""m=""r=""00="0"q="""0"""e="""0"""
 "#,
-        "expected newline, found an identifier at line 2"
+        "expected newline, found an identifier at line 2 column 5"
     );
     bad!(
         r#"
@@ -634,24 +673,24 @@ fn require_newline_after_value() {
 0="0"[[0000l0]]
 0="0"l="0"
 "#,
-        "expected newline, found a left bracket at line 3"
+        "expected newline, found a left bracket at line 3 column 6"
     );
     bad!(
         r#"
 0=[0]00=[0,0,0]t=["0","0","0"]s=[1000-00-00T00:00:00Z,2000-00-00T00:00:00Z]
 "#,
-        "expected newline, found an identifier at line 2"
+        "expected newline, found an identifier at line 2 column 6"
     );
     bad!(
         r#"
 0=0r0=0r=false
 "#,
-        "invalid number at line 2"
+        "invalid number at line 2 column 3"
     );
     bad!(
         r#"
 0=0r0=0r=falsefal=false
 "#,
-        "invalid number at line 2"
+        "invalid number at line 2 column 3"
     );
 }

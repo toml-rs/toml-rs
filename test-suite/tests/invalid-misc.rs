@@ -11,22 +11,22 @@ macro_rules! bad {
 
 #[test]
 fn bad() {
-    bad!("a = 01", "invalid number at line 1");
-    bad!("a = 1__1", "invalid number at line 1");
-    bad!("a = 1_", "invalid number at line 1");
-    bad!("''", "empty table key found at line 1");
-    bad!("a = 9e99999", "invalid number at line 1");
+    bad!("a = 01", "invalid number at line 1 column 6");
+    bad!("a = 1__1", "invalid number at line 1 column 5");
+    bad!("a = 1_", "invalid number at line 1 column 5");
+    bad!("''", "empty table key found at line 1 column 1");
+    bad!("a = 9e99999", "invalid number at line 1 column 5");
 
     bad!(
         "a = \"\u{7f}\"",
-        "invalid character in string: `\\u{7f}` at line 1"
+        "invalid character in string: `\\u{7f}` at line 1 column 6"
     );
     bad!(
         "a = '\u{7f}'",
-        "invalid character in string: `\\u{7f}` at line 1"
+        "invalid character in string: `\\u{7f}` at line 1 column 6"
     );
 
-    bad!("a = -0x1", "invalid number at line 1");
+    bad!("a = -0x1", "invalid number at line 1 column 5");
     bad!("a = 0x-1", "failed to parse datetime for key `a`");
 
     // Dotted keys.
@@ -39,10 +39,10 @@ fn bad() {
     bad!(
         "a = 1
          a.b = 2",
-        "dotted key attempted to extend non-table type at line 1"
+        "dotted key attempted to extend non-table type at line 1 column 5"
     );
     bad!(
         "a = {k1 = 1, k1.name = \"joe\"}",
-        "dotted key attempted to extend non-table type at line 1"
+        "dotted key attempted to extend non-table type at line 1 column 11"
     );
 }

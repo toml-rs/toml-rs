@@ -1845,7 +1845,7 @@ impl fmt::Display for Error {
         }
 
         if let Some(line) = self.inner.line {
-            write!(f, " at line {}", line + 1)?;
+            write!(f, " at line {} column {}", line + 1, self.inner.col + 1)?;
         }
 
         Ok(())

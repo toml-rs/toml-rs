@@ -18,7 +18,10 @@ fn newlines_after_tables() {
         [a] foo = 1
         [[b]] foo = 1
     ";
-    bad!(s, "expected newline, found an identifier at line 2");
+    bad!(
+        s,
+        "expected newline, found an identifier at line 2 column 13"
+    );
 
     let mut d = toml::de::Deserializer::new(s);
     d.set_require_newline_after_table(false);
@@ -41,7 +44,7 @@ fn allow_duplicate_after_longer() {
     ";
     bad!(
         s,
-        "redefinition of table `dependencies` for key `dependencies` at line 8"
+        "redefinition of table `dependencies` for key `dependencies` at line 8 column 9"
     );
 
     let mut d = toml::de::Deserializer::new(s);
