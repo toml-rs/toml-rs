@@ -1,28 +1,48 @@
 extern crate toml;
 
+macro_rules! bad {
+    ($toml:expr, $msg:expr) => {
+        match $toml.parse::<toml::Value>() {
+            Ok(s) => panic!("parsed to: {:#?}", s),
+            Err(e) => assert_eq!(e.to_string(), $msg),
+        }
+    };
+}
+
 #[test]
 fn bad() {
-    fn bad(s: &str) {
-        assert!(s.parse::<toml::Value>().is_err());
-    }
+    bad!("a = 01", "invalid number at line 1");
+    bad!("a = 1__1", "invalid number at line 1");
+    bad!("a = 1_", "invalid number at line 1");
+    bad!("''", "empty table key found at line 1");
+    bad!("a = 9e99999", "invalid number at line 1");
 
-    bad("a = 01");
-    bad("a = 1__1");
-    bad("a = 1_");
-    bad("''");
-    bad("a = 9e99999");
+    bad!(
+        "a = \"\u{7f}\"",
+        "invalid character in string: `\\u{7f}` at line 1"
+    );
+    bad!(
+        "a = '\u{7f}'",
+        "invalid character in string: `\\u{7f}` at line 1"
+    );
 
-    bad("a = \"\u{7f}\"");
-    bad("a = '\u{7f}'");
-
-    bad("a = -0x1");
-    bad("a = 0x-1");
+    bad!("a = -0x1", "invalid number at line 1");
+    bad!("a = 0x-1", "failed to parse datetime for key `a`");
 
     // Dotted keys.
-    bad("a.b.c = 1
+    bad!(
+        "a.b.c = 1
          a.b = 2
-        ");
-    bad("a = 1
-         a.b = 2");
-    bad("a = {k1 = 1, k1.name = \"joe\"}")
+        ",
+        "duplicate key: `b` for key `a`"
+    );
+    bad!(
+        "a = 1
+         a.b = 2",
+        "dotted key attempted to extend non-table type at line 1"
+    );
+    bad!(
+        "a = {k1 = 1, k1.name = \"joe\"}",
+        "dotted key attempted to extend non-table type at line 1"
+    );
 }
