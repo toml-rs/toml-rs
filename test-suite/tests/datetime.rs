@@ -2,13 +2,20 @@ extern crate toml;
 
 use std::str::FromStr;
 
-use toml::Value;
+macro_rules! bad {
+    ($toml:expr, $msg:expr) => {
+        match $toml.parse::<toml::Value>() {
+            Ok(s) => panic!("parsed to: {:#?}", s),
+            Err(e) => assert_eq!(e.to_string(), $msg),
+        }
+    };
+}
 
 #[test]
 fn times() {
     fn dogood(s: &str, serialized: &str) {
         let to_parse = format!("foo = {}", s);
-        let value = Value::from_str(&to_parse).unwrap();
+        let value = toml::Value::from_str(&to_parse).unwrap();
         assert_eq!(value["foo"].as_datetime().unwrap().to_string(), serialized);
     }
     fn good(s: &str) {
@@ -35,32 +42,75 @@ fn times() {
 
 #[test]
 fn bad_times() {
-    fn bad(s: &str) {
-        let to_parse = format!("foo = {}", s);
-        assert!(Value::from_str(&to_parse).is_err());
-    }
+    bad!("foo = 199-09-09", "failed to parse datetime for key `foo`");
+    bad!("foo = 199709-09", "failed to parse datetime for key `foo`");
+    bad!("foo = 1997-9-09", "failed to parse datetime for key `foo`");
+    bad!("foo = 1997-09-9", "failed to parse datetime for key `foo`");
+    bad!(
+        "foo = 1997-09-0909:09:09",
+        "failed to parse datetime for key `foo`"
+    );
+    bad!(
+        "foo = 1997-09-09T09:09:09.",
+        "invalid date at line 1 column 7"
+    );
+    bad!("foo = T", "failed to parse datetime for key `foo`");
+    bad!(
+        "foo = T.",
+        "expected newline, found a period at line 1 column 8"
+    );
+    bad!("foo = TZ", "failed to parse datetime for key `foo`");
+    bad!(
+        "foo = 1997-09-09T09:09:09.09+",
+        "invalid date at line 1 column 7"
+    );
+    bad!(
+        "foo = 1997-09-09T09:09:09.09+09",
+        "failed to parse datetime for key `foo`"
+    );
+    bad!(
+        "foo = 1997-09-09T09:09:09.09+09:9",
+        "failed to parse datetime for key `foo`"
+    );
+    bad!(
+        "foo = 1997-09-09T09:09:09.09+0909",
+        "failed to parse datetime for key `foo`"
+    );
+    bad!(
+        "foo = 1997-09-09T09:09:09.09-",
+        "failed to parse datetime for key `foo`"
+    );
+    bad!(
+        "foo = 1997-09-09T09:09:09.09-09",
+        "failed to parse datetime for key `foo`"
+    );
+    bad!(
+        "foo = 1997-09-09T09:09:09.09-09:9",
+        "failed to parse datetime for key `foo`"
+    );
+    bad!(
+        "foo = 1997-09-09T09:09:09.09-0909",
+        "failed to parse datetime for key `foo`"
+    );
 
-    bad("199-09-09");
-    bad("199709-09");
-    bad("1997-9-09");
-    bad("1997-09-9");
-    bad("1997-09-0909:09:09");
-    bad("1997-09-09T09:09:09.");
-    bad("T");
-    bad("T.");
-    bad("TZ");
-    bad("1997-09-09T09:09:09.09+");
-    bad("1997-09-09T09:09:09.09+09");
-    bad("1997-09-09T09:09:09.09+09:9");
-    bad("1997-09-09T09:09:09.09+0909");
-    bad("1997-09-09T09:09:09.09-");
-    bad("1997-09-09T09:09:09.09-09");
-    bad("1997-09-09T09:09:09.09-09:9");
-    bad("1997-09-09T09:09:09.09-0909");
-
-    bad("1997-00-09T09:09:09.09Z");
-    bad("1997-09-00T09:09:09.09Z");
-    bad("1997-09-09T30:09:09.09Z");
-    bad("1997-09-09T12:69:09.09Z");
-    bad("1997-09-09T12:09:69.09Z");
+    bad!(
+        "foo = 1997-00-09T09:09:09.09Z",
+        "failed to parse datetime for key `foo`"
+    );
+    bad!(
+        "foo = 1997-09-00T09:09:09.09Z",
+        "failed to parse datetime for key `foo`"
+    );
+    bad!(
+        "foo = 1997-09-09T30:09:09.09Z",
+        "failed to parse datetime for key `foo`"
+    );
+    bad!(
+        "foo = 1997-09-09T12:69:09.09Z",
+        "failed to parse datetime for key `foo`"
+    );
+    bad!(
+        "foo = 1997-09-09T12:09:69.09Z",
+        "failed to parse datetime for key `foo`"
+    );
 }

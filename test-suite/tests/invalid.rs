@@ -1,167 +1,241 @@
 extern crate toml;
 
-fn run(toml: &str) {
-    println!("test if invalid:\n{}", toml);
-    if let Ok(e) = toml.parse::<toml::Value>() {
-        panic!("parsed to: {:#?}", e);
-    }
+macro_rules! bad {
+    ($toml:expr, $msg:expr) => {
+        match $toml.parse::<toml::Value>() {
+            Ok(s) => panic!("parsed to: {:#?}", s),
+            Err(e) => assert_eq!(e.to_string(), $msg),
+        }
+    };
 }
 
-macro_rules! test( ($name:ident, $toml:expr) => (
+macro_rules! test( ($name:ident, $s:expr, $msg:expr) => (
     #[test]
-    fn $name() { run($toml); }
+    fn $name() { bad!($s, $msg); }
 ) );
 
 test!(
     array_mixed_types_arrays_and_ints,
-    include_str!("invalid/array-mixed-types-arrays-and-ints.toml")
+    include_str!("invalid/array-mixed-types-arrays-and-ints.toml"),
+    "mixed types in an array at line 1 column 24"
 );
 test!(
     array_mixed_types_ints_and_floats,
-    include_str!("invalid/array-mixed-types-ints-and-floats.toml")
+    include_str!("invalid/array-mixed-types-ints-and-floats.toml"),
+    "mixed types in an array at line 1 column 23"
 );
 test!(
     array_mixed_types_strings_and_ints,
-    include_str!("invalid/array-mixed-types-strings-and-ints.toml")
+    include_str!("invalid/array-mixed-types-strings-and-ints.toml"),
+    "mixed types in an array at line 1 column 27"
 );
 test!(
     datetime_malformed_no_leads,
-    include_str!("invalid/datetime-malformed-no-leads.toml")
+    include_str!("invalid/datetime-malformed-no-leads.toml"),
+    "failed to parse datetime for key `no-leads`"
 );
 test!(
     datetime_malformed_no_secs,
-    include_str!("invalid/datetime-malformed-no-secs.toml")
+    include_str!("invalid/datetime-malformed-no-secs.toml"),
+    "expected a colon, found a newline at line 1 column 28"
 );
 test!(
     datetime_malformed_no_t,
-    include_str!("invalid/datetime-malformed-no-t.toml")
+    include_str!("invalid/datetime-malformed-no-t.toml"),
+    "failed to parse datetime for key `no-t`"
 );
 test!(
     datetime_malformed_with_milli,
-    include_str!("invalid/datetime-malformed-with-milli.toml")
+    include_str!("invalid/datetime-malformed-with-milli.toml"),
+    "failed to parse datetime for key `with-milli`"
 );
 test!(
     duplicate_key_table,
-    include_str!("invalid/duplicate-key-table.toml")
+    include_str!("invalid/duplicate-key-table.toml"),
+    "duplicate key: `type` for key `fruit`"
 );
-test!(duplicate_keys, include_str!("invalid/duplicate-keys.toml"));
+test!(
+    duplicate_keys,
+    include_str!("invalid/duplicate-keys.toml"),
+    "duplicate key: `dupe`"
+);
 test!(
     duplicate_table,
-    include_str!("invalid/duplicate-table.toml")
+    include_str!("invalid/duplicate-table.toml"),
+    "redefinition of table `dependencies` for key `dependencies` at line 7 column 1"
 );
 test!(
     duplicate_tables,
-    include_str!("invalid/duplicate-tables.toml")
+    include_str!("invalid/duplicate-tables.toml"),
+    "redefinition of table `a` for key `a` at line 2 column 1"
 );
 test!(
     empty_implicit_table,
-    include_str!("invalid/empty-implicit-table.toml")
+    include_str!("invalid/empty-implicit-table.toml"),
+    "expected a table key, found a period at line 1 column 10"
 );
-test!(empty_table, include_str!("invalid/empty-table.toml"));
+test!(
+    empty_table,
+    include_str!("invalid/empty-table.toml"),
+    "expected a table key, found a right bracket at line 1 column 2"
+);
 test!(
     float_no_leading_zero,
-    include_str!("invalid/float-no-leading-zero.toml")
+    include_str!("invalid/float-no-leading-zero.toml"),
+    "expected a value, found a period at line 1 column 10"
 );
 test!(
     float_no_suffix,
-    include_str!("invalid/float-no-suffix.toml")
+    include_str!("invalid/float-no-suffix.toml"),
+    "invalid number at line 1 column 5"
 );
 test!(
     float_no_trailing_digits,
-    include_str!("invalid/float-no-trailing-digits.toml")
+    include_str!("invalid/float-no-trailing-digits.toml"),
+    "invalid number at line 1 column 12"
 );
 test!(
     key_after_array,
-    include_str!("invalid/key-after-array.toml")
+    include_str!("invalid/key-after-array.toml"),
+    "expected newline, found an identifier at line 1 column 14"
 );
 test!(
     key_after_table,
-    include_str!("invalid/key-after-table.toml")
+    include_str!("invalid/key-after-table.toml"),
+    "expected newline, found an identifier at line 1 column 11"
 );
-test!(key_empty, include_str!("invalid/key-empty.toml"));
-test!(key_hash, include_str!("invalid/key-hash.toml"));
-test!(key_newline, include_str!("invalid/key-newline.toml"));
+test!(
+    key_empty,
+    include_str!("invalid/key-empty.toml"),
+    "expected a table key, found an equals at line 1 column 2"
+);
+test!(
+    key_hash,
+    include_str!("invalid/key-hash.toml"),
+    "expected an equals, found a comment at line 1 column 2"
+);
+test!(
+    key_newline,
+    include_str!("invalid/key-newline.toml"),
+    "expected an equals, found a newline at line 1 column 2"
+);
 test!(
     key_open_bracket,
-    include_str!("invalid/key-open-bracket.toml")
+    include_str!("invalid/key-open-bracket.toml"),
+    "expected a right bracket, found an equals at line 1 column 6"
 );
 test!(
     key_single_open_bracket,
-    include_str!("invalid/key-single-open-bracket.toml")
+    include_str!("invalid/key-single-open-bracket.toml"),
+    "expected a table key, found eof at line 1 column 2"
 );
-test!(key_space, include_str!("invalid/key-space.toml"));
+test!(
+    key_space,
+    include_str!("invalid/key-space.toml"),
+    "expected an equals, found an identifier at line 1 column 3"
+);
 test!(
     key_start_bracket,
-    include_str!("invalid/key-start-bracket.toml")
+    include_str!("invalid/key-start-bracket.toml"),
+    "expected a right bracket, found an equals at line 2 column 6"
 );
-test!(key_two_equals, include_str!("invalid/key-two-equals.toml"));
+test!(
+    key_two_equals,
+    include_str!("invalid/key-two-equals.toml"),
+    "expected a value, found an equals at line 1 column 6"
+);
 test!(
     string_bad_byte_escape,
-    include_str!("invalid/string-bad-byte-escape.toml")
+    include_str!("invalid/string-bad-byte-escape.toml"),
+    "invalid escape character in string: `x` at line 1 column 13"
 );
 test!(
     string_bad_escape,
-    include_str!("invalid/string-bad-escape.toml")
+    include_str!("invalid/string-bad-escape.toml"),
+    "invalid escape character in string: `a` at line 1 column 42"
 );
 test!(
     string_bad_line_ending_escape,
-    include_str!("invalid/string-bad-line-ending-escape.toml")
+    include_str!("invalid/string-bad-line-ending-escape.toml"),
+    "invalid escape character in string: ` ` at line 2 column 79"
 );
 test!(
     string_byte_escapes,
-    include_str!("invalid/string-byte-escapes.toml")
+    include_str!("invalid/string-byte-escapes.toml"),
+    "invalid escape character in string: `x` at line 1 column 12"
 );
 test!(
     string_no_close,
-    include_str!("invalid/string-no-close.toml")
+    include_str!("invalid/string-no-close.toml"),
+    "newline in string found at line 1 column 42"
 );
 test!(
     table_array_implicit,
-    include_str!("invalid/table-array-implicit.toml")
+    include_str!("invalid/table-array-implicit.toml"),
+    "table redefined as array for key `albums` at line 13 column 1"
 );
 test!(
     table_array_malformed_bracket,
-    include_str!("invalid/table-array-malformed-bracket.toml")
+    include_str!("invalid/table-array-malformed-bracket.toml"),
+    "expected a right bracket, found a newline at line 1 column 10"
 );
 test!(
     table_array_malformed_empty,
-    include_str!("invalid/table-array-malformed-empty.toml")
+    include_str!("invalid/table-array-malformed-empty.toml"),
+    "expected a table key, found a right bracket at line 1 column 3"
 );
-test!(table_empty, include_str!("invalid/table-empty.toml"));
+test!(
+    table_empty,
+    include_str!("invalid/table-empty.toml"),
+    "expected a table key, found a right bracket at line 1 column 2"
+);
 test!(
     table_nested_brackets_close,
-    include_str!("invalid/table-nested-brackets-close.toml")
+    include_str!("invalid/table-nested-brackets-close.toml"),
+    "expected newline, found an identifier at line 1 column 4"
 );
 test!(
     table_nested_brackets_open,
-    include_str!("invalid/table-nested-brackets-open.toml")
+    include_str!("invalid/table-nested-brackets-open.toml"),
+    "expected a right bracket, found a left bracket at line 1 column 3"
 );
 test!(
     table_whitespace,
-    include_str!("invalid/table-whitespace.toml")
+    include_str!("invalid/table-whitespace.toml"),
+    "expected a right bracket, found an identifier at line 1 column 10"
 );
 test!(
     table_with_pound,
-    include_str!("invalid/table-with-pound.toml")
+    include_str!("invalid/table-with-pound.toml"),
+    "expected a right bracket, found a comment at line 1 column 5"
 );
 test!(
     text_after_array_entries,
-    include_str!("invalid/text-after-array-entries.toml")
+    include_str!("invalid/text-after-array-entries.toml"),
+    "invalid number at line 2 column 46"
 );
 test!(
     text_after_integer,
-    include_str!("invalid/text-after-integer.toml")
+    include_str!("invalid/text-after-integer.toml"),
+    "expected newline, found an identifier at line 1 column 13"
 );
 test!(
     text_after_string,
-    include_str!("invalid/text-after-string.toml")
+    include_str!("invalid/text-after-string.toml"),
+    "expected newline, found an identifier at line 1 column 41"
 );
 test!(
     text_after_table,
-    include_str!("invalid/text-after-table.toml")
+    include_str!("invalid/text-after-table.toml"),
+    "expected newline, found an identifier at line 1 column 9"
 );
 test!(
     text_before_array_separator,
-    include_str!("invalid/text-before-array-separator.toml")
+    include_str!("invalid/text-before-array-separator.toml"),
+    "expected a right bracket, found an identifier at line 2 column 46"
 );
-test!(text_in_array, include_str!("invalid/text-in-array.toml"));
+test!(
+    text_in_array,
+    include_str!("invalid/text-in-array.toml"),
+    "invalid number at line 3 column 3"
+);

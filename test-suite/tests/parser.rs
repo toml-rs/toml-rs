@@ -3,15 +3,12 @@ extern crate toml;
 use toml::Value;
 
 macro_rules! bad {
-    ($s:expr, $msg:expr) => {{
-        match $s.parse::<Value>() {
-            Ok(s) => panic!("successfully parsed as {}", s),
-            Err(e) => {
-                let e = e.to_string();
-                assert!(e.contains($msg), "error: {}", e);
-            }
+    ($toml:expr, $msg:expr) => {
+        match $toml.parse::<toml::Value>() {
+            Ok(s) => panic!("parsed to: {:#?}", s),
+            Err(e) => assert_eq!(e.to_string(), $msg),
         }
-    }};
+    };
 }
 
 #[test]
@@ -189,13 +186,31 @@ name = "plantain"
 
 #[test]
 fn stray_cr() {
-    "\r".parse::<Value>().unwrap_err();
-    "a = [ \r ]".parse::<Value>().unwrap_err();
-    "a = \"\"\"\r\"\"\"".parse::<Value>().unwrap_err();
-    "a = \"\"\"\\  \r  \"\"\"".parse::<Value>().unwrap_err();
-    "a = '''\r'''".parse::<Value>().unwrap_err();
-    "a = '\r'".parse::<Value>().unwrap_err();
-    "a = \"\r\"".parse::<Value>().unwrap_err();
+    bad!("\r", "unexpected character found: `\\r` at line 1 column 1");
+    bad!(
+        "a = [ \r ]",
+        "unexpected character found: `\\r` at line 1 column 7"
+    );
+    bad!(
+        "a = \"\"\"\r\"\"\"",
+        "invalid character in string: `\\r` at line 1 column 8"
+    );
+    bad!(
+        "a = \"\"\"\\  \r  \"\"\"",
+        "invalid escape character in string: ` ` at line 1 column 9"
+    );
+    bad!(
+        "a = '''\r'''",
+        "invalid character in string: `\\r` at line 1 column 8"
+    );
+    bad!(
+        "a = '\r'",
+        "invalid character in string: `\\r` at line 1 column 6"
+    );
+    bad!(
+        "a = \"\r\"",
+        "invalid character in string: `\\r` at line 1 column 6"
+    );
 }
 
 #[test]
@@ -224,32 +239,38 @@ fn literal_eats_crlf() {
 
 #[test]
 fn string_no_newline() {
-    "a = \"\n\"".parse::<Value>().unwrap_err();
-    "a = '\n'".parse::<Value>().unwrap_err();
+    bad!("a = \"\n\"", "newline in string found at line 1 column 6");
+    bad!("a = '\n'", "newline in string found at line 1 column 6");
 }
 
 #[test]
 fn bad_leading_zeros() {
-    "a = 00".parse::<Value>().unwrap_err();
-    "a = -00".parse::<Value>().unwrap_err();
-    "a = +00".parse::<Value>().unwrap_err();
-    "a = 00.0".parse::<Value>().unwrap_err();
-    "a = -00.0".parse::<Value>().unwrap_err();
-    "a = +00.0".parse::<Value>().unwrap_err();
-    "a = 9223372036854775808".parse::<Value>().unwrap_err();
-    "a = -9223372036854775809".parse::<Value>().unwrap_err();
+    bad!("a = 00", "invalid number at line 1 column 6");
+    bad!("a = -00", "invalid number at line 1 column 7");
+    bad!("a = +00", "invalid number at line 1 column 7");
+    bad!("a = 00.0", "invalid number at line 1 column 6");
+    bad!("a = -00.0", "invalid number at line 1 column 7");
+    bad!("a = +00.0", "invalid number at line 1 column 7");
+    bad!(
+        "a = 9223372036854775808",
+        "invalid number at line 1 column 5"
+    );
+    bad!(
+        "a = -9223372036854775809",
+        "invalid number at line 1 column 5"
+    );
 }
 
 #[test]
 fn bad_floats() {
-    "a = 0.".parse::<Value>().unwrap_err();
-    "a = 0.e".parse::<Value>().unwrap_err();
-    "a = 0.E".parse::<Value>().unwrap_err();
-    "a = 0.0E".parse::<Value>().unwrap_err();
-    "a = 0.0e".parse::<Value>().unwrap_err();
-    "a = 0.0e-".parse::<Value>().unwrap_err();
-    "a = 0.0e+".parse::<Value>().unwrap_err();
-    "a = 0.0e+00".parse::<Value>().unwrap_err();
+    bad!("a = 0.", "invalid number at line 1 column 7");
+    bad!("a = 0.e", "invalid number at line 1 column 7");
+    bad!("a = 0.E", "invalid number at line 1 column 7");
+    bad!("a = 0.0E", "invalid number at line 1 column 5");
+    bad!("a = 0.0e", "invalid number at line 1 column 5");
+    bad!("a = 0.0e-", "invalid number at line 1 column 9");
+    bad!("a = 0.0e+", "invalid number at line 1 column 5");
+    bad!("a = 0.0e+00", "invalid number at line 1 column 11");
 }
 
 #[test]
@@ -310,37 +331,85 @@ fn bare_key_names() {
 
 #[test]
 fn bad_keys() {
-    "key\n=3".parse::<Value>().unwrap_err();
-    "key=\n3".parse::<Value>().unwrap_err();
-    "key|=3".parse::<Value>().unwrap_err();
-    "\"\"=3".parse::<Value>().unwrap_err();
-    "=3".parse::<Value>().unwrap_err();
-    "\"\"|=3".parse::<Value>().unwrap_err();
-    "\"\n\"|=3".parse::<Value>().unwrap_err();
-    "\"\r\"|=3".parse::<Value>().unwrap_err();
-    "''''''=3".parse::<Value>().unwrap_err();
-    "\"\"\"\"\"\"=3".parse::<Value>().unwrap_err();
-    "'''key'''=3".parse::<Value>().unwrap_err();
-    "\"\"\"key\"\"\"=3".parse::<Value>().unwrap_err();
+    bad!(
+        "key\n=3",
+        "expected an equals, found a newline at line 1 column 4"
+    );
+    bad!(
+        "key=\n3",
+        "expected a value, found a newline at line 1 column 5"
+    );
+    bad!(
+        "key|=3",
+        "unexpected character found: `|` at line 1 column 4"
+    );
+    bad!("\"\"=3", "empty table key found at line 1 column 1");
+    bad!(
+        "=3",
+        "expected a table key, found an equals at line 1 column 1"
+    );
+    bad!("\"\"|=3", "empty table key found at line 1 column 1");
+    bad!("\"\n\"|=3", "newline in string found at line 1 column 2");
+    bad!(
+        "\"\r\"|=3",
+        "invalid character in string: `\\r` at line 1 column 2"
+    );
+    bad!(
+        "''''''=3",
+        "multiline strings are not allowed for key at line 1 column 1"
+    );
+    bad!(
+        "\"\"\"\"\"\"=3",
+        "multiline strings are not allowed for key at line 1 column 1"
+    );
+    bad!(
+        "'''key'''=3",
+        "multiline strings are not allowed for key at line 1 column 1"
+    );
+    bad!(
+        "\"\"\"key\"\"\"=3",
+        "multiline strings are not allowed for key at line 1 column 1"
+    );
 }
 
 #[test]
 fn bad_table_names() {
-    "[]".parse::<Value>().unwrap_err();
-    "[.]".parse::<Value>().unwrap_err();
-    "[\"\".\"\"]".parse::<Value>().unwrap_err();
-    "[a.]".parse::<Value>().unwrap_err();
-    "[\"\"]".parse::<Value>().unwrap_err();
-    "[!]".parse::<Value>().unwrap_err();
-    "[\"\n\"]".parse::<Value>().unwrap_err();
-    "[a.b]\n[a.\"b\"]".parse::<Value>().unwrap_err();
-    "[']".parse::<Value>().unwrap_err();
-    "[''']".parse::<Value>().unwrap_err();
-    "['''''']".parse::<Value>().unwrap_err();
-    "['''foo''']".parse::<Value>().unwrap_err();
-    "[\"\"\"bar\"\"\"]".parse::<Value>().unwrap_err();
-    "['\n']".parse::<Value>().unwrap_err();
-    "['\r\n']".parse::<Value>().unwrap_err();
+    bad!(
+        "[]",
+        "expected a table key, found a right bracket at line 1 column 2"
+    );
+    bad!(
+        "[.]",
+        "expected a table key, found a period at line 1 column 2"
+    );
+    bad!("[\"\".\"\"]", "empty table key found at line 1 column 2");
+    bad!(
+        "[a.]",
+        "expected a table key, found a right bracket at line 1 column 4"
+    );
+    bad!("[\"\"]", "empty table key found at line 1 column 2");
+    bad!("[!]", "unexpected character found: `!` at line 1 column 2");
+    bad!("[\"\n\"]", "newline in string found at line 1 column 3");
+    bad!(
+        "[a.b]\n[a.\"b\"]",
+        "redefinition of table `a.b` for key `a.b` at line 2 column 1"
+    );
+    bad!("[']", "unterminated string at line 1 column 2");
+    bad!("[''']", "unterminated string at line 1 column 2");
+    bad!(
+        "['''''']",
+        "multiline strings are not allowed for key at line 1 column 2"
+    );
+    bad!(
+        "['''foo''']",
+        "multiline strings are not allowed for key at line 1 column 2"
+    );
+    bad!(
+        "[\"\"\"bar\"\"\"]",
+        "multiline strings are not allowed for key at line 1 column 2"
+    );
+    bad!("['\n']", "newline in string found at line 1 column 3");
+    bad!("['\r\n']", "newline in string found at line 1 column 3");
 }
 
 #[test]
@@ -365,7 +434,7 @@ fn table_names() {
 
 #[test]
 fn invalid_bare_numeral() {
-    "4".parse::<Value>().unwrap_err();
+    bad!("4", "expected an equals, found eof at line 1 column 2");
 }
 
 #[test]
@@ -375,11 +444,25 @@ fn inline_tables() {
     "a = {   b   =   1    }".parse::<Value>().unwrap();
     "a = {a=1,b=2}".parse::<Value>().unwrap();
     "a = {a=1,b=2,c={}}".parse::<Value>().unwrap();
-    "a = {a=1,}".parse::<Value>().unwrap_err();
-    "a = {,}".parse::<Value>().unwrap_err();
-    "a = {a=1,a=1}".parse::<Value>().unwrap_err();
-    "a = {\n}".parse::<Value>().unwrap_err();
-    "a = {".parse::<Value>().unwrap_err();
+
+    bad!(
+        "a = {a=1,}",
+        "expected a table key, found a right brace at line 1 column 10"
+    );
+    bad!(
+        "a = {,}",
+        "expected a table key, found a comma at line 1 column 6"
+    );
+    bad!("a = {a=1,a=1}", "duplicate key: `a` for key `a`");
+    bad!(
+        "a = {\n}",
+        "expected a table key, found a newline at line 1 column 6"
+    );
+    bad!(
+        "a = {",
+        "expected a table key, found eof at line 1 column 6"
+    );
+
     "a = {a=[\n]}".parse::<Value>().unwrap();
     "a = {\"a\"=[\n]}".parse::<Value>().unwrap();
     "a = [\n{},\n{},\n]".parse::<Value>().unwrap();
@@ -404,23 +487,32 @@ fn number_underscores() {
 
 #[test]
 fn bad_underscores() {
-    bad!("foo = 0_", "invalid number");
-    bad!("foo = 0__0", "invalid number");
-    bad!("foo = __0", "invalid number");
-    bad!("foo = 1_0_", "invalid number");
+    bad!("foo = 0_", "invalid number at line 1 column 7");
+    bad!("foo = 0__0", "invalid number at line 1 column 7");
+    bad!("foo = __0", "invalid number at line 1 column 7");
+    bad!("foo = 1_0_", "invalid number at line 1 column 7");
 }
 
 #[test]
 fn bad_unicode_codepoint() {
-    bad!("foo = \"\\uD800\"", "invalid escape value");
+    bad!(
+        "foo = \"\\uD800\"",
+        "invalid escape value: `55296` at line 1 column 9"
+    );
 }
 
 #[test]
 fn bad_strings() {
-    bad!("foo = \"\\uxx\"", "invalid hex escape");
-    bad!("foo = \"\\u\"", "invalid hex escape");
-    bad!("foo = \"\\", "unterminated");
-    bad!("foo = '", "unterminated");
+    bad!(
+        "foo = \"\\uxx\"",
+        "invalid hex escape character in string: `x` at line 1 column 10"
+    );
+    bad!(
+        "foo = \"\\u\"",
+        "invalid hex escape character in string: `\\\"` at line 1 column 10"
+    );
+    bad!("foo = \"\\", "unterminated string at line 1 column 7");
+    bad!("foo = '", "unterminated string at line 1 column 7");
 }
 
 #[test]
@@ -441,10 +533,10 @@ fn booleans() {
     let table = "foo = false".parse::<Value>().unwrap();
     assert_eq!(table["foo"].as_bool(), Some(false));
 
-    assert!("foo = true2".parse::<Value>().is_err());
-    assert!("foo = false2".parse::<Value>().is_err());
-    assert!("foo = t1".parse::<Value>().is_err());
-    assert!("foo = f2".parse::<Value>().is_err());
+    bad!("foo = true2", "failed to parse datetime for key `foo`");
+    bad!("foo = false2", "invalid number at line 1 column 7");
+    bad!("foo = t1", "failed to parse datetime for key `foo`");
+    bad!("foo = f2", "invalid number at line 1 column 7");
 }
 
 #[test]
@@ -485,7 +577,7 @@ fn bad_nesting() {
         [a.b]
         c = 2
         ",
-        "duplicate key: `b`"
+        "duplicate key: `b` for key `a`"
     );
 }
 
@@ -499,7 +591,7 @@ fn bad_table_redefine() {
         foo=\"bar\"
         [a]
         ",
-        "redefinition of table `a`"
+        "redefinition of table `a` for key `a` at line 6 column 9"
     );
     bad!(
         "
@@ -508,7 +600,7 @@ fn bad_table_redefine() {
         b = { foo = \"bar\" }
         [a]
         ",
-        "redefinition of table `a`"
+        "redefinition of table `a` for key `a` at line 5 column 9"
     );
     bad!(
         "
@@ -516,7 +608,7 @@ fn bad_table_redefine() {
         b = {}
         [a.b]
         ",
-        "duplicate key: `b`"
+        "duplicate key: `b` for key `a`"
     );
 
     bad!(
@@ -525,7 +617,7 @@ fn bad_table_redefine() {
         b = {}
         [a]
         ",
-        "redefinition of table `a`"
+        "redefinition of table `a` for key `a` at line 4 column 9"
     );
 }
 
@@ -543,21 +635,36 @@ fn datetimes() {
     t!("2016-09-09T09:09:09.1Z");
     t!("2016-09-09T09:09:09.2+10:00");
     t!("2016-09-09T09:09:09.123456789-02:00");
-    bad!("foo = 2016-09-09T09:09:09.Z", "failed to parse date");
-    bad!("foo = 2016-9-09T09:09:09Z", "failed to parse date");
-    bad!("foo = 2016-09-09T09:09:09+2:00", "failed to parse date");
-    bad!("foo = 2016-09-09T09:09:09-2:00", "failed to parse date");
-    bad!("foo = 2016-09-09T09:09:09Z-2:00", "failed to parse date");
+    bad!(
+        "foo = 2016-09-09T09:09:09.Z",
+        "failed to parse datetime for key `foo`"
+    );
+    bad!(
+        "foo = 2016-9-09T09:09:09Z",
+        "failed to parse datetime for key `foo`"
+    );
+    bad!(
+        "foo = 2016-09-09T09:09:09+2:00",
+        "failed to parse datetime for key `foo`"
+    );
+    bad!(
+        "foo = 2016-09-09T09:09:09-2:00",
+        "failed to parse datetime for key `foo`"
+    );
+    bad!(
+        "foo = 2016-09-09T09:09:09Z-2:00",
+        "failed to parse datetime for key `foo`"
+    );
 }
 
 #[test]
 fn require_newline_after_value() {
-    bad!("0=0r=false", "invalid number at line 1");
+    bad!("0=0r=false", "invalid number at line 1 column 3");
     bad!(
         r#"
 0=""o=""m=""r=""00="0"q="""0"""e="""0"""
 "#,
-        "expected newline"
+        "expected newline, found an identifier at line 2 column 5"
     );
     bad!(
         r#"
@@ -566,24 +673,24 @@ fn require_newline_after_value() {
 0="0"[[0000l0]]
 0="0"l="0"
 "#,
-        "expected newline"
+        "expected newline, found a left bracket at line 3 column 6"
     );
     bad!(
         r#"
 0=[0]00=[0,0,0]t=["0","0","0"]s=[1000-00-00T00:00:00Z,2000-00-00T00:00:00Z]
 "#,
-        "expected newline"
+        "expected newline, found an identifier at line 2 column 6"
     );
     bad!(
         r#"
 0=0r0=0r=false
 "#,
-        "invalid number at line 2"
+        "invalid number at line 2 column 3"
     );
     bad!(
         r#"
 0=0r0=0r=falsefal=false
 "#,
-        "invalid number at line 2"
+        "invalid number at line 2 column 3"
     );
 }

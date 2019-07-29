@@ -44,21 +44,17 @@ macro_rules! equivalent {
 }
 
 macro_rules! error {
-    ($ty:ty, $toml:expr, $error:expr) => {{
+    ($ty:ty, $toml:expr, $msg_parse:expr, $msg_decode:expr) => {{
         println!("attempting parsing");
         match toml::from_str::<$ty>(&$toml.to_string()) {
             Ok(_) => panic!("successful"),
-            Err(e) => {
-                assert!(e.to_string().contains($error), "bad error: {}", e);
-            }
+            Err(e) => assert_eq!(e.to_string(), $msg_parse),
         }
 
         println!("attempting toml decoding");
         match $toml.try_into::<$ty>() {
             Ok(_) => panic!("successful"),
-            Err(e) => {
-                assert!(e.to_string().contains($error), "bad error: {}", e);
-            }
+            Err(e) => assert_eq!(e.to_string(), $msg_decode),
         }
     }};
 }
@@ -277,6 +273,7 @@ fn type_errors() {
         Table(map! {
             bar: Value::String("a".to_string())
         }),
+        "invalid type: string \"a\", expected isize for key `bar`",
         "invalid type: string \"a\", expected isize for key `bar`"
     }
 
@@ -293,6 +290,7 @@ fn type_errors() {
                 bar: Value::String("a".to_string())
             })
         }),
+        "invalid type: string \"a\", expected isize for key `foo.bar`",
         "invalid type: string \"a\", expected isize for key `foo.bar`"
     }
 }
@@ -307,6 +305,7 @@ fn missing_errors() {
     error! {
         Foo,
         Table(map! { }),
+        "missing field `bar`",
         "missing field `bar`"
     }
 }
