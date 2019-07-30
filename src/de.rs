@@ -29,7 +29,7 @@ where
 {
     match str::from_utf8(bytes) {
         Ok(s) => from_str(s),
-        Err(e) => Err(Error::custom(e.to_string())),
+        Err(e) => Err(Error::custom(None, e.to_string())),
     }
 }
 
@@ -87,6 +87,7 @@ struct ErrorInner {
     kind: ErrorKind,
     line: Option<usize>,
     col: usize,
+    at: Option<usize>,
     message: String,
     key: Vec<String>,
 }
@@ -209,7 +210,7 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
     {
         let mut tables = self.tables()?;
 
-        visitor.visit_map(MapVisitor {
+        let res = visitor.visit_map(MapVisitor {
             values: Vec::new().into_iter(),
             next_value: None,
             depth: 0,
@@ -219,6 +220,17 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
             tables: &mut tables,
             array: false,
             de: self,
+        });
+        res.map_err(|mut err| {
+            // Errors originating from this library (toml), have an offset
+            // attached to them already. Other errors, like those originating
+            // from serde (like "missing field") or from a custom deserializer,
+            // do not have offsets on them. Here, we do a best guess at their
+            // location, by attributing them to the "current table" (the last
+            // item in `tables`).
+            err.fix_offset(|| tables.last().map(|table| table.at));
+            err.fix_linecol(|at| self.to_linecol(at));
+            err
         })
     }
 
@@ -237,14 +249,17 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
             E::String(val) => visitor.visit_enum(val.into_deserializer()),
             E::InlineTable(values) => {
                 if values.len() != 1 {
-                    Err(Error::from_kind(ErrorKind::Wanted {
-                        expected: "exactly 1 element",
-                        found: if values.is_empty() {
-                            "zero elements"
-                        } else {
-                            "more than 1 element"
+                    Err(Error::from_kind(
+                        Some(value.start),
+                        ErrorKind::Wanted {
+                            expected: "exactly 1 element",
+                            found: if values.is_empty() {
+                                "zero elements"
+                            } else {
+                                "more than 1 element"
+                            },
                         },
-                    }))
+                    ))
                 } else {
                     visitor.visit_enum(InlineTableDeserializer {
                         values: values.into_iter(),
@@ -256,10 +271,13 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
                 name: name.expect("Expected table header to be passed."),
                 value: value,
             }),
-            e @ _ => Err(Error::from_kind(ErrorKind::Wanted {
-                expected: "string or table",
-                found: e.type_name(),
-            })),
+            e @ _ => Err(Error::from_kind(
+                Some(value.start),
+                ErrorKind::Wanted {
+                    expected: "string or table",
+                    found: e.type_name(),
+                },
+            )),
         }
     }
 
@@ -556,7 +574,8 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
     where
         V: de::Visitor<'de>,
     {
-        match self.value.e {
+        let start = self.value.start;
+        let res = match self.value.e {
             E::Integer(i) => visitor.visit_i64(i),
             E::Boolean(b) => visitor.visit_bool(b),
             E::Float(f) => visitor.visit_f64(f),
@@ -578,7 +597,12 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
                     next_value: None,
                 })
             }
-        }
+        };
+        res.map_err(|mut err| {
+            // Attribute the error to whatever value returned the error.
+            err.fix_offset(|| Some(start));
+            err
+        })
     }
 
     fn deserialize_struct<V>(
@@ -615,13 +639,16 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
                         .collect::<Vec<Cow<'de, str>>>();
 
                     if !extra_fields.is_empty() {
-                        return Err(Error::from_kind(ErrorKind::UnexpectedKeys {
-                            keys: extra_fields
-                                .iter()
-                                .map(|k| k.to_string())
-                                .collect::<Vec<_>>(),
-                            available: fields,
-                        }));
+                        return Err(Error::from_kind(
+                            Some(self.value.start),
+                            ErrorKind::UnexpectedKeys {
+                                keys: extra_fields
+                                    .iter()
+                                    .map(|k| k.to_string())
+                                    .collect::<Vec<_>>(),
+                                available: fields,
+                            },
+                        ));
                     }
                 }
                 _ => {}
@@ -664,14 +691,17 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
             E::String(val) => visitor.visit_enum(val.into_deserializer()),
             E::InlineTable(values) => {
                 if values.len() != 1 {
-                    Err(Error::from_kind(ErrorKind::Wanted {
-                        expected: "exactly 1 element",
-                        found: if values.is_empty() {
-                            "zero elements"
-                        } else {
-                            "more than 1 element"
+                    Err(Error::from_kind(
+                        Some(self.value.start),
+                        ErrorKind::Wanted {
+                            expected: "exactly 1 element",
+                            found: if values.is_empty() {
+                                "zero elements"
+                            } else {
+                                "more than 1 element"
+                            },
                         },
-                    }))
+                    ))
                 } else {
                     visitor.visit_enum(InlineTableDeserializer {
                         values: values.into_iter(),
@@ -679,10 +709,13 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
                     })
                 }
             }
-            e @ _ => Err(Error::from_kind(ErrorKind::Wanted {
-                expected: "string or inline table",
-                found: e.type_name(),
-            })),
+            e @ _ => Err(Error::from_kind(
+                Some(self.value.start),
+                ErrorKind::Wanted {
+                    expected: "string or inline table",
+                    found: e.type_name(),
+                },
+            )),
         }
     }
 
@@ -860,10 +893,13 @@ impl<'de> de::EnumAccess<'de> for InlineTableDeserializer<'de> {
         let (key, value) = match self.values.next() {
             Some(pair) => pair,
             None => {
-                return Err(Error::from_kind(ErrorKind::Wanted {
-                    expected: "table with exactly 1 entry",
-                    found: "empty table",
-                }))
+                return Err(Error::from_kind(
+                    None, // FIXME: How do we get an offset here?
+                    ErrorKind::Wanted {
+                        expected: "table with exactly 1 entry",
+                        found: "empty table",
+                    },
+                ));
             }
         };
 
@@ -886,13 +922,19 @@ impl<'de> de::VariantAccess<'de> for TableEnumDeserializer<'de> {
                 if values.len() == 0 {
                     Ok(())
                 } else {
-                    Err(Error::from_kind(ErrorKind::ExpectedEmptyTable))
+                    Err(Error::from_kind(
+                        Some(self.value.start),
+                        ErrorKind::ExpectedEmptyTable,
+                    ))
                 }
             }
-            e @ _ => Err(Error::from_kind(ErrorKind::Wanted {
-                expected: "table",
-                found: e.type_name(),
-            })),
+            e @ _ => Err(Error::from_kind(
+                Some(self.value.start),
+                ErrorKind::Wanted {
+                    expected: "table",
+                    found: e.type_name(),
+                },
+            )),
         }
     }
 
@@ -914,10 +956,13 @@ impl<'de> de::VariantAccess<'de> for TableEnumDeserializer<'de> {
                     .enumerate()
                     .map(|(index, (key, value))| match key.parse::<usize>() {
                         Ok(key_index) if key_index == index => Ok(value),
-                        Ok(_) | Err(_) => Err(Error::from_kind(ErrorKind::ExpectedTupleIndex {
-                            expected: index,
-                            found: key.to_string(),
-                        })),
+                        Ok(_) | Err(_) => Err(Error::from_kind(
+                            Some(value.start),
+                            ErrorKind::ExpectedTupleIndex {
+                                expected: index,
+                                found: key.to_string(),
+                            },
+                        )),
                     })
                     // Fold all values into a `Vec`, or return the first error.
                     .fold(Ok(Vec::with_capacity(len)), |result, value_result| {
@@ -941,13 +986,19 @@ impl<'de> de::VariantAccess<'de> for TableEnumDeserializer<'de> {
                         visitor,
                     )
                 } else {
-                    Err(Error::from_kind(ErrorKind::ExpectedTuple(len)))
+                    Err(Error::from_kind(
+                        Some(self.value.start),
+                        ErrorKind::ExpectedTuple(len),
+                    ))
                 }
             }
-            e @ _ => Err(Error::from_kind(ErrorKind::Wanted {
-                expected: "table",
-                found: e.type_name(),
-            })),
+            e @ _ => Err(Error::from_kind(
+                Some(self.value.start),
+                ErrorKind::Wanted {
+                    expected: "table",
+                    found: e.type_name(),
+                },
+            )),
         }
     }
 
@@ -1195,17 +1246,20 @@ impl<'a> Deserializer<'a> {
     /// structures (tuple, newtype, struct) must be represented as a table.
     fn string_or_table(&mut self) -> Result<(Value<'a>, Option<Cow<'a, str>>), Error> {
         match self.peek()? {
-            Some((_, Token::LeftBracket)) => {
+            Some((span, Token::LeftBracket)) => {
                 let tables = self.tables()?;
                 if tables.len() != 1 {
-                    return Err(Error::from_kind(ErrorKind::Wanted {
-                        expected: "exactly 1 table",
-                        found: if tables.is_empty() {
-                            "zero tables"
-                        } else {
-                            "more than 1 table"
+                    return Err(Error::from_kind(
+                        Some(span.start),
+                        ErrorKind::Wanted {
+                            expected: "exactly 1 table",
+                            found: if tables.is_empty() {
+                                "zero tables"
+                            } else {
+                                "more than 1 table"
+                            },
                         },
-                    }));
+                    ));
                 }
 
                 let table = tables
@@ -1710,10 +1764,8 @@ impl<'a> Deserializer<'a> {
     }
 
     fn error(&self, at: usize, kind: ErrorKind) -> Error {
-        let mut err = Error::from_kind(kind);
-        let (line, col) = self.to_linecol(at);
-        err.inner.line = Some(line);
-        err.inner.col = col;
+        let mut err = Error::from_kind(Some(at), kind);
+        err.fix_linecol(|at| self.to_linecol(at));
         err
     }
 
@@ -1740,24 +1792,26 @@ impl Error {
         self.inner.line.map(|line| (line, self.inner.col))
     }
 
-    fn from_kind(kind: ErrorKind) -> Error {
+    fn from_kind(at: Option<usize>, kind: ErrorKind) -> Error {
         Error {
             inner: Box::new(ErrorInner {
                 kind: kind,
                 line: None,
                 col: 0,
+                at,
                 message: String::new(),
                 key: Vec::new(),
             }),
         }
     }
 
-    fn custom(s: String) -> Error {
+    fn custom(at: Option<usize>, s: String) -> Error {
         Error {
             inner: Box::new(ErrorInner {
                 kind: ErrorKind::Custom,
                 line: None,
                 col: 0,
+                at,
                 message: s,
                 key: Vec::new(),
             }),
@@ -1769,6 +1823,28 @@ impl Error {
     #[doc(hidden)]
     pub fn add_key_context(&mut self, key: &str) {
         self.inner.key.insert(0, key.to_string());
+    }
+
+    fn fix_offset<F>(&mut self, f: F) -> ()
+    where
+        F: FnOnce() -> Option<usize>,
+    {
+        // An existing offset is always better positioned than anything we
+        // might want to add later.
+        if self.inner.at.is_none() {
+            self.inner.at = f();
+        }
+    }
+
+    fn fix_linecol<F>(&mut self, f: F) -> ()
+    where
+        F: FnOnce(usize) -> (usize, usize),
+    {
+        if let Some(at) = self.inner.at {
+            let (line, col) = f(at);
+            self.inner.line = Some(line);
+            self.inner.col = col;
+        }
     }
 }
 
@@ -1885,7 +1961,7 @@ impl error::Error for Error {
 
 impl de::Error for Error {
     fn custom<T: fmt::Display>(msg: T) -> Error {
-        Error::custom(msg.to_string())
+        Error::custom(None, msg.to_string())
     }
 }
 

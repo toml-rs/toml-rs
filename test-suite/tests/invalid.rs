@@ -32,7 +32,7 @@ test!(
 test!(
     datetime_malformed_no_leads,
     include_str!("invalid/datetime-malformed-no-leads.toml"),
-    "failed to parse datetime for key `no-leads`"
+    "failed to parse datetime for key `no-leads` at line 1 column 12"
 );
 test!(
     datetime_malformed_no_secs,
@@ -42,22 +42,22 @@ test!(
 test!(
     datetime_malformed_no_t,
     include_str!("invalid/datetime-malformed-no-t.toml"),
-    "failed to parse datetime for key `no-t`"
+    "failed to parse datetime for key `no-t` at line 1 column 8"
 );
 test!(
     datetime_malformed_with_milli,
     include_str!("invalid/datetime-malformed-with-milli.toml"),
-    "failed to parse datetime for key `with-milli`"
+    "failed to parse datetime for key `with-milli` at line 1 column 14"
 );
 test!(
     duplicate_key_table,
     include_str!("invalid/duplicate-key-table.toml"),
-    "duplicate key: `type` for key `fruit`"
+    "duplicate key: `type` for key `fruit` at line 4 column 1"
 );
 test!(
     duplicate_keys,
     include_str!("invalid/duplicate-keys.toml"),
-    "duplicate key: `dupe`"
+    "duplicate key: `dupe` at line 1 column 1"
 );
 test!(
     duplicate_table,

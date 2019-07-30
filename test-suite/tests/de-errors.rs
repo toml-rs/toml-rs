@@ -83,18 +83,20 @@ fn custom_errors() {
     bad!(
         "
             p_a = ''
+                # ^
         ",
         Parent<CasedString>,
-        "invalid length 0, expected a non-empty string for key `p_a`"
+        "invalid length 0, expected a non-empty string for key `p_a` at line 2 column 19"
     );
 
     // Missing field in table.
     bad!(
         "
             p_a = 'a'
+          # ^
         ",
         Parent<CasedString>,
-        "missing field `p_b`"
+        "missing field `p_b` at line 1 column 1"
     );
 
     // Invalid type in p_b.
@@ -102,9 +104,10 @@ fn custom_errors() {
         "
             p_a = 'a'
             p_b = 1
+                # ^
         ",
         Parent<CasedString>,
-        "invalid type: integer `1`, expected a sequence for key `p_b`"
+        "invalid type: integer `1`, expected a sequence for key `p_b` at line 3 column 19"
     );
 
     // Sub-table in Vec is missing a field.
@@ -113,10 +116,11 @@ fn custom_errors() {
             p_a = 'a'
             p_b = [
                 {c_a = 'a'}
+              # ^
             ]
         ",
         Parent<CasedString>,
-        "missing field `c_b` for key `p_b`"
+        "missing field `c_b` for key `p_b` at line 4 column 17"
     );
 
     // Sub-table in Vec has a field with a bad value.
@@ -125,10 +129,11 @@ fn custom_errors() {
             p_a = 'a'
             p_b = [
                 {c_a = 'a', c_b = '*'}
+                                # ^
             ]
         ",
         Parent<CasedString>,
-        "invalid value: string \"*\", expected all lowercase or all uppercase for key `p_b`"
+        "invalid value: string \"*\", expected all lowercase or all uppercase for key `p_b` at line 4 column 35"
     );
 
     // Sub-table in Vec is missing a field.
@@ -138,10 +143,11 @@ fn custom_errors() {
             p_b = [
                 {c_a = 'a', c_b = 'b'},
                 {c_a = 'aa'}
+              # ^
             ]
         ",
         Parent<CasedString>,
-        "missing field `c_b` for key `p_b`"
+        "missing field `c_b` for key `p_b` at line 5 column 17"
     );
 
     // Sub-table in the middle of a Vec is missing a field.
@@ -151,11 +157,12 @@ fn custom_errors() {
             p_b = [
                 {c_a = 'a', c_b = 'b'},
                 {c_a = 'aa'},
+              # ^
                 {c_a = 'aaa', c_b = 'bbb'},
             ]
         ",
         Parent<CasedString>,
-        "missing field `c_b` for key `p_b`"
+        "missing field `c_b` for key `p_b` at line 5 column 17"
     );
 
     // Sub-table in the middle of a Vec has a field with a bad value.
@@ -165,28 +172,33 @@ fn custom_errors() {
             p_b = [
                 {c_a = 'a', c_b = 'b'},
                 {c_a = 'aa', c_b = 1},
+                                 # ^
                 {c_a = 'aaa', c_b = 'bbb'},
             ]
         ",
         Parent<CasedString>,
-        "invalid type: integer `1`, expected a string for key `p_b`"
+        "invalid type: integer `1`, expected a string for key `p_b` at line 5 column 36"
     );
 
     // Sub-table in the middle of a Vec has an extra field.
+    // FIXME: This location could be better.
     bad!(
         "
             p_a = 'a'
             p_b = [
                 {c_a = 'a', c_b = 'b'},
                 {c_a = 'aa', c_b = 'bb', c_d = 'd'},
+              # ^
                 {c_a = 'aaa', c_b = 'bbb'},
+                {c_a = 'aaaa', c_b = 'bbbb'},
             ]
         ",
         Parent<CasedString>,
-        "unknown field `c_d`, expected `c_a` or `c_b` for key `p_b`" // FIX ME
+        "unknown field `c_d`, expected `c_a` or `c_b` for key `p_b` at line 5 column 17"
     );
 
     // Sub-table in the middle of a Vec is missing a field.
+    // FIXME: This location is pretty off.
     bad!(
         "
             p_a = 'a'
@@ -195,12 +207,17 @@ fn custom_errors() {
             c_b = 'b'
             [[p_b]]
             c_a = 'aa'
+            # c_b = 'bb' # <- missing field
             [[p_b]]
             c_a = 'aaa'
             c_b = 'bbb'
+            [[p_b]]
+          # ^
+            c_a = 'aaaa'
+            c_b = 'bbbb'
         ",
         Parent<CasedString>,
-        "missing field `c_b` for key `p_b`"
+        "missing field `c_b` for key `p_b` at line 12 column 13"
     );
 
     // Sub-table in the middle of a Vec has a field with a bad value.
@@ -213,15 +230,17 @@ fn custom_errors() {
             [[p_b]]
             c_a = 'aa'
             c_b = '*'
+                # ^
             [[p_b]]
             c_a = 'aaa'
             c_b = 'bbb'
         ",
         Parent<CasedString>,
-        "invalid value: string \"*\", expected all lowercase or all uppercase for key `p_b.c_b`"
+        "invalid value: string \"*\", expected all lowercase or all uppercase for key `p_b.c_b` at line 8 column 19"
     );
 
     // Sub-table in the middle of a Vec has an extra field.
+    // FIXME: This location is pretty off.
     bad!(
         "
             p_a = 'a'
@@ -234,9 +253,13 @@ fn custom_errors() {
             [[p_b]]
             c_a = 'aaa'
             c_b = 'bbb'
+            [[p_b]]
+          # ^
+            c_a = 'aaaa'
+            c_b = 'bbbb'
         ",
         Parent<CasedString>,
-        "unknown field `c_d`, expected `c_a` or `c_b` for key `p_b`"
+        "unknown field `c_d`, expected `c_a` or `c_b` for key `p_b` at line 12 column 13"
     );
 }
 
@@ -245,9 +268,10 @@ fn serde_derive_deserialize_errors() {
     bad!(
         "
             p_a = ''
+          # ^
         ",
         Parent<String>,
-        "missing field `p_b`"
+        "missing field `p_b` at line 1 column 1"
     );
 
     bad!(
@@ -255,10 +279,11 @@ fn serde_derive_deserialize_errors() {
             p_a = ''
             p_b = [
                 {c_a = ''}
+              # ^
             ]
         ",
         Parent<String>,
-        "missing field `c_b` for key `p_b`"
+        "missing field `c_b` for key `p_b` at line 4 column 17"
     );
 
     bad!(
@@ -266,21 +291,24 @@ fn serde_derive_deserialize_errors() {
             p_a = ''
             p_b = [
                 {c_a = '', c_b = 1}
+                               # ^
             ]
         ",
         Parent<String>,
-        "invalid type: integer `1`, expected a string for key `p_b`"
+        "invalid type: integer `1`, expected a string for key `p_b` at line 4 column 34"
     );
 
+    // FIXME: This location could be better.
     bad!(
         "
             p_a = ''
             p_b = [
                 {c_a = '', c_b = '', c_d = ''},
+              # ^
             ]
         ",
         Parent<String>,
-        "unknown field `c_d`, expected `c_a` or `c_b` for key `p_b`" // FIX ME
+        "unknown field `c_d`, expected `c_a` or `c_b` for key `p_b` at line 4 column 17"
     );
 
     bad!(
@@ -288,9 +316,10 @@ fn serde_derive_deserialize_errors() {
             p_a = 'a'
             p_b = [
                 {c_a = '', c_b = 1, c_d = ''},
+                               # ^
             ]
         ",
         Parent<String>,
-        "invalid type: integer `1`, expected a string for key `p_b`"
+        "invalid type: integer `1`, expected a string for key `p_b` at line 4 column 34"
     );
 }
