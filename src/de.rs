@@ -1769,6 +1769,13 @@ impl Error {
     #[doc(hidden)]
     pub fn add_key_context(&mut self, key: &str) {
         self.inner.key.insert(0, key.to_string());
+    }    
+
+}
+
+impl std::convert::From<Error> for std::io::Error {
+    fn from(e: Error) -> Self {
+        return std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string())
     }
 }
 
