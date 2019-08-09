@@ -1,23 +1,3 @@
-//! ```
-//! use serde_derive::Deserialize;
-//! use toml::Spanned;
-//!
-//! #[derive(Deserialize)]
-//! struct Value {
-//!     s: Spanned<String>,
-//! }
-//!
-//! fn main() {
-//!     let t = "s = \"value\"\n";
-//!
-//!     let u: Value = toml::from_str(t).unwrap();
-//!
-//!     assert_eq!(u.s.start(), 4);
-//!     assert_eq!(u.s.end(), 11);
-//!     assert_eq!(u.s.get_ref(), "value");
-//!     assert_eq!(u.s.into_inner(), String::from("value"));
-//! }
-//! ```
 
 use serde::{de, ser};
 use std::fmt;
@@ -32,6 +12,27 @@ pub const END: &'static str = "$__toml_private_end";
 pub const VALUE: &'static str = "$__toml_private_value";
 
 /// A spanned value, indicating the range at which it is defined in the source.
+///
+/// ```
+/// use serde_derive::Deserialize;
+/// use toml::Spanned;
+///
+/// #[derive(Deserialize)]
+/// struct Value {
+///     s: Spanned<String>,
+/// }
+///
+/// fn main() {
+///     let t = "s = \"value\"\n";
+///
+///     let u: Value = toml::from_str(t).unwrap();
+///
+///     assert_eq!(u.s.start(), 4);
+///     assert_eq!(u.s.end(), 11);
+///     assert_eq!(u.s.get_ref(), "value");
+///     assert_eq!(u.s.into_inner(), String::from("value"));
+/// }
+/// ```
 #[derive(Debug)]
 pub struct Spanned<T> {
     /// The start range.
