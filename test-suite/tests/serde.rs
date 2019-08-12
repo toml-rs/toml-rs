@@ -273,7 +273,7 @@ fn type_errors() {
         Table(map! {
             bar: Value::String("a".to_string())
         }),
-        "invalid type: string \"a\", expected isize for key `bar`",
+        "invalid type: string \"a\", expected isize for key `bar` at line 1 column 7",
         "invalid type: string \"a\", expected isize for key `bar`"
     }
 
@@ -290,7 +290,7 @@ fn type_errors() {
                 bar: Value::String("a".to_string())
             })
         }),
-        "invalid type: string \"a\", expected isize for key `foo.bar`",
+        "invalid type: string \"a\", expected isize for key `foo.bar` at line 2 column 7",
         "invalid type: string \"a\", expected isize for key `foo.bar`"
     }
 }

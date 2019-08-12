@@ -42,75 +42,93 @@ fn times() {
 
 #[test]
 fn bad_times() {
-    bad!("foo = 199-09-09", "failed to parse datetime for key `foo`");
-    bad!("foo = 199709-09", "failed to parse datetime for key `foo`");
-    bad!("foo = 1997-9-09", "failed to parse datetime for key `foo`");
-    bad!("foo = 1997-09-9", "failed to parse datetime for key `foo`");
+    bad!(
+        "foo = 199-09-09",
+        "failed to parse datetime for key `foo` at line 1 column 7"
+    );
+    bad!(
+        "foo = 199709-09",
+        "failed to parse datetime for key `foo` at line 1 column 7"
+    );
+    bad!(
+        "foo = 1997-9-09",
+        "failed to parse datetime for key `foo` at line 1 column 7"
+    );
+    bad!(
+        "foo = 1997-09-9",
+        "failed to parse datetime for key `foo` at line 1 column 7"
+    );
     bad!(
         "foo = 1997-09-0909:09:09",
-        "failed to parse datetime for key `foo`"
+        "failed to parse datetime for key `foo` at line 1 column 7"
     );
     bad!(
         "foo = 1997-09-09T09:09:09.",
         "invalid date at line 1 column 7"
     );
-    bad!("foo = T", "failed to parse datetime for key `foo`");
+    bad!(
+        "foo = T",
+        "failed to parse datetime for key `foo` at line 1 column 7"
+    );
     bad!(
         "foo = T.",
         "expected newline, found a period at line 1 column 8"
     );
-    bad!("foo = TZ", "failed to parse datetime for key `foo`");
+    bad!(
+        "foo = TZ",
+        "failed to parse datetime for key `foo` at line 1 column 7"
+    );
     bad!(
         "foo = 1997-09-09T09:09:09.09+",
         "invalid date at line 1 column 7"
     );
     bad!(
         "foo = 1997-09-09T09:09:09.09+09",
-        "failed to parse datetime for key `foo`"
+        "failed to parse datetime for key `foo` at line 1 column 7"
     );
     bad!(
         "foo = 1997-09-09T09:09:09.09+09:9",
-        "failed to parse datetime for key `foo`"
+        "failed to parse datetime for key `foo` at line 1 column 7"
     );
     bad!(
         "foo = 1997-09-09T09:09:09.09+0909",
-        "failed to parse datetime for key `foo`"
+        "failed to parse datetime for key `foo` at line 1 column 7"
     );
     bad!(
         "foo = 1997-09-09T09:09:09.09-",
-        "failed to parse datetime for key `foo`"
+        "failed to parse datetime for key `foo` at line 1 column 7"
     );
     bad!(
         "foo = 1997-09-09T09:09:09.09-09",
-        "failed to parse datetime for key `foo`"
+        "failed to parse datetime for key `foo` at line 1 column 7"
     );
     bad!(
         "foo = 1997-09-09T09:09:09.09-09:9",
-        "failed to parse datetime for key `foo`"
+        "failed to parse datetime for key `foo` at line 1 column 7"
     );
     bad!(
         "foo = 1997-09-09T09:09:09.09-0909",
-        "failed to parse datetime for key `foo`"
+        "failed to parse datetime for key `foo` at line 1 column 7"
     );
 
     bad!(
         "foo = 1997-00-09T09:09:09.09Z",
-        "failed to parse datetime for key `foo`"
+        "failed to parse datetime for key `foo` at line 1 column 7"
     );
     bad!(
         "foo = 1997-09-00T09:09:09.09Z",
-        "failed to parse datetime for key `foo`"
+        "failed to parse datetime for key `foo` at line 1 column 7"
     );
     bad!(
         "foo = 1997-09-09T30:09:09.09Z",
-        "failed to parse datetime for key `foo`"
+        "failed to parse datetime for key `foo` at line 1 column 7"
     );
     bad!(
         "foo = 1997-09-09T12:69:09.09Z",
-        "failed to parse datetime for key `foo`"
+        "failed to parse datetime for key `foo` at line 1 column 7"
     );
     bad!(
         "foo = 1997-09-09T12:09:69.09Z",
-        "failed to parse datetime for key `foo`"
+        "failed to parse datetime for key `foo` at line 1 column 7"
     );
 }

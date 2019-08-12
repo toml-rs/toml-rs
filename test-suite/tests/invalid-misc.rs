@@ -27,14 +27,17 @@ fn bad() {
     );
 
     bad!("a = -0x1", "invalid number at line 1 column 5");
-    bad!("a = 0x-1", "failed to parse datetime for key `a`");
+    bad!(
+        "a = 0x-1",
+        "failed to parse datetime for key `a` at line 1 column 5"
+    );
 
     // Dotted keys.
     bad!(
         "a.b.c = 1
          a.b = 2
         ",
-        "duplicate key: `b` for key `a`"
+        "duplicate key: `b` for key `a` at line 1 column 9"
     );
     bad!(
         "a = 1

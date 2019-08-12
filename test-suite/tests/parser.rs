@@ -453,7 +453,10 @@ fn inline_tables() {
         "a = {,}",
         "expected a table key, found a comma at line 1 column 6"
     );
-    bad!("a = {a=1,a=1}", "duplicate key: `a` for key `a`");
+    bad!(
+        "a = {a=1,a=1}",
+        "duplicate key: `a` for key `a` at line 1 column 5"
+    );
     bad!(
         "a = {\n}",
         "expected a table key, found a newline at line 1 column 6"
@@ -533,9 +536,15 @@ fn booleans() {
     let table = "foo = false".parse::<Value>().unwrap();
     assert_eq!(table["foo"].as_bool(), Some(false));
 
-    bad!("foo = true2", "failed to parse datetime for key `foo`");
+    bad!(
+        "foo = true2",
+        "failed to parse datetime for key `foo` at line 1 column 7"
+    );
     bad!("foo = false2", "invalid number at line 1 column 7");
-    bad!("foo = t1", "failed to parse datetime for key `foo`");
+    bad!(
+        "foo = t1",
+        "failed to parse datetime for key `foo` at line 1 column 7"
+    );
     bad!("foo = f2", "invalid number at line 1 column 7");
 }
 
@@ -547,28 +556,28 @@ fn bad_nesting() {
         [[a]]
         b = 5
         ",
-        "duplicate key: `a`"
+        "duplicate key: `a` at line 3 column 9"
     );
     bad!(
         "
         a = 1
         [a.b]
         ",
-        "duplicate key: `a`"
+        "duplicate key: `a` at line 3 column 9"
     );
     bad!(
         "
         a = []
         [a.b]
         ",
-        "duplicate key: `a`"
+        "duplicate key: `a` at line 3 column 9"
     );
     bad!(
         "
         a = []
         [[a.b]]
         ",
-        "duplicate key: `a`"
+        "duplicate key: `a` at line 3 column 9"
     );
     bad!(
         "
@@ -577,7 +586,7 @@ fn bad_nesting() {
         [a.b]
         c = 2
         ",
-        "duplicate key: `b` for key `a`"
+        "duplicate key: `b` for key `a` at line 4 column 9"
     );
 }
 
@@ -608,7 +617,7 @@ fn bad_table_redefine() {
         b = {}
         [a.b]
         ",
-        "duplicate key: `b` for key `a`"
+        "duplicate key: `b` for key `a` at line 4 column 9"
     );
 
     bad!(
@@ -637,23 +646,23 @@ fn datetimes() {
     t!("2016-09-09T09:09:09.123456789-02:00");
     bad!(
         "foo = 2016-09-09T09:09:09.Z",
-        "failed to parse datetime for key `foo`"
+        "failed to parse datetime for key `foo` at line 1 column 7"
     );
     bad!(
         "foo = 2016-9-09T09:09:09Z",
-        "failed to parse datetime for key `foo`"
+        "failed to parse datetime for key `foo` at line 1 column 7"
     );
     bad!(
         "foo = 2016-09-09T09:09:09+2:00",
-        "failed to parse datetime for key `foo`"
+        "failed to parse datetime for key `foo` at line 1 column 7"
     );
     bad!(
         "foo = 2016-09-09T09:09:09-2:00",
-        "failed to parse datetime for key `foo`"
+        "failed to parse datetime for key `foo` at line 1 column 7"
     );
     bad!(
         "foo = 2016-09-09T09:09:09Z-2:00",
-        "failed to parse datetime for key `foo`"
+        "failed to parse datetime for key `foo` at line 1 column 7"
     );
 }
 
