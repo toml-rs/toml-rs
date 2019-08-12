@@ -222,7 +222,7 @@ enum State<'a> {
 }
 
 #[doc(hidden)]
-pub struct SerializeSeq<'a: 'b, 'b> {
+pub struct SerializeSeq<'a, 'b> {
     ser: &'b mut Serializer<'a>,
     first: Cell<bool>,
     type_: Cell<Option<&'static str>>,
@@ -230,7 +230,7 @@ pub struct SerializeSeq<'a: 'b, 'b> {
 }
 
 #[doc(hidden)]
-pub enum SerializeTable<'a: 'b, 'b> {
+pub enum SerializeTable<'a, 'b> {
     Datetime(&'b mut Serializer<'a>),
     Table {
         ser: &'b mut Serializer<'a>,
@@ -1186,7 +1186,7 @@ impl<'a, 'b> ser::SerializeStruct for SerializeTable<'a, 'b> {
     }
 }
 
-struct DateStrEmitter<'a: 'b, 'b>(&'b mut Serializer<'a>);
+struct DateStrEmitter<'a, 'b>(&'b mut Serializer<'a>);
 
 impl<'a, 'b> ser::Serializer for DateStrEmitter<'a, 'b> {
     type Ok = ();

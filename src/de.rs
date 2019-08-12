@@ -278,7 +278,7 @@ struct Table<'a> {
 }
 
 #[doc(hidden)]
-pub struct MapVisitor<'de: 'b, 'b> {
+pub struct MapVisitor<'de, 'b> {
     values: vec::IntoIter<(Cow<'de, str>, Value<'de>)>,
     next_value: Option<(Cow<'de, str>, Value<'de>)>,
     depth: usize,
