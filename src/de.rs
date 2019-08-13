@@ -1775,7 +1775,10 @@ impl<'a> Deserializer<'a> {
     /// All indexes are 0-based.
     fn to_linecol(&self, offset: usize) -> (usize, usize) {
         let mut cur = 0;
-        for (i, line) in self.input.lines().enumerate() {
+        // Use split_terminator instead of lines so that if there is a `\r`,
+        // it is included in the offset calculation. The `+1` values below
+        // account for the `\n`.
+        for (i, line) in self.input.split_terminator('\n').enumerate() {
             if cur + line.len() + 1 > offset {
                 return (i, offset - cur);
             }
