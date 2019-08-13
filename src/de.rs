@@ -8,6 +8,7 @@ use std::borrow::Cow;
 use std::error;
 use std::f64;
 use std::fmt;
+use std::mem::discriminant;
 use std::str;
 use std::vec;
 
@@ -2057,17 +2058,6 @@ impl<'a> E<'a> {
 
 impl<'a> Value<'a> {
     fn same_type(&self, other: &Value<'a>) -> bool {
-        match (&self.e, &other.e) {
-            (&E::String(..), &E::String(..))
-            | (&E::Integer(..), &E::Integer(..))
-            | (&E::Float(..), &E::Float(..))
-            | (&E::Boolean(..), &E::Boolean(..))
-            | (&E::Datetime(..), &E::Datetime(..))
-            | (&E::Array(..), &E::Array(..))
-            | (&E::InlineTable(..), &E::InlineTable(..)) => true,
-            (&E::DottedTable(..), &E::DottedTable(..)) => true,
-
-            _ => false,
-        }
+        discriminant(&self.e) == discriminant(&other.e)
     }
 }
