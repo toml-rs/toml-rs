@@ -3,6 +3,7 @@
 use std::collections::{BTreeMap, HashMap};
 use std::fmt;
 use std::hash::Hash;
+use std::mem::discriminant;
 use std::ops;
 use std::str::FromStr;
 use std::vec;
@@ -212,17 +213,7 @@ impl Value {
 
     /// Tests whether this and another value have the same type.
     pub fn same_type(&self, other: &Value) -> bool {
-        match (self, other) {
-            (&Value::String(..), &Value::String(..))
-            | (&Value::Integer(..), &Value::Integer(..))
-            | (&Value::Float(..), &Value::Float(..))
-            | (&Value::Boolean(..), &Value::Boolean(..))
-            | (&Value::Datetime(..), &Value::Datetime(..))
-            | (&Value::Array(..), &Value::Array(..))
-            | (&Value::Table(..), &Value::Table(..)) => true,
-
-            _ => false,
-        }
+        discriminant(self) == discriminant(other)
     }
 
     /// Returns a human-readable representation of the type of this value.
