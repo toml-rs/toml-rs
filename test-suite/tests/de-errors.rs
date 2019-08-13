@@ -323,3 +323,30 @@ fn serde_derive_deserialize_errors() {
         "invalid type: integer `1`, expected a string for key `p_b` at line 4 column 34"
     );
 }
+
+#[test]
+fn error_handles_crlf() {
+    bad!(
+        "\r\n\
+        [t1]\r\n\
+        [t2]\r\n\
+        a = 1\r\n\
+        a = 2\r\n\
+        ",
+        toml::Value,
+        "duplicate key: `a` for key `t2` at line 3 column 1"
+    );
+
+    // Should be the same as above.
+    bad!(
+        "\n\
+        [t1]\n\
+        [t2]\n\
+        a = 1\n\
+        a = 2\n\
+        ",
+        toml::Value,
+        "duplicate key: `a` for key `t2` at line 3 column 1"
+    );
+
+}
