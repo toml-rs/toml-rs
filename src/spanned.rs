@@ -32,7 +32,7 @@ pub const VALUE: &'static str = "$__toml_private_value";
 ///     assert_eq!(u.s.into_inner(), String::from("value"));
 /// }
 /// ```
-#[derive(Debug)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct Spanned<T> {
     /// The start range.
     start: usize,
