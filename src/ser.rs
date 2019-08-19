@@ -25,6 +25,8 @@
 //! # fn main() {}
 //! ```
 
+#![allow(unused_must_use)]
+
 use std::cell::Cell;
 use std::error;
 use std::fmt::{self, Write};
@@ -422,7 +424,7 @@ impl<'a> Serializer<'a> {
 
     fn display<T: fmt::Display>(&mut self, t: T, type_: &'static str) -> Result<(), Error> {
         self.emit_key(type_)?;
-        drop(write!(self.dst, "{}", t));
+        write!(self.dst, "{}", t);
         if let State::Table { .. } = self.state {
             self.dst.push_str("\n");
         }
@@ -515,7 +517,7 @@ impl<'a> Serializer<'a> {
             _ => false,
         });
         if ok {
-            drop(write!(self.dst, "{}", key));
+            write!(self.dst, "{}", key);
         } else {
             self.emit_str(key, true)?;
         }
@@ -647,7 +649,9 @@ impl<'a> Serializer<'a> {
                         '\u{d}' => self.dst.push_str("\\r"),
                         '\u{22}' => self.dst.push_str("\\\""),
                         '\u{5c}' => self.dst.push_str("\\\\"),
-                        c if c < '\u{1f}' => drop(write!(self.dst, "\\u{:04X}", ch as u32)),
+                        c if c < '\u{1f}' => {
+                            write!(self.dst, "\\u{:04X}", ch as u32);
+                        }
                         ch => self.dst.push(ch),
                     }
                 }
@@ -750,15 +754,15 @@ macro_rules! serialize_float {
     ($this:expr, $v:expr) => {{
         $this.emit_key("float")?;
         if ($v.is_nan() || $v == 0.0) && $v.is_sign_negative() {
-            drop(write!($this.dst, "-"));
+            write!($this.dst, "-");
         }
         if $v.is_nan() {
-            drop(write!($this.dst, "nan"));
+            write!($this.dst, "nan");
         } else {
-            drop(write!($this.dst, "{}", $v));
+            write!($this.dst, "{}", $v);
         }
         if $v % 1.0 == 0.0 {
-            drop(write!($this.dst, ".0"));
+            write!($this.dst, ".0");
         }
         if let State::Table { .. } = $this.state {
             $this.dst.push_str("\n");
