@@ -20,6 +20,9 @@ use crate::datetime;
 use crate::spanned;
 use crate::tokens::{Error as TokenError, Span, Token, Tokenizer};
 
+/// Type Alias for a TOML Table pair
+type TablePair<'a> = (Cow<'a, str>, Value<'a>);
+
 /// Deserializes a byte slice into a type.
 ///
 /// This function will attempt to interpret `bytes` as UTF-8 data and then
@@ -292,14 +295,14 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
 struct Table<'a> {
     at: usize,
     header: Vec<Cow<'a, str>>,
-    values: Option<Vec<(Cow<'a, str>, Value<'a>)>>,
+    values: Option<Vec<TablePair<'a>>>,
     array: bool,
 }
 
 #[doc(hidden)]
 pub struct MapVisitor<'de, 'b> {
-    values: vec::IntoIter<(Cow<'de, str>, Value<'de>)>,
-    next_value: Option<(Cow<'de, str>, Value<'de>)>,
+    values: vec::IntoIter<TablePair<'de>>,
+    next_value: Option<TablePair<'de>>,
     depth: usize,
     cur: usize,
     cur_parent: usize,
@@ -855,7 +858,7 @@ impl<'de> de::EnumAccess<'de> for DottedTableDeserializer<'de> {
 }
 
 struct InlineTableDeserializer<'a> {
-    values: vec::IntoIter<(Cow<'a, str>, Value<'a>)>,
+    values: vec::IntoIter<TablePair<'a>>,
     next_value: Option<Value<'a>>,
 }
 
@@ -1539,7 +1542,7 @@ impl<'a> Deserializer<'a> {
 
     // TODO(#140): shouldn't buffer up this entire table in memory, it'd be
     // great to defer parsing everything until later.
-    fn inline_table(&mut self) -> Result<(Span, Vec<(Cow<'a, str>, Value<'a>)>), Error> {
+    fn inline_table(&mut self) -> Result<(Span, Vec<TablePair<'a>>), Error> {
         let mut ret = Vec::new();
         self.eat_whitespace()?;
         if let Some(span) = self.eat_spanned(Token::RightBrace)? {
@@ -1635,7 +1638,7 @@ impl<'a> Deserializer<'a> {
         &self,
         mut key_parts: Vec<Cow<'a, str>>,
         value: Value<'a>,
-        values: &mut Vec<(Cow<'a, str>, Value<'a>)>,
+        values: &mut Vec<TablePair<'a>>,
     ) -> Result<(), Error> {
         let key = key_parts.remove(0);
         if key_parts.is_empty() {
@@ -2026,8 +2029,8 @@ enum E<'a> {
     String(Cow<'a, str>),
     Datetime(&'a str),
     Array(Vec<Value<'a>>),
-    InlineTable(Vec<(Cow<'a, str>, Value<'a>)>),
-    DottedTable(Vec<(Cow<'a, str>, Value<'a>)>),
+    InlineTable(Vec<TablePair<'a>>),
+    DottedTable(Vec<TablePair<'a>>),
 }
 
 impl<'a> E<'a> {
