@@ -25,8 +25,6 @@
 //! # fn main() {}
 //! ```
 
-#![allow(unused_must_use)]
-
 use std::cell::Cell;
 use std::error;
 use std::fmt::{self, Write};
@@ -424,7 +422,7 @@ impl<'a> Serializer<'a> {
 
     fn display<T: fmt::Display>(&mut self, t: T, type_: &'static str) -> Result<(), Error> {
         self.emit_key(type_)?;
-        write!(self.dst, "{}", t);
+        write!(self.dst, "{}", t).map_err(ser::Error::custom)?;
         if let State::Table { .. } = self.state {
             self.dst.push_str("\n");
         }
@@ -517,7 +515,7 @@ impl<'a> Serializer<'a> {
             _ => false,
         });
         if ok {
-            write!(self.dst, "{}", key);
+            write!(self.dst, "{}", key).map_err(ser::Error::custom)?;
         } else {
             self.emit_str(key, true)?;
         }
@@ -650,7 +648,7 @@ impl<'a> Serializer<'a> {
                         '\u{22}' => self.dst.push_str("\\\""),
                         '\u{5c}' => self.dst.push_str("\\\\"),
                         c if c < '\u{1f}' => {
-                            write!(self.dst, "\\u{:04X}", ch as u32);
+                            write!(self.dst, "\\u{:04X}", ch as u32).map_err(ser::Error::custom)?;
                         }
                         ch => self.dst.push(ch),
                     }
@@ -754,15 +752,15 @@ macro_rules! serialize_float {
     ($this:expr, $v:expr) => {{
         $this.emit_key("float")?;
         if ($v.is_nan() || $v == 0.0) && $v.is_sign_negative() {
-            write!($this.dst, "-");
+            write!($this.dst, "-").map_err(ser::Error::custom)?;
         }
         if $v.is_nan() {
-            write!($this.dst, "nan");
+            write!($this.dst, "nan").map_err(ser::Error::custom)?;
         } else {
-            write!($this.dst, "{}", $v);
+            write!($this.dst, "{}", $v).map_err(ser::Error::custom)?;
         }
         if $v % 1.0 == 0.0 {
-            write!($this.dst, ".0");
+            write!($this.dst, ".0").map_err(ser::Error::custom)?;
         }
         if let State::Table { .. } = $this.state {
             $this.dst.push_str("\n");
