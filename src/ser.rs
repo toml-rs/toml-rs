@@ -247,7 +247,7 @@ impl<'a> Serializer<'a> {
     /// will be present in `dst`.
     pub fn new(dst: &'a mut String) -> Serializer<'a> {
         Serializer {
-            dst: dst,
+            dst,
             state: State::End,
             settings: Rc::new(Settings::default()),
         }
@@ -263,7 +263,7 @@ impl<'a> Serializer<'a> {
     ///   have a trailing comma. See `Serializer::pretty_array`
     pub fn pretty(dst: &'a mut String) -> Serializer<'a> {
         Serializer {
-            dst: dst,
+            dst,
             state: State::End,
             settings: Rc::new(Settings {
                 array: Some(ArraySettings::pretty()),
@@ -331,13 +331,12 @@ impl<'a> Serializer<'a> {
     /// """
     /// ```
     pub fn pretty_string_literal(&mut self, value: bool) -> &mut Self {
-        let use_default =
-            if let &mut Some(ref mut s) = &mut Rc::get_mut(&mut self.settings).unwrap().string {
-                s.literal = value;
-                false
-            } else {
-                true
-            };
+        let use_default = if let Some(ref mut s) = Rc::get_mut(&mut self.settings).unwrap().string {
+            s.literal = value;
+            false
+        } else {
+            true
+        };
 
         if use_default {
             let mut string = StringSettings::pretty();
@@ -387,13 +386,12 @@ impl<'a> Serializer<'a> {
     ///
     /// See `Serializer::pretty_array` for more details.
     pub fn pretty_array_indent(&mut self, value: usize) -> &mut Self {
-        let use_default =
-            if let &mut Some(ref mut a) = &mut Rc::get_mut(&mut self.settings).unwrap().array {
-                a.indent = value;
-                false
-            } else {
-                true
-            };
+        let use_default = if let Some(ref mut a) = Rc::get_mut(&mut self.settings).unwrap().array {
+            a.indent = value;
+            false
+        } else {
+            true
+        };
 
         if use_default {
             let mut array = ArraySettings::pretty();
@@ -407,13 +405,12 @@ impl<'a> Serializer<'a> {
     ///
     /// See `Serializer::pretty_array` for more details.
     pub fn pretty_array_trailing_comma(&mut self, value: bool) -> &mut Self {
-        let use_default =
-            if let &mut Some(ref mut a) = &mut Rc::get_mut(&mut self.settings).unwrap().array {
-                a.trailing_comma = value;
-                false
-            } else {
-                true
-            };
+        let use_default = if let Some(ref mut a) = Rc::get_mut(&mut self.settings).unwrap().array {
+            a.trailing_comma = value;
+            false
+        } else {
+            true
+        };
 
         if use_default {
             let mut array = ArraySettings::pretty();
@@ -425,7 +422,7 @@ impl<'a> Serializer<'a> {
 
     fn display<T: fmt::Display>(&mut self, t: T, type_: &'static str) -> Result<(), Error> {
         self.emit_key(type_)?;
-        drop(write!(self.dst, "{}", t));
+        write!(self.dst, "{}", t).map_err(ser::Error::custom)?;
         if let State::Table { .. } = self.state {
             self.dst.push_str("\n");
         }
@@ -518,7 +515,7 @@ impl<'a> Serializer<'a> {
             _ => false,
         });
         if ok {
-            drop(write!(self.dst, "{}", key));
+            write!(self.dst, "{}", key).map_err(ser::Error::custom)?;
         } else {
             self.emit_str(key, true)?;
         }
@@ -610,7 +607,7 @@ impl<'a> Serializer<'a> {
                 (&Some(StringSettings { literal: false, .. }), Repr::Literal(_, ty)) => {
                     Repr::Std(ty)
                 }
-                (_, r @ _) => r,
+                (_, r) => r,
             }
         } else {
             Repr::Std(Type::OnelineSingle)
@@ -650,7 +647,9 @@ impl<'a> Serializer<'a> {
                         '\u{d}' => self.dst.push_str("\\r"),
                         '\u{22}' => self.dst.push_str("\\\""),
                         '\u{5c}' => self.dst.push_str("\\\\"),
-                        c if c < '\u{1f}' => drop(write!(self.dst, "\\u{:04X}", ch as u32)),
+                        c if c < '\u{1f}' => {
+                            write!(self.dst, "\\u{:04X}", ch as u32).map_err(ser::Error::custom)?;
+                        }
                         ch => self.dst.push(ch),
                     }
                 }
@@ -753,15 +752,15 @@ macro_rules! serialize_float {
     ($this:expr, $v:expr) => {{
         $this.emit_key("float")?;
         if ($v.is_nan() || $v == 0.0) && $v.is_sign_negative() {
-            drop(write!($this.dst, "-"));
+            write!($this.dst, "-").map_err(ser::Error::custom)?;
         }
         if $v.is_nan() {
-            drop(write!($this.dst, "nan"));
+            write!($this.dst, "nan").map_err(ser::Error::custom)?;
         } else {
-            drop(write!($this.dst, "{}", $v));
+            write!($this.dst, "{}", $v).map_err(ser::Error::custom)?;
         }
         if $v % 1.0 == 0.0 {
-            drop(write!($this.dst, ".0"));
+            write!($this.dst, ".0").map_err(ser::Error::custom)?;
         }
         if let State::Table { .. } = $this.state {
             $this.dst.push_str("\n");
@@ -902,7 +901,7 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
             ser: self,
             first: Cell::new(true),
             type_: Cell::new(None),
-            len: len,
+            len,
         })
     }
 
@@ -1099,10 +1098,10 @@ impl<'a, 'b> ser::SerializeMap for SerializeTable<'a, 'b> {
                 let res = value.serialize(&mut Serializer {
                     dst: &mut *ser.dst,
                     state: State::Table {
-                        key: key,
+                        key,
                         parent: &ser.state,
-                        first: first,
-                        table_emitted: table_emitted,
+                        first,
+                        table_emitted,
                     },
                     settings: ser.settings.clone(),
                 });
@@ -1155,10 +1154,10 @@ impl<'a, 'b> ser::SerializeStruct for SerializeTable<'a, 'b> {
                 let res = value.serialize(&mut Serializer {
                     dst: &mut *ser.dst,
                     state: State::Table {
-                        key: key,
+                        key,
                         parent: &ser.state,
-                        first: first,
-                        table_emitted: table_emitted,
+                        first,
+                        table_emitted,
                     },
                     settings: ser.settings.clone(),
                 });

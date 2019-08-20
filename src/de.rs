@@ -20,6 +20,9 @@ use crate::datetime;
 use crate::spanned;
 use crate::tokens::{Error as TokenError, Span, Token, Tokenizer};
 
+/// Type Alias for a TOML Table pair
+type TablePair<'a> = (Cow<'a, str>, Value<'a>);
+
 /// Deserializes a byte slice into a type.
 ///
 /// This function will attempt to interpret `bytes` as UTF-8 data and then
@@ -270,9 +273,9 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
             }
             E::DottedTable(_) => visitor.visit_enum(DottedTableDeserializer {
                 name: name.expect("Expected table header to be passed."),
-                value: value,
+                value,
             }),
-            e @ _ => Err(Error::from_kind(
+            e => Err(Error::from_kind(
                 Some(value.start),
                 ErrorKind::Wanted {
                     expected: "string or table",
@@ -292,14 +295,14 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
 struct Table<'a> {
     at: usize,
     header: Vec<Cow<'a, str>>,
-    values: Option<Vec<(Cow<'a, str>, Value<'a>)>>,
+    values: Option<Vec<TablePair<'a>>>,
     array: bool,
 }
 
 #[doc(hidden)]
 pub struct MapVisitor<'de, 'b> {
-    values: vec::IntoIter<(Cow<'de, str>, Value<'de>)>,
-    next_value: Option<(Cow<'de, str>, Value<'de>)>,
+    values: vec::IntoIter<TablePair<'de>>,
+    next_value: Option<TablePair<'de>>,
     depth: usize,
     cur: usize,
     cur_parent: usize,
@@ -425,7 +428,7 @@ impl<'de, 'b> de::MapAccess<'de> for MapVisitor<'de, 'b> {
             cur_parent: self.cur - 1,
             cur: 0,
             max: self.max,
-            array: array,
+            array,
             tables: &mut *self.tables,
             de: &mut *self.de,
         });
@@ -525,7 +528,7 @@ struct StrDeserializer<'a> {
 
 impl<'a> StrDeserializer<'a> {
     fn new(key: Cow<'a, str>) -> StrDeserializer<'a> {
-        StrDeserializer { key: key }
+        StrDeserializer { key }
     }
 }
 
@@ -557,7 +560,7 @@ struct ValueDeserializer<'a> {
 impl<'a> ValueDeserializer<'a> {
     fn new(value: Value<'a>) -> ValueDeserializer<'a> {
         ValueDeserializer {
-            value: value,
+            value,
             validate_struct_keys: false,
         }
     }
@@ -615,7 +618,7 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
     where
         V: de::Visitor<'de>,
     {
-        if name == datetime::NAME && fields == &[datetime::FIELD] {
+        if name == datetime::NAME && fields == [datetime::FIELD] {
             if let E::Datetime(s) = self.value.e {
                 return visitor.visit_map(DatetimeDeserializer {
                     date: s,
@@ -625,8 +628,8 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
         }
 
         if self.validate_struct_keys {
-            match &self.value.e {
-                &E::InlineTable(ref values) | &E::DottedTable(ref values) => {
+            match self.value.e {
+                E::InlineTable(ref values) | E::DottedTable(ref values) => {
                     let extra_fields = values
                         .iter()
                         .filter_map(|key_value| {
@@ -656,7 +659,7 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
             }
         }
 
-        if name == spanned::NAME && fields == &[spanned::START, spanned::END, spanned::VALUE] {
+        if name == spanned::NAME && fields == [spanned::START, spanned::END, spanned::VALUE] {
             let start = self.value.start;
             let end = self.value.end;
 
@@ -710,7 +713,7 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
                     })
                 }
             }
-            e @ _ => Err(Error::from_kind(
+            e => Err(Error::from_kind(
                 Some(self.value.start),
                 ErrorKind::Wanted {
                     expected: "string or inline table",
@@ -850,12 +853,12 @@ impl<'de> de::EnumAccess<'de> for DottedTableDeserializer<'de> {
     {
         let (name, value) = (self.name, self.value);
         seed.deserialize(StrDeserializer::new(name))
-            .map(|val| (val, TableEnumDeserializer { value: value }))
+            .map(|val| (val, TableEnumDeserializer { value }))
     }
 }
 
 struct InlineTableDeserializer<'a> {
-    values: vec::IntoIter<(Cow<'a, str>, Value<'a>)>,
+    values: vec::IntoIter<TablePair<'a>>,
     next_value: Option<Value<'a>>,
 }
 
@@ -905,7 +908,7 @@ impl<'de> de::EnumAccess<'de> for InlineTableDeserializer<'de> {
         };
 
         seed.deserialize(StrDeserializer::new(key))
-            .map(|val| (val, TableEnumDeserializer { value: value }))
+            .map(|val| (val, TableEnumDeserializer { value }))
     }
 }
 
@@ -920,7 +923,7 @@ impl<'de> de::VariantAccess<'de> for TableEnumDeserializer<'de> {
     fn unit_variant(self) -> Result<(), Self::Error> {
         match self.value.e {
             E::InlineTable(values) | E::DottedTable(values) => {
-                if values.len() == 0 {
+                if values.is_empty() {
                     Ok(())
                 } else {
                     Err(Error::from_kind(
@@ -929,7 +932,7 @@ impl<'de> de::VariantAccess<'de> for TableEnumDeserializer<'de> {
                     ))
                 }
             }
-            e @ _ => Err(Error::from_kind(
+            e => Err(Error::from_kind(
                 Some(self.value.start),
                 ErrorKind::Wanted {
                     expected: "table",
@@ -993,7 +996,7 @@ impl<'de> de::VariantAccess<'de> for TableEnumDeserializer<'de> {
                     ))
                 }
             }
-            e @ _ => Err(Error::from_kind(
+            e => Err(Error::from_kind(
                 Some(self.value.start),
                 ErrorKind::Wanted {
                     expected: "table",
@@ -1026,7 +1029,7 @@ impl<'a> Deserializer<'a> {
     pub fn new(input: &'a str) -> Deserializer<'a> {
         Deserializer {
             tokens: Tokenizer::new(input),
-            input: input,
+            input,
             require_newline_after_table: true,
             allow_duplciate_after_longer_table: false,
         }
@@ -1080,10 +1083,10 @@ impl<'a> Deserializer<'a> {
                         tables.push(cur_table);
                     }
                     cur_table = Table {
-                        at: at,
+                        at,
                         header: Vec::new(),
                         values: Some(Vec::new()),
-                        array: array,
+                        array,
                     };
                     loop {
                         let part = header.next().map_err(|e| self.token_error(e));
@@ -1151,7 +1154,7 @@ impl<'a> Deserializer<'a> {
         Ok(Line::Table {
             at: start,
             header: ret,
-            array: array,
+            array,
         })
     }
 
@@ -1175,33 +1178,33 @@ impl<'a> Deserializer<'a> {
         let value = match self.next()? {
             Some((Span { start, end }, Token::String { val, .. })) => Value {
                 e: E::String(val),
-                start: start,
-                end: end,
+                start,
+                end,
             },
             Some((Span { start, end }, Token::Keylike("true"))) => Value {
                 e: E::Boolean(true),
-                start: start,
-                end: end,
+                start,
+                end,
             },
             Some((Span { start, end }, Token::Keylike("false"))) => Value {
                 e: E::Boolean(false),
-                start: start,
-                end: end,
+                start,
+                end,
             },
             Some((span, Token::Keylike(key))) => self.number_or_date(span, key)?,
             Some((span, Token::Plus)) => self.number_leading_plus(span)?,
             Some((Span { start, .. }, Token::LeftBrace)) => {
                 self.inline_table().map(|(Span { end, .. }, table)| Value {
                     e: E::InlineTable(table),
-                    start: start,
-                    end: end,
+                    start,
+                    end,
                 })?
             }
             Some((Span { start, .. }, Token::LeftBracket)) => {
                 self.array().map(|(Span { end, .. }, array)| Value {
                     e: E::Array(array),
-                    start: start,
-                    end: end,
+                    start,
+                    end,
                 })?
             }
             Some(token) => {
@@ -1226,15 +1229,15 @@ impl<'a> Deserializer<'a> {
             self.datetime(span, s, false)
                 .map(|(Span { start, end }, d)| Value {
                     e: E::Datetime(d),
-                    start: start,
-                    end: end,
+                    start,
+                    end,
                 })
         } else if self.eat(Token::Colon)? {
             self.datetime(span, s, true)
                 .map(|(Span { start, end }, d)| Value {
                     e: E::Datetime(d),
-                    start: start,
-                    end: end,
+                    start,
+                    end,
                 })
         } else {
             self.number(span, s)
@@ -1282,8 +1285,8 @@ impl<'a> Deserializer<'a> {
                 Ok((
                     Value {
                         e: E::DottedTable(table.values.unwrap_or_else(Vec::new)),
-                        start: start,
-                        end: end,
+                        start,
+                        end,
                     },
                     Some(header.clone()),
                 ))
@@ -1296,8 +1299,8 @@ impl<'a> Deserializer<'a> {
     fn number(&mut self, Span { start, end }: Span, s: &'a str) -> Result<Value<'a>, Error> {
         let to_integer = |f| Value {
             e: E::Integer(f),
-            start: start,
-            end: end,
+            start,
+            end,
         };
         if s.starts_with("0x") {
             self.integer(&s[2..], 16).map(to_integer)
@@ -1308,8 +1311,8 @@ impl<'a> Deserializer<'a> {
         } else if s.contains('e') || s.contains('E') {
             self.float(s, None).map(|f| Value {
                 e: E::Float(f),
-                start: start,
-                end: end,
+                start,
+                end,
             })
         } else if self.eat(Token::Period)? {
             let at = self.tokens.current();
@@ -1317,8 +1320,8 @@ impl<'a> Deserializer<'a> {
                 Some((Span { start, end }, Token::Keylike(after))) => {
                     self.float(s, Some(after)).map(|f| Value {
                         e: E::Float(f),
-                        start: start,
-                        end: end,
+                        start,
+                        end,
                     })
                 }
                 _ => Err(self.error(at, ErrorKind::NumberInvalid)),
@@ -1326,26 +1329,26 @@ impl<'a> Deserializer<'a> {
         } else if s == "inf" {
             Ok(Value {
                 e: E::Float(f64::INFINITY),
-                start: start,
-                end: end,
+                start,
+                end,
             })
         } else if s == "-inf" {
             Ok(Value {
                 e: E::Float(f64::NEG_INFINITY),
-                start: start,
-                end: end,
+                start,
+                end,
             })
         } else if s == "nan" {
             Ok(Value {
                 e: E::Float(f64::NAN),
-                start: start,
-                end: end,
+                start,
+                end,
             })
         } else if s == "-nan" {
             Ok(Value {
                 e: E::Float(-f64::NAN),
-                start: start,
-                end: end,
+                start,
+                end,
             })
         } else {
             self.integer(s, 10).map(to_integer)
@@ -1355,13 +1358,7 @@ impl<'a> Deserializer<'a> {
     fn number_leading_plus(&mut self, Span { start, .. }: Span) -> Result<Value<'a>, Error> {
         let start_token = self.tokens.current();
         match self.next()? {
-            Some((Span { end, .. }, Token::Keylike(s))) => self.number(
-                Span {
-                    start: start,
-                    end: end,
-                },
-                s,
-            ),
+            Some((Span { end, .. }, Token::Keylike(s))) => self.number(Span { start, end }, s),
             _ => Err(self.error(start_token, ErrorKind::NumberInvalid)),
         }
     }
@@ -1545,7 +1542,7 @@ impl<'a> Deserializer<'a> {
 
     // TODO(#140): shouldn't buffer up this entire table in memory, it'd be
     // great to defer parsing everything until later.
-    fn inline_table(&mut self) -> Result<(Span, Vec<(Cow<'a, str>, Value<'a>)>), Error> {
+    fn inline_table(&mut self) -> Result<(Span, Vec<TablePair<'a>>), Error> {
         let mut ret = Vec::new();
         self.eat_whitespace()?;
         if let Some(span) = self.eat_spanned(Token::RightBrace)? {
@@ -1641,7 +1638,7 @@ impl<'a> Deserializer<'a> {
         &self,
         mut key_parts: Vec<Cow<'a, str>>,
         value: Value<'a>,
-        values: &mut Vec<(Cow<'a, str>, Value<'a>)>,
+        values: &mut Vec<TablePair<'a>>,
     ) -> Result<(), Error> {
         let key = key_parts.remove(0);
         if key_parts.is_empty() {
@@ -1752,13 +1749,7 @@ impl<'a> Deserializer<'a> {
                 at,
                 expected,
                 found,
-            } => self.error(
-                at,
-                ErrorKind::Wanted {
-                    expected: expected,
-                    found: found,
-                },
-            ),
+            } => self.error(at, ErrorKind::Wanted { expected, found }),
             TokenError::EmptyTableKey(at) => self.error(at, ErrorKind::EmptyTableKey),
             TokenError::MultilineStringKey(at) => self.error(at, ErrorKind::MultilineStringKey),
         }
@@ -1799,7 +1790,7 @@ impl Error {
     fn from_kind(at: Option<usize>, kind: ErrorKind) -> Error {
         Error {
             inner: Box::new(ErrorInner {
-                kind: kind,
+                kind,
                 line: None,
                 col: 0,
                 at,
@@ -1829,7 +1820,7 @@ impl Error {
         self.inner.key.insert(0, key.to_string());
     }
 
-    fn fix_offset<F>(&mut self, f: F) -> ()
+    fn fix_offset<F>(&mut self, f: F)
     where
         F: FnOnce() -> Option<usize>,
     {
@@ -1840,7 +1831,7 @@ impl Error {
         }
     }
 
-    fn fix_linecol<F>(&mut self, f: F) -> ()
+    fn fix_linecol<F>(&mut self, f: F)
     where
         F: FnOnce(usize) -> (usize, usize),
     {
@@ -1854,7 +1845,7 @@ impl Error {
 
 impl std::convert::From<Error> for std::io::Error {
     fn from(e: Error) -> Self {
-        return std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string());
+        std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string())
     }
 }
 
@@ -1995,9 +1986,9 @@ impl<'a> Header<'a> {
     fn new(tokens: Tokenizer<'a>, array: bool, require_newline_after_table: bool) -> Header<'a> {
         Header {
             first: true,
-            array: array,
-            tokens: tokens,
-            require_newline_after_table: require_newline_after_table,
+            array,
+            tokens,
+            require_newline_after_table,
         }
     }
 
@@ -2015,10 +2006,8 @@ impl<'a> Header<'a> {
             }
 
             self.tokens.eat_whitespace()?;
-            if self.require_newline_after_table {
-                if !self.tokens.eat_comment()? {
-                    self.tokens.eat_newline_or_eof()?;
-                }
+            if self.require_newline_after_table && !self.tokens.eat_comment()? {
+                self.tokens.eat_newline_or_eof()?;
             }
             Ok(None)
         }
@@ -2040,8 +2029,8 @@ enum E<'a> {
     String(Cow<'a, str>),
     Datetime(&'a str),
     Array(Vec<Value<'a>>),
-    InlineTable(Vec<(Cow<'a, str>, Value<'a>)>),
-    DottedTable(Vec<(Cow<'a, str>, Value<'a>)>),
+    InlineTable(Vec<TablePair<'a>>),
+    DottedTable(Vec<TablePair<'a>>),
 }
 
 impl<'a> E<'a> {

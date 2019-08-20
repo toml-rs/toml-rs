@@ -749,7 +749,7 @@ impl ser::Serializer for Serializer {
     }
 
     fn serialize_i64(self, value: i64) -> Result<Value, crate::ser::Error> {
-        Ok(Value::Integer(value.into()))
+        Ok(Value::Integer(value))
     }
 
     fn serialize_u8(self, value: u8) -> Result<Value, crate::ser::Error> {

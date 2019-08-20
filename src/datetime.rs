@@ -40,8 +40,8 @@ pub struct DatetimeParseError {
 //
 // In general the TOML encoder/decoder will catch this and not literally emit
 // these strings but rather emit datetimes as they're intended.
-pub const FIELD: &'static str = "$__toml_private_datetime";
-pub const NAME: &'static str = "$__toml_private_Datetime";
+pub const FIELD: &str = "$__toml_private_datetime";
+pub const NAME: &str = "$__toml_private_Datetime";
 
 #[derive(PartialEq, Clone)]
 struct Date {
@@ -135,10 +135,10 @@ impl FromStr for Datetime {
             offset_allowed = false;
             None
         } else {
-            let y1 = digit(&mut chars)? as u16;
-            let y2 = digit(&mut chars)? as u16;
-            let y3 = digit(&mut chars)? as u16;
-            let y4 = digit(&mut chars)? as u16;
+            let y1 = u16::from(digit(&mut chars)?);
+            let y2 = u16::from(digit(&mut chars)?);
+            let y3 = u16::from(digit(&mut chars)?);
+            let y4 = u16::from(digit(&mut chars)?);
 
             match chars.next() {
                 Some('-') => {}
@@ -210,7 +210,7 @@ impl FromStr for Datetime {
                         b'0'..=b'9' => {
                             if i < 9 {
                                 let p = 10_u32.pow(8 - i as u32);
-                                nanosecond += p * (byte - b'0') as u32;
+                                nanosecond += p * u32::from(byte - b'0');
                             }
                         }
                         _ => {
@@ -229,7 +229,7 @@ impl FromStr for Datetime {
                 hour: h1 * 10 + h2,
                 minute: m1 * 10 + m2,
                 second: s1 * 10 + s2,
-                nanosecond: nanosecond,
+                nanosecond,
             };
 
             if time.hour > 24 {
@@ -292,8 +292,8 @@ impl FromStr for Datetime {
 
         Ok(Datetime {
             date: full_date,
-            time: time,
-            offset: offset,
+            time,
+            offset,
         })
     }
 }
@@ -345,7 +345,7 @@ impl<'de> de::Deserialize<'de> for Datetime {
             }
         }
 
-        static FIELDS: [&'static str; 1] = [FIELD];
+        static FIELDS: [&str; 1] = [FIELD];
         deserializer.deserialize_struct(NAME, &FIELDS, DatetimeVisitor)
     }
 }

@@ -150,8 +150,8 @@ impl Map<String, Value> {
         use std::collections::btree_map::Entry as EntryImpl;
 
         match self.map.entry(key.into()) {
-            EntryImpl::Vacant(vacant) => Entry::Vacant(VacantEntry { vacant: vacant }),
-            EntryImpl::Occupied(occupied) => Entry::Occupied(OccupiedEntry { occupied: occupied }),
+            EntryImpl::Vacant(vacant) => Entry::Vacant(VacantEntry { vacant }),
+            EntryImpl::Occupied(occupied) => Entry::Occupied(OccupiedEntry { occupied }),
         }
     }
 
