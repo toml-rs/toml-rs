@@ -368,3 +368,9 @@ test!(
     include_str!("valid/quote-surrounded-value.toml"),
     include_str!("valid/quote-surrounded-value.json")
 );
+
+test!(
+    float_exponent,
+    include_str!("valid/float-exponent.toml"),
+    include_str!("valid/float-exponent.json")
+);

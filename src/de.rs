@@ -1436,11 +1436,11 @@ impl<'a> Deserializer<'a> {
             let (a, b) = if suffix.len() == 1 {
                 self.eat(Token::Plus)?;
                 match self.next()? {
-                    Some((_, Token::Keylike(s))) => self.parse_integer(s, false, false, 10)?,
+                    Some((_, Token::Keylike(s))) => self.parse_integer(s, false, true, 10)?,
                     _ => return Err(self.error(start, ErrorKind::NumberInvalid)),
                 }
             } else {
-                self.parse_integer(&suffix[1..], true, false, 10)?
+                self.parse_integer(&suffix[1..], true, true, 10)?
             };
             if b != "" {
                 return Err(self.error(start, ErrorKind::NumberInvalid));
