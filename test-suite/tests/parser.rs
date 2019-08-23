@@ -270,7 +270,6 @@ fn bad_floats() {
     bad!("a = 0.0e", "invalid number at line 1 column 5");
     bad!("a = 0.0e-", "invalid number at line 1 column 9");
     bad!("a = 0.0e+", "invalid number at line 1 column 5");
-    bad!("a = 0.0e+00", "invalid number at line 1 column 11");
 }
 
 #[test]
