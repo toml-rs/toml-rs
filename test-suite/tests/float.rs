@@ -4,6 +4,7 @@ extern crate serde_derive;
 
 use toml::Value;
 
+#[rustfmt::skip] // appears to be a bug in rustfmt to make this converge...
 macro_rules! float_inf_tests {
     ($ty:ty) => {{
         #[derive(Serialize, Deserialize)]
@@ -59,7 +60,7 @@ macro_rules! float_inf_tests {
         assert_eq!(
             s,
             "\
-                        sf1 = inf
+sf1 = inf
 sf2 = inf
 sf3 = -inf
 sf4 = nan
