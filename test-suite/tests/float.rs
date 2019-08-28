@@ -59,7 +59,7 @@ macro_rules! float_inf_tests {
         assert_eq!(
             s,
             "\
-                sf1 = inf
+                    sf1 = inf
 sf2 = inf
 sf3 = -inf
 sf4 = nan
