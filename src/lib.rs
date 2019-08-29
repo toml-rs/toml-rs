@@ -150,6 +150,7 @@
 
 pub mod map;
 pub mod value;
+pub mod spanned_value;
 #[doc(no_inline)]
 pub use crate::value::Value;
 mod datetime;
