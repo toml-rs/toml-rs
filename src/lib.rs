@@ -149,8 +149,10 @@
 #![warn(rust_2018_idioms)]
 
 pub mod map;
-pub mod value;
 pub mod spanned_value;
+pub mod value;
+#[doc(no_inline)]
+pub use crate::spanned_value::SpannedValue;
 #[doc(no_inline)]
 pub use crate::value::Value;
 mod datetime;
