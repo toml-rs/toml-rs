@@ -4,6 +4,7 @@ extern crate toml;
 extern crate serde_derive;
 
 use std::collections::HashMap;
+use std::fmt::Debug;
 use toml::value::Datetime;
 use toml::Spanned;
 
@@ -31,33 +32,56 @@ fn test_spanned_field() {
         foo: Spanned<T>,
     }
 
-    fn good<'de, T>(s: &'de str, expected: &str)
+    #[derive(Deserialize)]
+    struct BareFoo<T> {
+        foo: T,
+    }
+
+    fn good<'de, T>(s: &'de str, expected: &str, end: Option<usize>)
     where
-        T: serde::Deserialize<'de>,
+        T: serde::Deserialize<'de> + Debug + PartialEq,
     {
         let foo: Foo<T> = toml::from_str(s).unwrap();
 
         assert_eq!(6, foo.foo.start());
-        assert_eq!(s.len(), foo.foo.end());
+        if let Some(end) = end {
+            assert_eq!(end, foo.foo.end());
+        } else {
+            assert_eq!(s.len(), foo.foo.end());
+        }
         assert_eq!(expected, &s[foo.foo.start()..foo.foo.end()]);
+
+        // Test for Spanned<> at the top level
+        let foo_outer: Spanned<BareFoo<T>> = toml::from_str(s).unwrap();
+
+        assert_eq!(0, foo_outer.start());
+        assert_eq!(s.len(), foo_outer.end());
+        assert_eq!(foo.foo.into_inner(), foo_outer.into_inner().foo);
     }
 
-    good::<String>("foo = \"foo\"", "\"foo\"");
-    good::<u32>("foo = 42", "42");
+    good::<String>("foo = \"foo\"", "\"foo\"", None);
+    good::<u32>("foo = 42", "42", None);
     // leading plus
-    good::<u32>("foo = +42", "+42");
+    good::<u32>("foo = +42", "+42", None);
     // table
     good::<HashMap<String, u32>>(
         "foo = {\"foo\" = 42, \"bar\" = 42}",
         "{\"foo\" = 42, \"bar\" = 42}",
+        None,
     );
     // array
-    good::<Vec<u32>>("foo = [0, 1, 2, 3, 4]", "[0, 1, 2, 3, 4]");
+    good::<Vec<u32>>("foo = [0, 1, 2, 3, 4]", "[0, 1, 2, 3, 4]", None);
     // datetime
-    good::<String>("foo = \"1997-09-09T09:09:09Z\"", "\"1997-09-09T09:09:09Z\"");
+    good::<String>(
+        "foo = \"1997-09-09T09:09:09Z\"",
+        "\"1997-09-09T09:09:09Z\"",
+        None,
+    );
 
     for expected in good_datetimes() {
         let s = format!("foo = {}", expected);
-        good::<Datetime>(&s, expected);
+        good::<Datetime>(&s, expected, None);
     }
+    // ending at something other than the absolute end
+    good::<u32>("foo = 42\nnoise = true", "42", Some(8));
 }
