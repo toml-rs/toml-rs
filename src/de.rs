@@ -515,10 +515,41 @@ impl<'de, 'b> de::Deserializer<'de> for MapVisitor<'de, 'b> {
         visitor.visit_newtype_struct(self)
     }
 
+    fn deserialize_enum<V>(
+        self,
+        _name: &'static str,
+        _variants: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value, Error>
+    where
+        V: de::Visitor<'de>,
+    {
+        if self.tables.len() != 1 {
+            return Err(Error::custom(
+                Some(self.cur),
+                "enum table must contain exactly one table".into(),
+            ));
+        }
+        let table = &mut self.tables[0];
+        let values = table.values.take().expect("table has no values?");
+        if table.header.len() == 0 {
+            return Err(self.de.error(self.cur, ErrorKind::EmptyTableKey));
+        }
+        let name = table.header[table.header.len() - 1].to_owned();
+        visitor.visit_enum(DottedTableDeserializer {
+            name: name,
+            value: Value {
+                e: E::DottedTable(values),
+                start: 0,
+                end: 0,
+            },
+        })
+    }
+
     serde::forward_to_deserialize_any! {
         bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string seq
         bytes byte_buf map struct unit identifier
-        ignored_any unit_struct tuple_struct tuple enum
+        ignored_any unit_struct tuple_struct tuple
     }
 }
 
