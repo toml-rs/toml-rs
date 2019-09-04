@@ -81,12 +81,12 @@ where
 }
 
 /// Errors that can occur when deserializing a type.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 pub struct Error {
     inner: Box<ErrorInner>,
 }
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 struct ErrorInner {
     kind: ErrorKind,
     line: Option<usize>,
@@ -97,7 +97,7 @@ struct ErrorInner {
 }
 
 /// Errors that can occur when deserializing a type.
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Debug, PartialEq, Eq, Clone)]
 enum ErrorKind {
     /// EOF was reached when looking for a value
     UnexpectedEof,
