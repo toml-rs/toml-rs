@@ -2,6 +2,7 @@
 
 [![Latest Version](https://img.shields.io/crates/v/toml.svg)](https://crates.io/crates/toml)
 [![Documentation](https://docs.rs/toml/badge.svg)](https://docs.rs/toml)
+[![unsafe forbidden](https://img.shields.io/badge/unsafe-forbidden-success.svg)](https://github.com/rust-secure-code/safety-dance/)
 
 A [TOML][toml] decoder and encoder for Rust. This library is currently compliant
 with the v0.5.0 version of TOML. This library will also likely continue to stay
