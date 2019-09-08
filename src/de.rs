@@ -318,9 +318,16 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
     }
 }
 
+fn headers_equal<'a, 'b>(hdr_a: &[(Span, Cow<'a, str>)], hdr_b: &[(Span, Cow<'b, str>)]) -> bool {
+    if hdr_a.len() != hdr_b.len() {
+        return false;
+    }
+    hdr_a.iter().zip(hdr_b.iter()).all(|(h1, h2)| h1.1 == h2.1)
+}
+
 struct Table<'a> {
     at: usize,
-    header: Vec<Cow<'a, str>>,
+    header: Vec<(Span, Cow<'a, str>)>,
     values: Option<Vec<TablePair<'a>>>,
     array: bool,
 }
@@ -367,7 +374,7 @@ impl<'de, 'b> de::MapAccess<'de> for MapVisitor<'de, 'b> {
                             return false;
                         }
                         match t.header.get(..self.depth) {
-                            Some(header) => header == prefix,
+                            Some(header) => headers_equal(&header, &prefix),
                             None => false,
                         }
                     })
@@ -383,9 +390,17 @@ impl<'de, 'b> de::MapAccess<'de> for MapVisitor<'de, 'b> {
             // Test to see if we're duplicating our parent's table, and if so
             // then this is an error in the toml format
             if self.cur_parent != pos {
-                if self.tables[self.cur_parent].header == self.tables[pos].header {
+                if headers_equal(
+                    &self.tables[self.cur_parent].header,
+                    &self.tables[pos].header,
+                ) {
                     let at = self.tables[pos].at;
-                    let name = self.tables[pos].header.join(".");
+                    let name = self.tables[pos]
+                        .header
+                        .iter()
+                        .map(|k| k.1.to_owned())
+                        .collect::<Vec<_>>()
+                        .join(".");
                     return Err(self.de.error(at, ErrorKind::DuplicateTable(name)));
                 }
 
@@ -409,7 +424,7 @@ impl<'de, 'b> de::MapAccess<'de> for MapVisitor<'de, 'b> {
             // decoding.
             if self.depth != table.header.len() {
                 let key = &table.header[self.depth];
-                let key = seed.deserialize(StrDeserializer::new(key.clone()))?;
+                let key = seed.deserialize(StrDeserializer::new(key.1.clone()))?;
                 return Ok(Some(key));
             }
 
@@ -459,7 +474,7 @@ impl<'de, 'b> de::MapAccess<'de> for MapVisitor<'de, 'b> {
             de: &mut *self.de,
         });
         res.map_err(|mut e| {
-            e.add_key_context(&self.tables[self.cur - 1].header[self.depth]);
+            e.add_key_context(&self.tables[self.cur - 1].header[self.depth].1);
             e
         })
     }
@@ -483,7 +498,10 @@ impl<'de, 'b> de::SeqAccess<'de> for MapVisitor<'de, 'b> {
             .iter()
             .enumerate()
             .skip(self.cur_parent + 1)
-            .find(|&(_, table)| table.array && table.header == self.tables[self.cur_parent].header)
+            .find(|&(_, table)| {
+                let tables_eq = headers_equal(&table.header, &self.tables[self.cur_parent].header);
+                table.array && tables_eq
+            })
             .map(|p| p.0)
             .unwrap_or(self.max);
 
@@ -561,7 +579,7 @@ impl<'de, 'b> de::Deserializer<'de> for MapVisitor<'de, 'b> {
         if table.header.len() == 0 {
             return Err(self.de.error(self.cur, ErrorKind::EmptyTableKey));
         }
-        let name = table.header[table.header.len() - 1].to_owned();
+        let name = table.header[table.header.len() - 1].1.to_owned();
         visitor.visit_enum(DottedTableDeserializer {
             name,
             value: Value {
@@ -1198,7 +1216,7 @@ impl<'a> Deserializer<'a> {
                     loop {
                         let part = header.next().map_err(|e| self.token_error(e));
                         match part? {
-                            Some(part) => cur_table.header.push(part.1),
+                            Some(part) => cur_table.header.push(part),
                             None => break,
                         }
                     }
@@ -1388,14 +1406,14 @@ impl<'a> Deserializer<'a> {
                     .as_ref()
                     .and_then(|values| values.last())
                     .map(|&(_, ref val)| val.end)
-                    .unwrap_or_else(|| header.len());
+                    .unwrap_or_else(|| header.1.len());
                 Ok((
                     Value {
                         e: E::DottedTable(table.values.unwrap_or_else(Vec::new)),
                         start,
                         end,
                     },
-                    Some(header.clone()),
+                    Some(header.1.clone()),
                 ))
             }
             Some(_) => self.value().map(|val| (val, None)),
