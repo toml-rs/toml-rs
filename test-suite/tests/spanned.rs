@@ -118,3 +118,43 @@ fn test_spanned_table() {
     ",
     );
 }
+
+#[test]
+fn test_spanned_nested() {
+    #[derive(Deserialize)]
+    struct Foo {
+        foo: HashMap<Spanned<String>, HashMap<Spanned<String>, Spanned<String>>>,
+    }
+
+    fn good(s: &str) {
+        let foo: Foo = toml::from_str(s).unwrap();
+
+        for (k, v) in foo.foo.iter() {
+            assert_eq!(&s[k.start()..k.end()], k.get_ref());
+            for (n_k, n_v) in v.iter() {
+                assert_eq!(&s[n_k.start()..n_k.end()], n_k.get_ref());
+                assert_eq!(&s[(n_v.start() + 1)..(n_v.end() - 1)], n_v.get_ref());
+            }
+        }
+    }
+
+    good(
+        "
+        [foo.a]
+        a = 'b'
+        c = 'd'
+        e = \"f\"
+        [foo.bar]
+        baz = 'true'
+    ",
+    );
+
+    good(
+        "
+        [foo]
+        foo = { a = 'b', bar = 'baz', c = 'd', e = \"f\" }
+        bazz = {}
+        g = { h = 'i' }
+    ",
+    );
+}

@@ -424,7 +424,7 @@ impl<'de, 'b> de::MapAccess<'de> for MapVisitor<'de, 'b> {
             // decoding.
             if self.depth != table.header.len() {
                 let key = &table.header[self.depth];
-                let key = seed.deserialize(StrDeserializer::new(key.1.clone()))?;
+                let key = seed.deserialize(StrDeserializer::spanned(key.clone()))?;
                 return Ok(Some(key));
             }
 
