@@ -151,7 +151,6 @@ pub enum Error {
 }
 
 #[derive(Debug, Default, Clone)]
-#[doc(hidden)]
 /// Internal place for holding array setings
 struct ArraySettings {
     indent: usize,
@@ -167,7 +166,6 @@ impl ArraySettings {
     }
 }
 
-#[doc(hidden)]
 #[derive(Debug, Default, Clone)]
 /// String settings
 struct StringSettings {
@@ -182,7 +180,6 @@ impl StringSettings {
 }
 
 #[derive(Debug, Default, Clone)]
-#[doc(hidden)]
 /// Internal struct for holding serialization settings
 struct Settings {
     array: Option<ArraySettings>,

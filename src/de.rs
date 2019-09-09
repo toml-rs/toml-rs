@@ -325,8 +325,7 @@ struct Table<'a> {
     array: bool,
 }
 
-#[doc(hidden)]
-pub struct MapVisitor<'de, 'b> {
+struct MapVisitor<'de, 'b> {
     values: vec::IntoIter<TablePair<'de>>,
     next_value: Option<TablePair<'de>>,
     depth: usize,
@@ -1883,10 +1882,7 @@ impl Error {
         }
     }
 
-    /// Do not call this method, it may be removed at any time, it's just an
-    /// internal implementation detail.
-    #[doc(hidden)]
-    pub fn add_key_context(&mut self, key: &str) {
+    pub(crate) fn add_key_context(&mut self, key: &str) {
         self.inner.key.insert(0, key.to_string());
     }
 

@@ -1,14 +1,10 @@
 use serde::{de, ser};
 use std::fmt;
 
-#[doc(hidden)]
-pub const NAME: &str = "$__toml_private_Spanned";
-#[doc(hidden)]
-pub const START: &str = "$__toml_private_start";
-#[doc(hidden)]
-pub const END: &str = "$__toml_private_end";
-#[doc(hidden)]
-pub const VALUE: &str = "$__toml_private_value";
+pub(crate) const NAME: &str = "$__toml_private_Spanned";
+pub(crate) const START: &str = "$__toml_private_start";
+pub(crate) const END: &str = "$__toml_private_end";
+pub(crate) const VALUE: &str = "$__toml_private_value";
 
 /// A spanned value, indicating the range at which it is defined in the source.
 ///
