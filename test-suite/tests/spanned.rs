@@ -85,3 +85,36 @@ fn test_spanned_field() {
     // ending at something other than the absolute end
     good::<u32>("foo = 42\nnoise = true", "42", Some(8));
 }
+
+#[test]
+fn test_spanned_table() {
+    #[derive(Deserialize)]
+    struct Foo {
+        foo: HashMap<Spanned<String>, Spanned<String>>,
+    }
+
+    fn good(s: &str) {
+        let foo: Foo = toml::from_str(s).unwrap();
+
+        for (k, v) in foo.foo.iter() {
+            assert_eq!(&s[k.start()..k.end()], k.get_ref());
+            assert_eq!(&s[(v.start() + 1)..(v.end() - 1)], v.get_ref());
+        }
+    }
+
+    good(
+        "
+        [foo]
+        a = 'b'
+        bar = 'baz'
+        c = 'd'
+        e = \"f\"
+    ",
+    );
+
+    good(
+        "
+        foo = { a = 'b', bar = 'baz', c = 'd', e = \"f\" }
+    ",
+    );
+}

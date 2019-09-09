@@ -352,7 +352,7 @@ impl<'de, 'b> de::MapAccess<'de> for MapVisitor<'de, 'b> {
         loop {
             assert!(self.next_value.is_none());
             if let Some((key, value)) = self.values.next() {
-                let ret = seed.deserialize(StrDeserializer::new(key.1.clone()))?;
+                let ret = seed.deserialize(StrDeserializer::spanned(key.clone()))?;
                 self.next_value = Some((key, value));
                 return Ok(Some(ret));
             }
@@ -580,12 +580,27 @@ impl<'de, 'b> de::Deserializer<'de> for MapVisitor<'de, 'b> {
 }
 
 struct StrDeserializer<'a> {
+    span: Option<Span>,
     key: Cow<'a, str>,
 }
 
 impl<'a> StrDeserializer<'a> {
+    fn spanned(inner: (Span, Cow<'a, str>)) -> StrDeserializer<'a> {
+        StrDeserializer {
+            span: Some(inner.0),
+            key: inner.1,
+        }
+    }
     fn new(key: Cow<'a, str>) -> StrDeserializer<'a> {
-        StrDeserializer { key }
+        StrDeserializer { span: None, key }
+    }
+}
+
+impl<'a, 'b> de::IntoDeserializer<'a, Error> for StrDeserializer<'a> {
+    type Deserializer = Self;
+
+    fn into_deserializer(self) -> Self::Deserializer {
+        self
     }
 }
 
@@ -602,9 +617,31 @@ impl<'de> de::Deserializer<'de> for StrDeserializer<'de> {
         }
     }
 
+    fn deserialize_struct<V>(
+        self,
+        name: &'static str,
+        fields: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value, Error>
+    where
+        V: de::Visitor<'de>,
+    {
+        if name == spanned::NAME && fields == [spanned::START, spanned::END, spanned::VALUE] {
+            if let Some(span) = self.span {
+                return visitor.visit_map(SpannedDeserializer {
+                    phantom_data: PhantomData,
+                    start: Some(span.start),
+                    value: Some(StrDeserializer::new(self.key)),
+                    end: Some(span.end),
+                });
+            }
+        }
+        self.deserialize_any(visitor)
+    }
+
     serde::forward_to_deserialize_any! {
         bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string seq
-        bytes byte_buf map struct option unit newtype_struct
+        bytes byte_buf map option unit newtype_struct
         ignored_any unit_struct tuple_struct tuple enum identifier
     }
 }
@@ -944,7 +981,7 @@ impl<'de> de::MapAccess<'de> for InlineTableDeserializer<'de> {
             None => return Ok(None),
         };
         self.next_value = Some(value);
-        seed.deserialize(StrDeserializer::new(key.1)).map(Some)
+        seed.deserialize(StrDeserializer::spanned(key)).map(Some)
     }
 
     fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Error>
