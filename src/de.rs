@@ -22,7 +22,7 @@ use crate::spanned;
 use crate::tokens::{Error as TokenError, Span, Token, Tokenizer};
 
 /// Type Alias for a TOML Table pair
-type TablePair<'a> = (Cow<'a, str>, Value<'a>);
+type TablePair<'a> = ((Span, Cow<'a, str>), Value<'a>);
 
 /// Deserializes a byte slice into a type.
 ///
@@ -352,7 +352,7 @@ impl<'de, 'b> de::MapAccess<'de> for MapVisitor<'de, 'b> {
         loop {
             assert!(self.next_value.is_none());
             if let Some((key, value)) = self.values.next() {
-                let ret = seed.deserialize(StrDeserializer::new(key.clone()))?;
+                let ret = seed.deserialize(StrDeserializer::new(key.1.clone()))?;
                 self.next_value = Some((key, value));
                 return Ok(Some(ret));
             }
@@ -438,7 +438,7 @@ impl<'de, 'b> de::MapAccess<'de> for MapVisitor<'de, 'b> {
             match seed.deserialize(ValueDeserializer::new(v)) {
                 Ok(v) => return Ok(v),
                 Err(mut e) => {
-                    e.add_key_context(&k);
+                    e.add_key_context(&k.1);
                     return Err(e);
                 }
             }
@@ -563,7 +563,7 @@ impl<'de, 'b> de::Deserializer<'de> for MapVisitor<'de, 'b> {
         }
         let name = table.header[table.header.len() - 1].to_owned();
         visitor.visit_enum(DottedTableDeserializer {
-            name: name,
+            name,
             value: Value {
                 e: E::DottedTable(values),
                 start: 0,
@@ -691,13 +691,13 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
                         .iter()
                         .filter_map(|key_value| {
                             let (ref key, ref _val) = *key_value;
-                            if !fields.contains(&&(**key)) {
+                            if !fields.contains(&&*(key.1)) {
                                 Some(key.clone())
                             } else {
                                 None
                             }
                         })
-                        .collect::<Vec<Cow<'de, str>>>();
+                        .collect::<Vec<_>>();
 
                     if !extra_fields.is_empty() {
                         return Err(Error::from_kind(
@@ -705,7 +705,7 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
                             ErrorKind::UnexpectedKeys {
                                 keys: extra_fields
                                     .iter()
-                                    .map(|k| k.to_string())
+                                    .map(|k| k.1.to_string())
                                     .collect::<Vec<_>>(),
                                 available: fields,
                             },
@@ -944,7 +944,7 @@ impl<'de> de::MapAccess<'de> for InlineTableDeserializer<'de> {
             None => return Ok(None),
         };
         self.next_value = Some(value);
-        seed.deserialize(StrDeserializer::new(key)).map(Some)
+        seed.deserialize(StrDeserializer::new(key.1)).map(Some)
     }
 
     fn next_value_seed<V>(&mut self, seed: V) -> Result<V::Value, Error>
@@ -977,7 +977,7 @@ impl<'de> de::EnumAccess<'de> for InlineTableDeserializer<'de> {
             }
         };
 
-        seed.deserialize(StrDeserializer::new(key))
+        seed.deserialize(StrDeserializer::new(key.1))
             .map(|val| (val, TableEnumDeserializer { value }))
     }
 }
@@ -1028,13 +1028,13 @@ impl<'de> de::VariantAccess<'de> for TableEnumDeserializer<'de> {
                 let tuple_values = values
                     .into_iter()
                     .enumerate()
-                    .map(|(index, (key, value))| match key.parse::<usize>() {
+                    .map(|(index, (key, value))| match key.1.parse::<usize>() {
                         Ok(key_index) if key_index == index => Ok(value),
                         Ok(_) | Err(_) => Err(Error::from_kind(
-                            Some(value.start),
+                            Some(key.0.start),
                             ErrorKind::ExpectedTupleIndex {
                                 expected: index,
-                                found: key.to_string(),
+                                found: key.1.to_string(),
                             },
                         )),
                     })
@@ -1161,7 +1161,7 @@ impl<'a> Deserializer<'a> {
                     loop {
                         let part = header.next().map_err(|e| self.token_error(e));
                         match part? {
-                            Some(part) => cur_table.header.push(part),
+                            Some(part) => cur_table.header.push(part.1),
                             None => break,
                         }
                     }
@@ -1673,14 +1673,11 @@ impl<'a> Deserializer<'a> {
         Ok((span, ret))
     }
 
-    fn table_key(&mut self) -> Result<Cow<'a, str>, Error> {
-        self.tokens
-            .table_key()
-            .map(|t| t.1)
-            .map_err(|e| self.token_error(e))
+    fn table_key(&mut self) -> Result<(Span, Cow<'a, str>), Error> {
+        self.tokens.table_key().map_err(|e| self.token_error(e))
     }
 
-    fn dotted_key(&mut self) -> Result<Vec<Cow<'a, str>>, Error> {
+    fn dotted_key(&mut self) -> Result<Vec<(Span, Cow<'a, str>)>, Error> {
         let mut result = Vec::new();
         result.push(self.table_key()?);
         self.eat_whitespace()?;
@@ -1706,7 +1703,7 @@ impl<'a> Deserializer<'a> {
     /// * `values`: The `Vec` to store the value in.
     fn add_dotted_key(
         &self,
-        mut key_parts: Vec<Cow<'a, str>>,
+        mut key_parts: Vec<(Span, Cow<'a, str>)>,
         value: Value<'a>,
         values: &mut Vec<TablePair<'a>>,
     ) -> Result<(), Error> {
@@ -1715,7 +1712,7 @@ impl<'a> Deserializer<'a> {
             values.push((key, value));
             return Ok(());
         }
-        match values.iter_mut().find(|&&mut (ref k, _)| *k == key) {
+        match values.iter_mut().find(|&&mut (ref k, _)| *k.1 == key.1) {
             Some(&mut (
                 _,
                 Value {
@@ -2042,7 +2039,7 @@ enum Line<'a> {
         header: Header<'a>,
         array: bool,
     },
-    KeyValue(Vec<Cow<'a, str>>, Value<'a>),
+    KeyValue(Vec<(Span, Cow<'a, str>)>, Value<'a>),
 }
 
 struct Header<'a> {
@@ -2062,13 +2059,13 @@ impl<'a> Header<'a> {
         }
     }
 
-    fn next(&mut self) -> Result<Option<Cow<'a, str>>, TokenError> {
+    fn next(&mut self) -> Result<Option<(Span, Cow<'a, str>)>, TokenError> {
         self.tokens.eat_whitespace()?;
 
         if self.first || self.tokens.eat(Token::Period)? {
             self.first = false;
             self.tokens.eat_whitespace()?;
-            self.tokens.table_key().map(|t| t.1).map(Some)
+            self.tokens.table_key().map(|t| t).map(Some)
         } else {
             self.tokens.expect(Token::RightBracket)?;
             if self.array {
