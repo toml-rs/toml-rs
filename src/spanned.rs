@@ -1,5 +1,7 @@
 use serde::{de, ser};
 use std::fmt;
+use std::hash::{Hash, Hasher};
+use std::cmp::Ordering;
 
 pub(crate) const NAME: &str = "$__toml_private_Spanned";
 pub(crate) const START: &str = "$__toml_private_start";
@@ -28,7 +30,7 @@ pub(crate) const VALUE: &str = "$__toml_private_value";
 ///     assert_eq!(u.s.into_inner(), String::from("value"));
 /// }
 /// ```
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug)]
 pub struct Spanned<T> {
     /// The start range.
     start: usize,
@@ -67,6 +69,32 @@ impl<T> Spanned<T> {
     /// Returns a mutable reference to the contained value.
     pub fn get_mut(&self) -> &T {
         &self.value
+    }
+}
+
+impl<T: PartialEq> PartialEq for Spanned<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.value.eq(&other.value)
+    }
+}
+
+impl<T: Eq> Eq for Spanned<T> {}
+
+impl<T: Hash> Hash for Spanned<T> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.value.hash(state);
+    }
+}
+
+impl<T: PartialOrd> PartialOrd for Spanned<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.value.partial_cmp(&other.value)
+    }
+}
+
+impl<T: Ord> Ord for Spanned<T> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.value.cmp(&other.value)
     }
 }
 
