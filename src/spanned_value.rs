@@ -1,8 +1,6 @@
 //! Definition of a TOML spanned value
 
-use std::collections::{BTreeMap, HashMap};
 use std::fmt;
-use std::hash::Hash;
 use std::mem::discriminant;
 use std::ops;
 use std::str::FromStr;
@@ -12,7 +10,7 @@ use serde::ser;
 
 use crate::datetime::{self, DatetimeFromString};
 pub use crate::datetime::{Datetime, DatetimeParseError};
-use crate::spanned::Spanned;
+use crate::spanned::{self, Spanned};
 
 pub use crate::map::Map;
 
@@ -44,7 +42,7 @@ pub type Array = Vec<SpannedValue>;
 /// Type representing a TOML table, payload of the `ValueKind::Table` variant.
 /// By default it is backed by a BTreeMap, enable the `preserve_order` feature
 /// to use a LinkedHashMap instead.
-pub type Table = Map<String, SpannedValue>;
+pub type Table = Map<Spanned<String>, SpannedValue>;
 
 impl ValueKind {
     /* /// Interpret a `toml::ValueKind` as an instance of type `T`.
@@ -250,22 +248,6 @@ impl<'a> From<&'a str> for ValueKind {
 impl<V: Into<SpannedValue>> From<Vec<V>> for ValueKind {
     fn from(val: Vec<V>) -> ValueKind {
         ValueKind::Array(val.into_iter().map(|v| v.into()).collect())
-    }
-}
-
-impl<S: Into<String>, V: Into<SpannedValue>> From<BTreeMap<S, V>> for ValueKind {
-    fn from(val: BTreeMap<S, V>) -> ValueKind {
-        let table = val.into_iter().map(|(s, v)| (s.into(), v.into())).collect();
-
-        ValueKind::Table(table)
-    }
-}
-
-impl<S: Into<String> + Hash + Eq, V: Into<SpannedValue>> From<HashMap<S, V>> for ValueKind {
-    fn from(val: HashMap<S, V>) -> ValueKind {
-        let table = val.into_iter().map(|(s, v)| (s.into(), v.into())).collect();
-
-        ValueKind::Table(table)
     }
 }
 
@@ -506,21 +488,21 @@ impl<'de> de::Deserialize<'de> for ValueKind {
             where
                 V: de::MapAccess<'de>,
             {
-                let mut key = String::new();
-                let datetime = visitor.next_key_seed(DatetimeOrTable { key: &mut key })?;
-                match datetime {
-                    Some(true) => {
+                let key = visitor.next_key_seed(DatetimeOrTable)?;
+                let key = match key {
+                    Some(Some(key)) => key,
+                    Some(None) => {
                         let date: DatetimeFromString = visitor.next_value()?;
                         return Ok(ValueKind::Datetime(date.value));
                     }
                     None => return Ok(ValueKind::Table(Map::new())),
-                    Some(false) => {}
-                }
+                };
                 let mut map = Map::new();
                 map.insert(key, visitor.next_value()?);
                 while let Some(key) = visitor.next_key()? {
                     if map.contains_key(&key) {
-                        let msg = format!("duplicate key: `{}`", key);
+                        let key: Spanned<String> = key;
+                        let msg = format!("duplicate key: `{}`", key.get_ref());
                         return Err(de::Error::custom(msg));
                     }
                     map.insert(key, visitor.next_value()?);
@@ -533,49 +515,49 @@ impl<'de> de::Deserialize<'de> for ValueKind {
     }
 }
 
-struct DatetimeOrTable<'a> {
-    key: &'a mut String,
-}
+struct DatetimeOrTable;
 
-impl<'a, 'de> de::DeserializeSeed<'de> for DatetimeOrTable<'a> {
-    type Value = bool;
+impl<'de> de::DeserializeSeed<'de> for DatetimeOrTable {
+    type Value = Option<Spanned<String>>;
 
     fn deserialize<D>(self, deserializer: D) -> Result<Self::Value, D::Error>
     where
         D: de::Deserializer<'de>,
     {
-        deserializer.deserialize_any(self)
+        static FIELDS: [&str; 3] = [spanned::START, spanned::END, spanned::VALUE];
+        deserializer.deserialize_struct(spanned::NAME, &FIELDS, self)
     }
 }
 
-impl<'a, 'de> de::Visitor<'de> for DatetimeOrTable<'a> {
-    type Value = bool;
+impl<'de> de::Visitor<'de> for DatetimeOrTable {
+    type Value = Option<Spanned<String>>;
 
     fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str("a string key")
     }
 
-    fn visit_str<E>(self, s: &str) -> Result<bool, E>
+    fn visit_map<V>(self, visitor: V) -> Result<Self::Value, V::Error>
     where
-        E: de::Error,
+        V: de::MapAccess<'de>,
     {
-        if s == datetime::FIELD {
-            Ok(true)
-        } else {
-            self.key.push_str(s);
-            Ok(false)
-        }
+        let spanned_visitor = spanned::SpannedVisitor(::std::marker::PhantomData);
+        let key = spanned_visitor.visit_map(visitor)?;
+        Ok(Some(key))
     }
 
-    fn visit_string<E>(self, s: String) -> Result<bool, E>
+    fn visit_str<E>(self, s: &str) -> Result<Self::Value, E>
     where
         E: de::Error,
     {
-        if s == datetime::FIELD {
-            Ok(true)
-        } else {
-            *self.key = s;
-            Ok(false)
-        }
+        assert_eq!(s, datetime::FIELD);
+        Ok(None)
+    }
+
+    fn visit_string<E>(self, s: String) -> Result<Self::Value, E>
+    where
+        E: de::Error,
+    {
+        assert_eq!(s, datetime::FIELD);
+        Ok(None)
     }
 }

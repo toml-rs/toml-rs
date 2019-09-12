@@ -1,7 +1,8 @@
 use serde::{de, ser};
+use std::borrow::Borrow;
+use std::cmp::Ordering;
 use std::fmt;
 use std::hash::{Hash, Hasher};
-use std::cmp::Ordering;
 
 pub(crate) const NAME: &str = "$__toml_private_Spanned";
 pub(crate) const START: &str = "$__toml_private_start";
@@ -72,6 +73,12 @@ impl<T> Spanned<T> {
     }
 }
 
+impl Borrow<str> for Spanned<String> {
+    fn borrow(&self) -> &str {
+        &self.get_ref()
+    }
+}
+
 impl<T: PartialEq> PartialEq for Spanned<T> {
     fn eq(&self, other: &Self) -> bool {
         self.value.eq(&other.value)
@@ -98,6 +105,44 @@ impl<T: Ord> Ord for Spanned<T> {
     }
 }
 
+pub(crate) struct SpannedVisitor<T>(pub(crate) ::std::marker::PhantomData<T>);
+
+impl<'de, T> de::Visitor<'de> for SpannedVisitor<T>
+where
+    T: de::Deserialize<'de>,
+{
+    type Value = Spanned<T>;
+
+    fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("a TOML spanned")
+    }
+
+    fn visit_map<V>(self, mut visitor: V) -> Result<Spanned<T>, V::Error>
+    where
+        V: de::MapAccess<'de>,
+    {
+        if visitor.next_key()? != Some(START) {
+            return Err(de::Error::custom("spanned start key not found"));
+        }
+
+        let start: usize = visitor.next_value()?;
+
+        if visitor.next_key()? != Some(END) {
+            return Err(de::Error::custom("spanned end key not found"));
+        }
+
+        let end: usize = visitor.next_value()?;
+
+        if visitor.next_key()? != Some(VALUE) {
+            return Err(de::Error::custom("spanned value key not found"));
+        }
+
+        let value: T = visitor.next_value()?;
+
+        Ok(Spanned { start, end, value })
+    }
+}
+
 impl<'de, T> de::Deserialize<'de> for Spanned<T>
 where
     T: de::Deserialize<'de>,
@@ -106,44 +151,6 @@ where
     where
         D: de::Deserializer<'de>,
     {
-        struct SpannedVisitor<T>(::std::marker::PhantomData<T>);
-
-        impl<'de, T> de::Visitor<'de> for SpannedVisitor<T>
-        where
-            T: de::Deserialize<'de>,
-        {
-            type Value = Spanned<T>;
-
-            fn expecting(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
-                formatter.write_str("a TOML spanned")
-            }
-
-            fn visit_map<V>(self, mut visitor: V) -> Result<Spanned<T>, V::Error>
-            where
-                V: de::MapAccess<'de>,
-            {
-                if visitor.next_key()? != Some(START) {
-                    return Err(de::Error::custom("spanned start key not found"));
-                }
-
-                let start: usize = visitor.next_value()?;
-
-                if visitor.next_key()? != Some(END) {
-                    return Err(de::Error::custom("spanned end key not found"));
-                }
-
-                let end: usize = visitor.next_value()?;
-
-                if visitor.next_key()? != Some(VALUE) {
-                    return Err(de::Error::custom("spanned value key not found"));
-                }
-
-                let value: T = visitor.next_value()?;
-
-                Ok(Spanned { start, end, value })
-            }
-        }
-
         let visitor = SpannedVisitor(::std::marker::PhantomData);
 
         static FIELDS: [&str; 3] = [START, END, VALUE];

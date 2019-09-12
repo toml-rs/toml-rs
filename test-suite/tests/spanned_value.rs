@@ -95,7 +95,9 @@ fn test_spanned_vals() {
                 }
             }
             K::Table(tbl) => {
-                for (_key, v) in tbl.iter() {
+                for (key, v) in tbl.iter() {
+                    assert_eq!(&s[key.start()..key.end()], key.get_ref());
+                    assert_span_subspan(val.span(), key.span());
                     assert_span_subspan(val.span(), v.span());
                     visit(v, s);
                 }
@@ -121,6 +123,9 @@ fn test_spanned_vals() {
     this_is = "something else in the array"
     "#;
     let foo: SpannedValue = toml::from_str(TEST_TOML).unwrap();
+
+    // Ensure that indexing still works
+    assert_eq!(foo.get_ref()["key_baz"].get_ref(), &K::Boolean(false));
 
     visit(&foo, TEST_TOML);
 }
