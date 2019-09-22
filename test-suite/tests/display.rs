@@ -114,4 +114,24 @@ fn table() {
         "test = [2]\n\
          test2 = 2\n"
     );
+    assert_eq!(
+        Table(map! {
+            "test" => Table(map! {
+                "val" => Integer(2),
+                "some" => Table(map! {
+                    "entry" => Table(map! {
+                        "lol" => Table(map! {
+                            "hello" => Integer(3)
+                        })
+                    })
+                })
+            })
+        })
+        .to_string(),
+        "[test]\n\
+         val = 2\n\
+         \n\
+         [test.some.entry.lol]\n\
+         hello = 3\n"
+    );
 }
