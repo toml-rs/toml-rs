@@ -134,4 +134,18 @@ fn table() {
          [test.some.entry.lol]\n\
          hello = 3\n"
     );
+    assert_eq!(
+        Table(map! {
+            "test" => Table(map!{"val" => Integer(2)}),
+             "z" => Table(map!{
+                "foo" => Array(vec![Table(map!{"hello" => Integer(3)})])
+             })
+        })
+        .to_string(),
+        "[test]\n\
+        val = 2\n\
+        \n\
+        [[z.foo]]\n\
+        hello = 3\n"
+    );
 }
