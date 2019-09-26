@@ -25,17 +25,18 @@ fn table() {
     assert_eq!(Table(map! {}).to_string(), "");
     assert_eq!(
         Table(map! {
-        "test" => Integer(2),
-        "test2" => Integer(3) })
+            "test" => Integer(2),
+            "test2" => Integer(3)
+        })
         .to_string(),
         "test = 2\ntest2 = 3\n"
     );
     assert_eq!(
         Table(map! {
-             "test" => Integer(2),
-             "test2" => Table(map! {
-                 "test" => String("wut".to_string())
-             })
+            "test" => Integer(2),
+            "test2" => Table(map! {
+                "test" => String("wut".to_string())
+            })
         })
         .to_string(),
         "test = 2\n\
@@ -45,23 +46,10 @@ fn table() {
     );
     assert_eq!(
         Table(map! {
-             "test" => Integer(2),
-             "test2" => Table(map! {
-                 "test" => String("wut".to_string())
-             })
-        })
-        .to_string(),
-        "test = 2\n\
-         \n\
-         [test2]\n\
-         test = \"wut\"\n"
-    );
-    assert_eq!(
-        Table(map! {
-             "test" => Integer(2),
-             "test2" => Array(vec![Table(map! {
-                 "test" => String("wut".to_string())
-             })])
+            "test" => Integer(2),
+            "test2" => Array(vec![Table(map! {
+                "test" => String("wut".to_string())
+            })])
         })
         .to_string(),
         "test = 2\n\
@@ -71,8 +59,8 @@ fn table() {
     );
     assert_eq!(
         Table(map! {
-             "foo.bar" => Integer(2),
-             "foo\"bar" => Integer(2)
+            "foo.bar" => Integer(2),
+            "foo\"bar" => Integer(2)
         })
         .to_string(),
         "\"foo\\\"bar\" = 2\n\
@@ -80,10 +68,10 @@ fn table() {
     );
     assert_eq!(
         Table(map! {
-             "test" => Integer(2),
-             "test2" => Array(vec![Table(map! {
-                 "test" => Array(vec![Integer(2)])
-             })])
+            "test" => Integer(2),
+            "test2" => Array(vec![Table(map! {
+                "test" => Array(vec![Integer(2)])
+            })])
         })
         .to_string(),
         "test = 2\n\
@@ -107,8 +95,8 @@ fn table() {
     );
     assert_eq!(
         Table(map! {
-             "test" => Array(vec![Integer(2)]),
-             "test2" => Integer(2)
+            "test" => Array(vec![Integer(2)]),
+            "test2" => Integer(2)
         })
         .to_string(),
         "test = [2]\n\
@@ -143,9 +131,9 @@ fn table() {
         })
         .to_string(),
         "[test]\n\
-        val = 2\n\
-        \n\
-        [[z.foo]]\n\
-        hello = 3\n"
+         val = 2\n\
+         \n\
+         [[z.foo]]\n\
+         hello = 3\n"
     );
 }
