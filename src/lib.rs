@@ -146,8 +146,13 @@
 
 #![doc(html_root_url = "https://docs.rs/toml/0.5")]
 #![deny(missing_docs)]
-#![forbid(unsafe_code)]
 #![warn(rust_2018_idioms)]
+
+// Makes rustc abort compilation if there are any unsafe blocks in the crate.
+// Presence of this annotation is picked up by tools such as cargo-geiger
+// and lets them ensure that there is indeed no unsafe code as opposed to
+// something they couldn't detect (e.g. unsafe added via macro expansion, etc).
+#![forbid(unsafe_code)]
 
 pub mod map;
 pub mod value;
