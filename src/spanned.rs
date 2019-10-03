@@ -65,8 +65,8 @@ impl<T> Spanned<T> {
     }
 
     /// Returns a mutable reference to the contained value.
-    pub fn get_mut(&self) -> &T {
-        &self.value
+    pub fn get_mut(&mut self) -> &mut T {
+        &mut self.value
     }
 }
 
