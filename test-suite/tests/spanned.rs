@@ -87,7 +87,48 @@ fn test_spanned_field() {
 }
 
 #[test]
-fn test_spanned_table() {
+fn test_inner_spanned_table() {
+    #[derive(Deserialize)]
+    struct Foo {
+        foo: Spanned<HashMap<Spanned<String>, Spanned<String>>>,
+    }
+
+    fn good(s: &str) {
+        let foo: Foo = toml::from_str(s).unwrap();
+
+        assert_eq!(foo.foo.start(), 0);
+        // We'd actually have to assert equality with s.len() here,
+        // but the current implementation doesn't support that,
+        // and it's not possible with toml's data format to support it
+        // in the general case as spans aren't always well-defined.
+        // So this check mainly serves as a reminder that this test should
+        // be updated *if* one day there is support for emitting the actual span.
+        assert_eq!(foo.foo.end(), 0);
+        for (k, v) in foo.foo.get_ref().iter() {
+            assert_eq!(&s[k.start()..k.end()], k.get_ref());
+            assert_eq!(&s[(v.start() + 1)..(v.end() - 1)], v.get_ref());
+        }
+    }
+
+    good(
+        "
+        [foo]
+        a = 'b'
+        bar = 'baz'
+        c = 'd'
+        e = \"f\"
+    ",
+    );
+
+    good(
+        "
+        foo = { a = 'b', bar = 'baz', c = 'd', e = \"f\" }
+    ",
+    );
+}
+
+#[test]
+fn test_outer_spanned_table() {
     #[derive(Deserialize)]
     struct Foo {
         foo: HashMap<Spanned<String>, Spanned<String>>,

@@ -558,6 +558,36 @@ impl<'de, 'b> de::Deserializer<'de> for MapVisitor<'de, 'b> {
         visitor.visit_newtype_struct(self)
     }
 
+    fn deserialize_struct<V>(
+        self,
+        name: &'static str,
+        fields: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value, Error>
+    where
+        V: de::Visitor<'de>,
+    {
+        if name == spanned::NAME && fields == [spanned::START, spanned::END, spanned::VALUE] {
+            // TODO we can't actually emit spans here for the *entire* table/array
+            // due to the format that toml uses. Setting the start and end to 0 is
+            // *detectable* (and no reasonable span would look like that),
+            // it would be better to expose this in the API via proper
+            // ADTs like Option<T>.
+            let start = 0;
+            let end = 0;
+
+            let res = visitor.visit_map(SpannedDeserializer {
+                phantom_data: PhantomData,
+                start: Some(start),
+                value: Some(self),
+                end: Some(end),
+            });
+            return res;
+        }
+
+        self.deserialize_any(visitor)
+    }
+
     fn deserialize_enum<V>(
         self,
         _name: &'static str,
@@ -591,7 +621,7 @@ impl<'de, 'b> de::Deserializer<'de> for MapVisitor<'de, 'b> {
 
     serde::forward_to_deserialize_any! {
         bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string seq
-        bytes byte_buf map struct unit identifier
+        bytes byte_buf map unit identifier
         ignored_any unit_struct tuple_struct tuple
     }
 }
@@ -850,6 +880,14 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
         bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string seq
         bytes byte_buf map unit identifier
         ignored_any unit_struct tuple_struct tuple
+    }
+}
+
+impl<'de, 'b> de::IntoDeserializer<'de, Error> for MapVisitor<'de, 'b> {
+    type Deserializer = MapVisitor<'de, 'b>;
+
+    fn into_deserializer(self) -> Self::Deserializer {
+        self
     }
 }
 
