@@ -1002,8 +1002,9 @@ impl<'a, 'b> ser::SerializeSeq for SerializeSeq<'a, 'b> {
             },
             None => {
                 assert!(self.first.get());
-                self.ser.emit_key("array")?;
-                self.ser.dst.push_str("[]")
+                self.ser.dst.push_str("[[");
+                self.ser.emit_key_part(&self.ser.state.clone())?;
+                self.ser.dst.push_str("]]\n")
             }
         }
         if let State::Table { .. } = self.ser.state {

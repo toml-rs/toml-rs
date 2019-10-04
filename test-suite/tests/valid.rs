@@ -374,3 +374,9 @@ test!(
     include_str!("valid/float-exponent.toml"),
     include_str!("valid/float-exponent.json")
 );
+
+#[test]
+fn empty_array_at_the_end() {
+    let val: serde_json::Value = serde_json::from_str(r#"{ "kana": {"ent_seq": "1000000"}, "kanji": [] }"#).unwrap();
+    let _res = toml::ser::to_string_pretty(&val).unwrap();
+}
