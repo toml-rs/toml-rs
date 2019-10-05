@@ -157,7 +157,7 @@ pub mod map;
 pub mod value;
 #[doc(no_inline)]
 pub use crate::value::Value;
-mod datetime;
+pub mod datetime;
 
 pub mod ser;
 #[doc(no_inline)]
@@ -170,5 +170,5 @@ mod tokens;
 #[doc(hidden)]
 pub mod macros;
 
-mod spanned;
+pub mod spanned;
 pub use crate::spanned::Spanned;

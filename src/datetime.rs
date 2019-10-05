@@ -1,3 +1,5 @@
+//! Custom Datetime structures
+
 use std::error;
 use std::fmt;
 use std::str::{self, FromStr};
@@ -34,14 +36,17 @@ pub struct DatetimeParseError {
     _private: (),
 }
 
-// Currently serde itself doesn't have a datetime type, so we map our `Datetime`
-// to a special valid in the serde data model. Namely one with thiese special
-// fields/struct names.
-//
-// In general the TOML encoder/decoder will catch this and not literally emit
-// these strings but rather emit datetimes as they're intended.
-pub const FIELD: &str = "$__toml_private_datetime";
+/// Currently serde itself doesn't have a datetime type, so we map our `Datetime`
+/// to a special valid in the serde data model. Namely one with these special
+/// fields/struct names.
+///
+/// In general the TOML encoder/decoder will catch this and not literally emit
+/// these strings but rather emit datetimes as they're intended.
+///
+/// The value of these constants may change with any toml version change.
 pub const NAME: &str = "$__toml_private_Datetime";
+/// The only field of a Datetime. For more, see the `NAME` constant.
+pub const FIELD: &str = "$__toml_private_datetime";
 
 #[derive(PartialEq, Clone)]
 struct Date {
@@ -383,7 +388,7 @@ impl<'de> de::Deserialize<'de> for DatetimeKey {
     }
 }
 
-pub struct DatetimeFromString {
+pub(crate) struct DatetimeFromString {
     pub value: Datetime,
 }
 

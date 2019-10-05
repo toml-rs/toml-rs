@@ -1,10 +1,23 @@
+//! Data structures for spanned data
 use serde::{de, ser};
 use std::fmt;
 
-pub(crate) const NAME: &str = "$__toml_private_Spanned";
-pub(crate) const START: &str = "$__toml_private_start";
-pub(crate) const END: &str = "$__toml_private_end";
-pub(crate) const VALUE: &str = "$__toml_private_value";
+/// We map Spanned<T> to a special valid in the serde data model.
+///
+/// In general the TOML encoder/decoder will catch this and not literally emit
+/// these strings but rather emit datetimes as they're intended.
+///
+/// The constants are exposed to allow users of this crate to use these
+/// constants during serialization and deserialization.
+///
+/// The value of these constants may change with any toml version change.
+pub const NAME: &str = "$__toml_private_Spanned";
+/// The first field of a Spanned<T>. For more, see the `NAME` constant.
+pub const START: &str = "$__toml_private_start";
+/// The second field of a Spanned<T>. For more, see the `NAME` constant.
+pub const END: &str = "$__toml_private_end";
+/// The third field of a Spanned<T>. For more, see the `NAME` constant.
+pub const VALUE: &str = "$__toml_private_value";
 
 /// A spanned value, indicating the range at which it is defined in the source.
 ///
