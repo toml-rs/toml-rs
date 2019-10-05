@@ -572,7 +572,7 @@ impl<'de, 'b> de::Deserializer<'de> for MapVisitor<'de, 'b> {
     {
         if name == spanned::NAME
             && fields == [spanned::START, spanned::END, spanned::VALUE]
-            && self.values.peek().is_none()
+            && !(self.array && !self.values.peek().is_none())
         {
             // TODO we can't actually emit spans here for the *entire* table/array
             // due to the format that toml uses. Setting the start and end to 0 is
