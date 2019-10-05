@@ -8,6 +8,7 @@ use std::borrow::Cow;
 use std::error;
 use std::f64;
 use std::fmt;
+use std::iter;
 use std::marker::PhantomData;
 use std::mem::discriminant;
 use std::str;
@@ -216,7 +217,7 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
         let mut tables = self.tables()?;
 
         let res = visitor.visit_map(MapVisitor {
-            values: Vec::new().into_iter(),
+            values: Vec::new().into_iter().peekable(),
             next_value: None,
             depth: 0,
             cur: 0,
@@ -333,7 +334,7 @@ struct Table<'a> {
 }
 
 struct MapVisitor<'de, 'b> {
-    values: vec::IntoIter<TablePair<'de>>,
+    values: iter::Peekable<vec::IntoIter<TablePair<'de>>>,
     next_value: Option<TablePair<'de>>,
     depth: usize,
     cur: usize,
@@ -440,7 +441,8 @@ impl<'de, 'b> de::MapAccess<'de> for MapVisitor<'de, 'b> {
                 .values
                 .take()
                 .expect("Unable to read table values")
-                .into_iter();
+                .into_iter()
+                .peekable();
         }
     }
 
@@ -462,7 +464,7 @@ impl<'de, 'b> de::MapAccess<'de> for MapVisitor<'de, 'b> {
             self.tables[self.cur].array && self.depth == self.tables[self.cur].header.len() - 1;
         self.cur += 1;
         let res = seed.deserialize(MapVisitor {
-            values: Vec::new().into_iter(),
+            values: Vec::new().into_iter().peekable(),
             next_value: None,
             depth: self.depth + if array { 0 } else { 1 },
             cur_parent: self.cur - 1,
@@ -509,7 +511,8 @@ impl<'de, 'b> de::SeqAccess<'de> for MapVisitor<'de, 'b> {
                 .values
                 .take()
                 .expect("Unable to read table values")
-                .into_iter(),
+                .into_iter()
+                .peekable(),
             next_value: None,
             depth: self.depth + 1,
             cur_parent: self.cur_parent,
@@ -559,7 +562,7 @@ impl<'de, 'b> de::Deserializer<'de> for MapVisitor<'de, 'b> {
     }
 
     fn deserialize_struct<V>(
-        self,
+        mut self,
         name: &'static str,
         fields: &'static [&'static str],
         visitor: V,
@@ -567,7 +570,10 @@ impl<'de, 'b> de::Deserializer<'de> for MapVisitor<'de, 'b> {
     where
         V: de::Visitor<'de>,
     {
-        if name == spanned::NAME && fields == [spanned::START, spanned::END, spanned::VALUE] {
+        if name == spanned::NAME
+            && fields == [spanned::START, spanned::END, spanned::VALUE]
+            && self.values.peek().is_none()
+        {
             // TODO we can't actually emit spans here for the *entire* table/array
             // due to the format that toml uses. Setting the start and end to 0 is
             // *detectable* (and no reasonable span would look like that),
