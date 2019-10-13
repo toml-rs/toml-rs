@@ -1,7 +1,8 @@
 use serde::{de, ser};
+use std::borrow::Borrow;
+use std::cmp::Ordering;
 use std::fmt;
 use std::hash::{Hash, Hasher};
-use std::cmp::Ordering;
 
 pub(crate) const NAME: &str = "$__toml_private_Spanned";
 pub(crate) const START: &str = "$__toml_private_start";
@@ -69,6 +70,12 @@ impl<T> Spanned<T> {
     /// Returns a mutable reference to the contained value.
     pub fn get_mut(&mut self) -> &mut T {
         &mut self.value
+    }
+}
+
+impl Borrow<str> for Spanned<String> {
+    fn borrow(&self) -> &str {
+        &self.get_ref()
     }
 }
 
