@@ -415,7 +415,7 @@ impl<'a> Tokenizer<'a> {
                 }
                 Ok(())
             }
-            ch if '\u{20}' <= ch && ch <= '\u{10ffff}' && ch != '\u{7f}' => {
+            ch if ch == '\u{09}' || ('\u{20}' <= ch && ch <= '\u{10ffff}' && ch != '\u{7f}') => {
                 val.push(ch);
                 Ok(())
             }
@@ -617,6 +617,8 @@ mod tests {
         t(r#""\U00000000""#, "\0", false);
         t(r#""\U000A0000""#, "\u{A0000}", false);
         t(r#""\\t""#, "\\t", false);
+        t("\"\t\"", "\t", false);
+        t("\"\"\"\n\t\"\"\"", "\t", true);
         t("\"\"\"\\\n\"\"\"", "", true);
         t(
             "\"\"\"\\\n     \t   \t  \\\r\n  \t \n  \t \r\n\"\"\"",
