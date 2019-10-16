@@ -19,9 +19,6 @@ edition = "2018"
 [workspace]
 members = ['test-suite']
 
-[badges]
-travis-ci = { repository = "alexcrichton/toml-rs" }
-
 [dependencies]
 serde = "1.0.97"
 linked-hash-map = { version = "0.5", optional = true }
