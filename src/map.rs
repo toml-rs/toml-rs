@@ -26,7 +26,7 @@ use std::ops;
 use std::collections::{btree_map, BTreeMap};
 
 #[cfg(feature = "preserve_order")]
-use linked_hash_map::{self, LinkedHashMap};
+use indexmap::{self, IndexMap};
 
 /// Represents a JSON key/value type.
 pub struct Map<K, V> {
@@ -36,7 +36,7 @@ pub struct Map<K, V> {
 #[cfg(not(feature = "preserve_order"))]
 type MapImpl<K, V> = BTreeMap<K, V>;
 #[cfg(feature = "preserve_order")]
-type MapImpl<K, V> = LinkedHashMap<K, V>;
+type MapImpl<K, V> = IndexMap<K, V>;
 
 impl Map<String, Value> {
     /// Makes a new empty Map.
@@ -63,7 +63,7 @@ impl Map<String, Value> {
     #[inline]
     pub fn with_capacity(capacity: usize) -> Self {
         Map {
-            map: LinkedHashMap::with_capacity(capacity),
+            map: IndexMap::with_capacity(capacity),
         }
     }
 
@@ -145,7 +145,7 @@ impl Map<String, Value> {
         S: Into<String>,
     {
         #[cfg(feature = "preserve_order")]
-        use linked_hash_map::Entry as EntryImpl;
+        use indexmap::map::Entry as EntryImpl;
         #[cfg(not(feature = "preserve_order"))]
         use std::collections::btree_map::Entry as EntryImpl;
 
@@ -397,12 +397,12 @@ pub struct OccupiedEntry<'a> {
 #[cfg(not(feature = "preserve_order"))]
 type VacantEntryImpl<'a> = btree_map::VacantEntry<'a, String, Value>;
 #[cfg(feature = "preserve_order")]
-type VacantEntryImpl<'a> = linked_hash_map::VacantEntry<'a, String, Value>;
+type VacantEntryImpl<'a> = indexmap::map::VacantEntry<'a, String, Value>;
 
 #[cfg(not(feature = "preserve_order"))]
 type OccupiedEntryImpl<'a> = btree_map::OccupiedEntry<'a, String, Value>;
 #[cfg(feature = "preserve_order")]
-type OccupiedEntryImpl<'a> = linked_hash_map::OccupiedEntry<'a, String, Value>;
+type OccupiedEntryImpl<'a> = indexmap::map::OccupiedEntry<'a, String, Value>;
 
 impl<'a> Entry<'a> {
     /// Returns a reference to this entry's key.
@@ -512,7 +512,7 @@ pub struct Iter<'a> {
 #[cfg(not(feature = "preserve_order"))]
 type IterImpl<'a> = btree_map::Iter<'a, String, Value>;
 #[cfg(feature = "preserve_order")]
-type IterImpl<'a> = linked_hash_map::Iter<'a, String, Value>;
+type IterImpl<'a> = indexmap::map::Iter<'a, String, Value>;
 
 delegate_iterator!((Iter<'a>) => (&'a String, &'a Value));
 
@@ -537,7 +537,7 @@ pub struct IterMut<'a> {
 #[cfg(not(feature = "preserve_order"))]
 type IterMutImpl<'a> = btree_map::IterMut<'a, String, Value>;
 #[cfg(feature = "preserve_order")]
-type IterMutImpl<'a> = linked_hash_map::IterMut<'a, String, Value>;
+type IterMutImpl<'a> = indexmap::map::IterMut<'a, String, Value>;
 
 delegate_iterator!((IterMut<'a>) => (&'a String, &'a mut Value));
 
@@ -562,7 +562,7 @@ pub struct IntoIter {
 #[cfg(not(feature = "preserve_order"))]
 type IntoIterImpl = btree_map::IntoIter<String, Value>;
 #[cfg(feature = "preserve_order")]
-type IntoIterImpl = linked_hash_map::IntoIter<String, Value>;
+type IntoIterImpl = indexmap::map::IntoIter<String, Value>;
 
 delegate_iterator!((IntoIter) => (String, Value));
 
@@ -576,7 +576,7 @@ pub struct Keys<'a> {
 #[cfg(not(feature = "preserve_order"))]
 type KeysImpl<'a> = btree_map::Keys<'a, String, Value>;
 #[cfg(feature = "preserve_order")]
-type KeysImpl<'a> = linked_hash_map::Keys<'a, String, Value>;
+type KeysImpl<'a> = indexmap::map::Keys<'a, String, Value>;
 
 delegate_iterator!((Keys<'a>) => &'a String);
 
@@ -590,6 +590,6 @@ pub struct Values<'a> {
 #[cfg(not(feature = "preserve_order"))]
 type ValuesImpl<'a> = btree_map::Values<'a, String, Value>;
 #[cfg(feature = "preserve_order")]
-type ValuesImpl<'a> = linked_hash_map::Values<'a, String, Value>;
+type ValuesImpl<'a> = indexmap::map::Values<'a, String, Value>;
 
 delegate_iterator!((Values<'a>) => &'a Value);
