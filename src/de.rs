@@ -5,6 +5,7 @@
 //! provided at the top of the crate.
 
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::error;
 use std::f64;
 use std::fmt;
@@ -214,6 +215,7 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
         V: de::Visitor<'de>,
     {
         let mut tables = self.tables()?;
+        let table_indices = build_table_indices(&tables);
 
         let res = visitor.visit_map(MapVisitor {
             values: Vec::new().into_iter(),
@@ -222,6 +224,7 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
             cur: 0,
             cur_parent: 0,
             max: tables.len(),
+            table_indices: &table_indices,
             tables: &mut tables,
             array: false,
             de: self,
@@ -318,6 +321,15 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
     }
 }
 
+fn build_table_indices<'de>(tables: &[Table<'de>]) -> HashMap<Vec<Cow<'de, str>>, Vec<usize>> {
+    let mut res = HashMap::new();
+    for (i, table) in tables.iter().enumerate() {
+        let header = table.header.iter().map(|v| v.1.clone()).collect::<Vec<_>>();
+        res.entry(header).or_insert(Vec::new()).push(i);
+    }
+    res
+}
+
 fn headers_equal<'a, 'b>(hdr_a: &[(Span, Cow<'a, str>)], hdr_b: &[(Span, Cow<'b, str>)]) -> bool {
     if hdr_a.len() != hdr_b.len() {
         return false;
@@ -339,6 +351,7 @@ struct MapVisitor<'de, 'b> {
     cur: usize,
     cur_parent: usize,
     max: usize,
+    table_indices: &'b HashMap<Vec<Cow<'de, str>>, Vec<usize>>,
     tables: &'b mut [Table<'de>],
     array: bool,
     de: &'b mut Deserializer<'de>,
@@ -469,6 +482,7 @@ impl<'de, 'b> de::MapAccess<'de> for MapVisitor<'de, 'b> {
             cur: 0,
             max: self.max,
             array,
+            table_indices: &*self.table_indices,
             tables: &mut *self.tables,
             de: &mut *self.de,
         });
@@ -493,15 +507,30 @@ impl<'de, 'b> de::SeqAccess<'de> for MapVisitor<'de, 'b> {
             return Ok(None);
         }
 
-        let next = self.tables[..self.max]
+        let header_stripped = self.tables[self.cur_parent]
+            .header
             .iter()
-            .enumerate()
-            .skip(self.cur_parent + 1)
-            .find(|&(_, table)| {
-                let tables_eq = headers_equal(&table.header, &self.tables[self.cur_parent].header);
-                table.array && tables_eq
+            .map(|v| v.1.clone())
+            .collect::<Vec<_>>();
+        let start_idx = self.cur_parent + 1;
+        let next = self
+            .table_indices
+            .get(&header_stripped)
+            .and_then(|entries| {
+                let start = entries
+                    .binary_search(&start_idx)
+                    .unwrap_or_else(std::convert::identity);
+                if start == entries.len() || entries[start] < start_idx {
+                    return None;
+                }
+                entries[start..]
+                    .iter()
+                    .copied()
+                    .filter(|i| *i < self.max)
+                    .map(|i| (i, &self.tables[i]))
+                    .find(|(_, table)| table.array)
+                    .map(|p| p.0)
             })
-            .map(|p| p.0)
             .unwrap_or(self.max);
 
         let ret = seed.deserialize(MapVisitor {
@@ -516,6 +545,7 @@ impl<'de, 'b> de::SeqAccess<'de> for MapVisitor<'de, 'b> {
             max: next,
             cur: 0,
             array: false,
+            table_indices: &*self.table_indices,
             tables: &mut self.tables,
             de: &mut self.de,
         })?;
