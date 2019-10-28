@@ -400,9 +400,7 @@ impl<'de, 'b> de::MapAccess<'de> for MapVisitor<'de, 'b> {
                 self.table_pindices
                     .get(&prefix_stripped)
                     .and_then(|entries| {
-                        let start = entries
-                            .binary_search(&self.cur)
-                            .unwrap_or_else(std::convert::identity);
+                        let start = entries.binary_search(&self.cur).unwrap_or_else(|v| v);
                         if start == entries.len() || entries[start] < self.cur {
                             return None;
                         }
@@ -541,9 +539,7 @@ impl<'de, 'b> de::SeqAccess<'de> for MapVisitor<'de, 'b> {
             .table_indices
             .get(&header_stripped)
             .and_then(|entries| {
-                let start = entries
-                    .binary_search(&start_idx)
-                    .unwrap_or_else(std::convert::identity);
+                let start = entries.binary_search(&start_idx).unwrap_or_else(|v| v);
                 if start == entries.len() || entries[start] < start_idx {
                     return None;
                 }
