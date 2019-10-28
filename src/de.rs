@@ -323,6 +323,16 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
     }
 }
 
+// Builds a datastructure that allows for efficient sublinear lookups.
+// The returned HashMap contains a mapping from table header (like [a.b.c])
+// to list of tables with that precise name. The tables are being identified
+// by their index in the passed slice. We use a list as the implementation
+// uses this data structure for arrays as well as tables,
+// so if any top level [[name]] array contains multiple entries,
+// there are multiple entires in the list.
+// The lookup is performed in the `SeqAccess` implementation of `MapVisitor`.
+// The lists are ordered, which we exploit in the search code by using
+// bisection.
 fn build_table_indices<'de>(tables: &[Table<'de>]) -> HashMap<Vec<Cow<'de, str>>, Vec<usize>> {
     let mut res = HashMap::new();
     for (i, table) in tables.iter().enumerate() {
@@ -332,6 +342,21 @@ fn build_table_indices<'de>(tables: &[Table<'de>]) -> HashMap<Vec<Cow<'de, str>>
     res
 }
 
+// Builds a datastructure that allows for efficient sublinear lookups.
+// The returned HashMap contains a mapping from table header (like [a.b.c])
+// to list of tables whose name at least starts with the specified
+// name. So searching for [a.b] would give both [a.b.c.d] as well as [a.b.e].
+// The tables are being identified by their index in the passed slice.
+//
+// A list is used for two reasons: First, the implementation also
+// stores arrays in the same data structure and any top level array
+// of size 2 or greater creates multiple entries in the list with the
+// same shared name. Second, there can be multiple tables sharing
+// the same prefix.
+//
+// The lookup is performed in the `MapAccess` implementation of `MapVisitor`.
+// The lists are ordered, which we exploit in the search code by using
+// bisection.
 fn build_table_pindices<'de>(tables: &[Table<'de>]) -> HashMap<Vec<Cow<'de, str>>, Vec<usize>> {
     let mut res = HashMap::new();
     for (i, table) in tables.iter().enumerate() {
