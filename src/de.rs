@@ -5,6 +5,7 @@
 //! provided at the top of the crate.
 
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::error;
 use std::f64;
 use std::fmt;
@@ -215,6 +216,8 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
         V: de::Visitor<'de>,
     {
         let mut tables = self.tables()?;
+        let table_indices = build_table_indices(&tables);
+        let table_pindices = build_table_pindices(&tables);
 
         let res = visitor.visit_map(MapVisitor {
             values: Vec::new().into_iter().peekable(),
@@ -223,6 +226,8 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
             cur: 0,
             cur_parent: 0,
             max: tables.len(),
+            table_indices: &table_indices,
+            table_pindices: &table_pindices,
             tables: &mut tables,
             array: false,
             de: self,
@@ -319,6 +324,53 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
     }
 }
 
+// Builds a datastructure that allows for efficient sublinear lookups.
+// The returned HashMap contains a mapping from table header (like [a.b.c])
+// to list of tables with that precise name. The tables are being identified
+// by their index in the passed slice. We use a list as the implementation
+// uses this data structure for arrays as well as tables,
+// so if any top level [[name]] array contains multiple entries,
+// there are multiple entires in the list.
+// The lookup is performed in the `SeqAccess` implementation of `MapVisitor`.
+// The lists are ordered, which we exploit in the search code by using
+// bisection.
+fn build_table_indices<'de>(tables: &[Table<'de>]) -> HashMap<Vec<Cow<'de, str>>, Vec<usize>> {
+    let mut res = HashMap::new();
+    for (i, table) in tables.iter().enumerate() {
+        let header = table.header.iter().map(|v| v.1.clone()).collect::<Vec<_>>();
+        res.entry(header).or_insert(Vec::new()).push(i);
+    }
+    res
+}
+
+// Builds a datastructure that allows for efficient sublinear lookups.
+// The returned HashMap contains a mapping from table header (like [a.b.c])
+// to list of tables whose name at least starts with the specified
+// name. So searching for [a.b] would give both [a.b.c.d] as well as [a.b.e].
+// The tables are being identified by their index in the passed slice.
+//
+// A list is used for two reasons: First, the implementation also
+// stores arrays in the same data structure and any top level array
+// of size 2 or greater creates multiple entries in the list with the
+// same shared name. Second, there can be multiple tables sharing
+// the same prefix.
+//
+// The lookup is performed in the `MapAccess` implementation of `MapVisitor`.
+// The lists are ordered, which we exploit in the search code by using
+// bisection.
+fn build_table_pindices<'de>(tables: &[Table<'de>]) -> HashMap<Vec<Cow<'de, str>>, Vec<usize>> {
+    let mut res = HashMap::new();
+    for (i, table) in tables.iter().enumerate() {
+        let header = table.header.iter().map(|v| v.1.clone()).collect::<Vec<_>>();
+        for len in 0..=header.len() {
+            res.entry(header[..len].to_owned())
+                .or_insert(Vec::new())
+                .push(i);
+        }
+    }
+    res
+}
+
 fn headers_equal<'a, 'b>(hdr_a: &[(Span, Cow<'a, str>)], hdr_b: &[(Span, Cow<'b, str>)]) -> bool {
     if hdr_a.len() != hdr_b.len() {
         return false;
@@ -340,6 +392,8 @@ struct MapVisitor<'de, 'b> {
     cur: usize,
     cur_parent: usize,
     max: usize,
+    table_indices: &'b HashMap<Vec<Cow<'de, str>>, Vec<usize>>,
+    table_pindices: &'b HashMap<Vec<Cow<'de, str>>, Vec<usize>>,
     tables: &'b mut [Table<'de>],
     array: bool,
     de: &'b mut Deserializer<'de>,
@@ -365,20 +419,25 @@ impl<'de, 'b> de::MapAccess<'de> for MapVisitor<'de, 'b> {
             }
 
             let next_table = {
-                let prefix = &self.tables[self.cur_parent].header[..self.depth];
-                self.tables[self.cur..self.max]
+                let prefix_stripped = self.tables[self.cur_parent].header[..self.depth]
                     .iter()
-                    .enumerate()
-                    .find(|&(_, t)| {
-                        if t.values.is_none() {
-                            return false;
+                    .map(|v| v.1.clone())
+                    .collect::<Vec<_>>();
+                self.table_pindices
+                    .get(&prefix_stripped)
+                    .and_then(|entries| {
+                        let start = entries.binary_search(&self.cur).unwrap_or_else(|v| v);
+                        if start == entries.len() || entries[start] < self.cur {
+                            return None;
                         }
-                        match t.header.get(..self.depth) {
-                            Some(header) => headers_equal(&header, &prefix),
-                            None => false,
-                        }
+                        entries[start..]
+                            .iter()
+                            .copied()
+                            .filter(|i| *i < self.max)
+                            .map(|i| (i, &self.tables[i]))
+                            .find(|(_, table)| table.values.is_some())
+                            .map(|p| p.0)
                     })
-                    .map(|(i, _)| i + self.cur)
             };
 
             let pos = match next_table {
@@ -471,6 +530,8 @@ impl<'de, 'b> de::MapAccess<'de> for MapVisitor<'de, 'b> {
             cur: 0,
             max: self.max,
             array,
+            table_indices: &*self.table_indices,
+            table_pindices: &*self.table_pindices,
             tables: &mut *self.tables,
             de: &mut *self.de,
         });
@@ -495,15 +556,28 @@ impl<'de, 'b> de::SeqAccess<'de> for MapVisitor<'de, 'b> {
             return Ok(None);
         }
 
-        let next = self.tables[..self.max]
+        let header_stripped = self.tables[self.cur_parent]
+            .header
             .iter()
-            .enumerate()
-            .skip(self.cur_parent + 1)
-            .find(|&(_, table)| {
-                let tables_eq = headers_equal(&table.header, &self.tables[self.cur_parent].header);
-                table.array && tables_eq
+            .map(|v| v.1.clone())
+            .collect::<Vec<_>>();
+        let start_idx = self.cur_parent + 1;
+        let next = self
+            .table_indices
+            .get(&header_stripped)
+            .and_then(|entries| {
+                let start = entries.binary_search(&start_idx).unwrap_or_else(|v| v);
+                if start == entries.len() || entries[start] < start_idx {
+                    return None;
+                }
+                entries[start..]
+                    .iter()
+                    .copied()
+                    .filter(|i| *i < self.max)
+                    .map(|i| (i, &self.tables[i]))
+                    .find(|(_, table)| table.array)
+                    .map(|p| p.0)
             })
-            .map(|p| p.0)
             .unwrap_or(self.max);
 
         let ret = seed.deserialize(MapVisitor {
@@ -519,6 +593,8 @@ impl<'de, 'b> de::SeqAccess<'de> for MapVisitor<'de, 'b> {
             max: next,
             cur: 0,
             array: false,
+            table_indices: &*self.table_indices,
+            table_pindices: &*self.table_pindices,
             tables: &mut self.tables,
             de: &mut self.de,
         })?;
