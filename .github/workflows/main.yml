@@ -15,6 +15,7 @@ jobs:
     - run: cargo test
     - run: cargo test --features preserve_order
     - run: cargo test --manifest-path test-suite/Cargo.toml
+    - run: cargo bench
 
   rustfmt:
     name: Rustfmt
