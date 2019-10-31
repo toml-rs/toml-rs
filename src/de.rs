@@ -432,8 +432,7 @@ impl<'de, 'b> de::MapAccess<'de> for MapVisitor<'de, 'b> {
                         }
                         entries[start..]
                             .iter()
-                            .copied()
-                            .filter(|i| *i < self.max)
+                            .filter_map(|i| if *i < self.max { Some(*i) } else { None })
                             .map(|i| (i, &self.tables[i]))
                             .find(|(_, table)| table.values.is_some())
                             .map(|p| p.0)
@@ -572,8 +571,7 @@ impl<'de, 'b> de::SeqAccess<'de> for MapVisitor<'de, 'b> {
                 }
                 entries[start..]
                     .iter()
-                    .copied()
-                    .filter(|i| *i < self.max)
+                    .filter_map(|i| if *i < self.max { Some(*i) } else { None })
                     .map(|i| (i, &self.tables[i]))
                     .find(|(_, table)| table.array)
                     .map(|p| p.0)
