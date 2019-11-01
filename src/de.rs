@@ -915,7 +915,7 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
     {
         match self.value.e {
             E::String(val) => visitor.visit_enum(val.into_deserializer()),
-            E::InlineTable(values) => {
+            E::InlineTable(values) | E::DottedTable(values) => {
                 if values.len() != 1 {
                     Err(Error::from_kind(
                         Some(self.value.start),
@@ -938,7 +938,7 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
             e => Err(Error::from_kind(
                 Some(self.value.start),
                 ErrorKind::Wanted {
-                    expected: "string or inline table",
+                    expected: "string or table",
                     found: e.type_name(),
                 },
             )),

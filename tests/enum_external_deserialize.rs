@@ -16,8 +16,8 @@ enum TheEnum {
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
-struct Val {
-    val: TheEnum,
+struct Val<T> {
+    val: T,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -84,6 +84,18 @@ mod enum_unit {
     #[test]
     fn from_dotted_table() {
         assert_eq!(TheEnum::Plain, toml::from_str("[Plain]\n").unwrap());
+    }
+
+    #[test]
+    fn from_dotted_key() {
+        assert_eq!(
+            Val {
+                val: Val {
+                    val: TheEnum::Plain
+                }
+            },
+            toml::from_str("[val]\nval.Plain = {}\n").unwrap()
+        );
     }
 }
 
