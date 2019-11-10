@@ -170,7 +170,8 @@ False = false
 ## Array
 
 # Arrays are square brackets with other primitives inside. Whitespace is
-# ignored. Elements are separated by commas. Data types may not be mixed.
+# ignored. Elements are separated by commas. Since 2019-11-06 data types can be
+# mixed.
 
 [array]
 

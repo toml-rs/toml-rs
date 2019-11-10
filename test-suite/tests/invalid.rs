@@ -15,21 +15,6 @@ macro_rules! test( ($name:ident, $s:expr, $msg:expr) => (
 ) );
 
 test!(
-    array_mixed_types_arrays_and_ints,
-    include_str!("invalid/array-mixed-types-arrays-and-ints.toml"),
-    "mixed types in an array at line 1 column 24"
-);
-test!(
-    array_mixed_types_ints_and_floats,
-    include_str!("invalid/array-mixed-types-ints-and-floats.toml"),
-    "mixed types in an array at line 1 column 23"
-);
-test!(
-    array_mixed_types_strings_and_ints,
-    include_str!("invalid/array-mixed-types-strings-and-ints.toml"),
-    "mixed types in an array at line 1 column 27"
-);
-test!(
     datetime_malformed_no_leads,
     include_str!("invalid/datetime-malformed-no-leads.toml"),
     "failed to parse datetime for key `no-leads` at line 1 column 12"

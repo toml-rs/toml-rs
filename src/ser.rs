@@ -124,10 +124,6 @@ pub enum Error {
     #[doc(hidden)]
     KeyNewline,
 
-    /// Arrays in TOML must have a homogenous type, but a heterogeneous array
-    /// was emitted.
-    ArrayMixedType,
-
     /// All values in a TOML table must be emitted before further tables are
     /// emitted. If a value is emitted *after* a table then this error is
     /// generated.
@@ -496,11 +492,7 @@ impl<'a> Serializer<'a> {
             State::Array { type_, .. } => type_,
             _ => return Ok(()),
         };
-        if let Some(prev) = prev.get() {
-            if prev != type_ {
-                return Err(Error::ArrayMixedType);
-            }
-        } else {
+        if let None = prev.get() {
             prev.set(Some(type_));
         }
         Ok(())
@@ -1528,7 +1520,6 @@ impl fmt::Display for Error {
         match *self {
             Error::UnsupportedType => "unsupported Rust type".fmt(f),
             Error::KeyNotString => "map key was not a string".fmt(f),
-            Error::ArrayMixedType => "arrays cannot have mixed types".fmt(f),
             Error::ValueAfterTable => "values must be emitted before tables".fmt(f),
             Error::DateInvalid => "a serialized date was invalid".fmt(f),
             Error::NumberInvalid => "a serialized number was invalid".fmt(f),
@@ -1545,7 +1536,6 @@ impl error::Error for Error {
         match *self {
             Error::UnsupportedType => "unsupported Rust type",
             Error::KeyNotString => "map key was not a string",
-            Error::ArrayMixedType => "arrays cannot have mixed types",
             Error::ValueAfterTable => "values must be emitted before tables",
             Error::DateInvalid => "a serialized date was invalid",
             Error::NumberInvalid => "a serialized number was invalid",
