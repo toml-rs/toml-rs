@@ -124,6 +124,10 @@ pub enum Error {
     #[doc(hidden)]
     KeyNewline,
 
+    /// An array had to be homogenous, but now it is allowed to be heterogenous.
+    #[doc(hidden)]
+    ArrayMixedType,
+
     /// All values in a TOML table must be emitted before further tables are
     /// emitted. If a value is emitted *after* a table then this error is
     /// generated.
@@ -1532,6 +1536,7 @@ impl fmt::Display for Error {
             Error::UnsupportedNone => "unsupported None value".fmt(f),
             Error::Custom(ref s) => s.fmt(f),
             Error::KeyNewline => unreachable!(),
+            Error::ArrayMixedType => unreachable!(),
             Error::__Nonexhaustive => panic!(),
         }
     }
@@ -1548,6 +1553,7 @@ impl error::Error for Error {
             Error::UnsupportedNone => "unsupported None value",
             Error::Custom(_) => "custom error",
             Error::KeyNewline => unreachable!(),
+            Error::ArrayMixedType => unreachable!(),
             Error::__Nonexhaustive => panic!(),
         }
     }
