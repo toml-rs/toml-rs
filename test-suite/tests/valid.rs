@@ -147,6 +147,21 @@ test!(
     include_str!("valid/arrays-nested.json")
 );
 test!(
+    array_mixed_types_ints_and_floats,
+    include_str!("valid/array-mixed-types-ints-and-floats.toml"),
+    include_str!("valid/array-mixed-types-ints-and-floats.json")
+);
+test!(
+    array_mixed_types_arrays_and_ints,
+    include_str!("valid/array-mixed-types-arrays-and-ints.toml"),
+    include_str!("valid/array-mixed-types-arrays-and-ints.json")
+);
+test!(
+    array_mixed_types_strings_and_ints,
+    include_str!("valid/array-mixed-types-strings-and-ints.toml"),
+    include_str!("valid/array-mixed-types-strings-and-ints.json")
+);
+test!(
     empty,
     include_str!("valid/empty.toml"),
     include_str!("valid/empty.json")

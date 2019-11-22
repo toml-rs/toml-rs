@@ -11,7 +11,6 @@ use std::f64;
 use std::fmt;
 use std::iter;
 use std::marker::PhantomData;
-use std::mem::discriminant;
 use std::str;
 use std::vec;
 
@@ -146,10 +145,6 @@ enum ErrorKind {
         /// Actually found token type
         found: &'static str,
     },
-
-    /// An array was decoded but the types inside of it were mixed, which is
-    /// disallowed by TOML.
-    MixedArrayType,
 
     /// A duplicate table definition was found.
     DuplicateTable(String),
@@ -1827,13 +1822,7 @@ impl<'a> Deserializer<'a> {
             if let Some(span) = self.eat_spanned(Token::RightBracket)? {
                 return Ok((span, ret));
             }
-            let at = self.tokens.current();
             let value = self.value()?;
-            if let Some(last) = ret.last() {
-                if !value.same_type(last) {
-                    return Err(self.error(at, ErrorKind::MixedArrayType));
-                }
-            }
             ret.push(value);
             intermediate(self)?;
             if !self.eat(Token::Comma)? {
@@ -2118,7 +2107,6 @@ impl fmt::Display for Error {
             }
             ErrorKind::NumberInvalid => "invalid number".fmt(f)?,
             ErrorKind::DateInvalid => "invalid date".fmt(f)?,
-            ErrorKind::MixedArrayType => "mixed types in an array".fmt(f)?,
             ErrorKind::DuplicateTable(ref s) => {
                 write!(f, "redefinition of table `{}`", s)?;
             }
@@ -2180,7 +2168,6 @@ impl error::Error for Error {
             ErrorKind::Wanted { .. } => "expected a token but found another",
             ErrorKind::NumberInvalid => "invalid number",
             ErrorKind::DateInvalid => "invalid date",
-            ErrorKind::MixedArrayType => "mixed types in an array",
             ErrorKind::DuplicateTable(_) => "duplicate table",
             ErrorKind::RedefineAsArray => "table redefined as array",
             ErrorKind::EmptyTableKey => "empty table key found",
@@ -2281,11 +2268,5 @@ impl<'a> E<'a> {
             E::InlineTable(..) => "inline table",
             E::DottedTable(..) => "dotted table",
         }
-    }
-}
-
-impl<'a> Value<'a> {
-    fn same_type(&self, other: &Value<'a>) -> bool {
-        discriminant(&self.e) == discriminant(&other.e)
     }
 }
