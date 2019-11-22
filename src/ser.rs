@@ -197,6 +197,12 @@ pub struct Serializer<'a> {
     settings: Rc<Settings>,
 }
 
+#[derive(Debug, Copy, Clone)]
+enum ArrayState {
+    Started,
+    StartedAsATable,
+}
+
 #[derive(Debug, Clone)]
 enum State<'a> {
     Table {
@@ -208,7 +214,7 @@ enum State<'a> {
     Array {
         parent: &'a State<'a>,
         first: &'a Cell<bool>,
-        type_: &'a Cell<Option<&'static str>>,
+        type_: &'a Cell<Option<ArrayState>>,
         len: Option<usize>,
     },
     End,
@@ -218,7 +224,7 @@ enum State<'a> {
 pub struct SerializeSeq<'a, 'b> {
     ser: &'b mut Serializer<'a>,
     first: Cell<bool>,
-    type_: Cell<Option<&'static str>>,
+    type_: Cell<Option<ArrayState>>,
     len: Option<usize>,
 }
 
@@ -413,7 +419,7 @@ impl<'a> Serializer<'a> {
         self
     }
 
-    fn display<T: fmt::Display>(&mut self, t: T, type_: &'static str) -> Result<(), Error> {
+    fn display<T: fmt::Display>(&mut self, t: T, type_: ArrayState) -> Result<(), Error> {
         self.emit_key(type_)?;
         write!(self.dst, "{}", t).map_err(ser::Error::custom)?;
         if let State::Table { .. } = self.state {
@@ -422,7 +428,7 @@ impl<'a> Serializer<'a> {
         Ok(())
     }
 
-    fn emit_key(&mut self, type_: &'static str) -> Result<(), Error> {
+    fn emit_key(&mut self, type_: ArrayState) -> Result<(), Error> {
         self.array_type(type_)?;
         let state = self.state.clone();
         self._emit_key(&state)
@@ -487,7 +493,7 @@ impl<'a> Serializer<'a> {
         Ok(())
     }
 
-    fn array_type(&mut self, type_: &'static str) -> Result<(), Error> {
+    fn array_type(&mut self, type_: ArrayState) -> Result<(), Error> {
         let prev = match self.state {
             State::Array { type_, .. } => type_,
             _ => return Ok(()),
@@ -739,7 +745,7 @@ impl<'a> Serializer<'a> {
 
 macro_rules! serialize_float {
     ($this:expr, $v:expr) => {{
-        $this.emit_key("float")?;
+        $this.emit_key(ArrayState::Started)?;
         if ($v.is_nan() || $v == 0.0) && $v.is_sign_negative() {
             write!($this.dst, "-").map_err(ser::Error::custom)?;
         }
@@ -770,39 +776,39 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
     type SerializeStructVariant = ser::Impossible<(), Error>;
 
     fn serialize_bool(self, v: bool) -> Result<(), Self::Error> {
-        self.display(v, "bool")
+        self.display(v, ArrayState::Started)
     }
 
     fn serialize_i8(self, v: i8) -> Result<(), Self::Error> {
-        self.display(v, "integer")
+        self.display(v, ArrayState::Started)
     }
 
     fn serialize_i16(self, v: i16) -> Result<(), Self::Error> {
-        self.display(v, "integer")
+        self.display(v, ArrayState::Started)
     }
 
     fn serialize_i32(self, v: i32) -> Result<(), Self::Error> {
-        self.display(v, "integer")
+        self.display(v, ArrayState::Started)
     }
 
     fn serialize_i64(self, v: i64) -> Result<(), Self::Error> {
-        self.display(v, "integer")
+        self.display(v, ArrayState::Started)
     }
 
     fn serialize_u8(self, v: u8) -> Result<(), Self::Error> {
-        self.display(v, "integer")
+        self.display(v, ArrayState::Started)
     }
 
     fn serialize_u16(self, v: u16) -> Result<(), Self::Error> {
-        self.display(v, "integer")
+        self.display(v, ArrayState::Started)
     }
 
     fn serialize_u32(self, v: u32) -> Result<(), Self::Error> {
-        self.display(v, "integer")
+        self.display(v, ArrayState::Started)
     }
 
     fn serialize_u64(self, v: u64) -> Result<(), Self::Error> {
-        self.display(v, "integer")
+        self.display(v, ArrayState::Started)
     }
 
     fn serialize_f32(self, v: f32) -> Result<(), Self::Error> {
@@ -819,7 +825,7 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
     }
 
     fn serialize_str(self, value: &str) -> Result<(), Self::Error> {
-        self.emit_key("string")?;
+        self.emit_key(ArrayState::Started)?;
         self.emit_str(value, false)?;
         if let State::Table { .. } = self.state {
             self.dst.push_str("\n");
@@ -885,7 +891,7 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
     }
 
     fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
-        self.array_type("array")?;
+        self.array_type(ArrayState::Started)?;
         Ok(SerializeSeq {
             ser: self,
             first: Cell::new(true),
@@ -917,7 +923,7 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
     }
 
     fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
-        self.array_type("table")?;
+        self.array_type(ArrayState::StartedAsATable)?;
         Ok(SerializeTable::Table {
             ser: self,
             key: String::new(),
@@ -932,10 +938,10 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
         _len: usize,
     ) -> Result<Self::SerializeStruct, Self::Error> {
         if name == datetime::NAME {
-            self.array_type("datetime")?;
+            self.array_type(ArrayState::Started)?;
             Ok(SerializeTable::Datetime(self))
         } else {
-            self.array_type("table")?;
+            self.array_type(ArrayState::StartedAsATable)?;
             Ok(SerializeTable::Table {
                 ser: self,
                 key: String::new(),
@@ -980,8 +986,8 @@ impl<'a, 'b> ser::SerializeSeq for SerializeSeq<'a, 'b> {
 
     fn end(self) -> Result<(), Error> {
         match self.type_.get() {
-            Some("table") => return Ok(()),
-            Some(_) => match (self.len, &self.ser.settings.array) {
+            Some(ArrayState::StartedAsATable) => return Ok(()),
+            Some(ArrayState::Started) => match (self.len, &self.ser.settings.array) {
                 (Some(0..=1), _) | (_, &None) => {
                     self.ser.dst.push_str("]");
                 }
@@ -994,7 +1000,7 @@ impl<'a, 'b> ser::SerializeSeq for SerializeSeq<'a, 'b> {
             },
             None => {
                 assert!(self.first.get());
-                self.ser.emit_key("array")?;
+                self.ser.emit_key(ArrayState::Started)?;
                 self.ser.dst.push_str("[]")
             }
         }
@@ -1236,7 +1242,7 @@ impl<'a, 'b> ser::Serializer for DateStrEmitter<'a, 'b> {
     }
 
     fn serialize_str(self, value: &str) -> Result<(), Self::Error> {
-        self.0.display(value, "datetime")?;
+        self.0.display(value, ArrayState::Started)?;
         Ok(())
     }
 
