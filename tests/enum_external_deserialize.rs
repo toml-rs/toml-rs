@@ -5,6 +5,15 @@ extern crate toml;
 #[derive(Debug, Deserialize, PartialEq)]
 struct OuterStruct {
     inner: TheEnum,
+    key1: String,
+    second: TheEnum,
+    value: ValStruct,
+}
+
+#[derive(Debug, Deserialize, PartialEq)]
+struct ValStruct {
+    key1: String,
+    key2: String,
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -13,6 +22,7 @@ enum TheEnum {
     Tuple(i64, bool),
     NewType(String),
     Struct { value: i64 },
+    ExternalStruct(ValStruct),
 }
 
 #[derive(Debug, Deserialize, PartialEq)]
@@ -22,6 +32,7 @@ struct Val {
 
 #[derive(Debug, Deserialize, PartialEq)]
 struct Multi {
+    key1: String,
     enums: Vec<TheEnum>,
 }
 
@@ -31,7 +42,7 @@ fn invalid_variant_returns_error_with_good_message_string() {
 
     assert_eq!(
         error.to_string(),
-        "unknown variant `NonExistent`, expected one of `Plain`, `Tuple`, `NewType`, `Struct`"
+        "unknown variant `NonExistent`, expected one of `Plain`, `Tuple`, `NewType`, `Struct`, `ExternalStruct`"
     );
 }
 
@@ -40,7 +51,7 @@ fn invalid_variant_returns_error_with_good_message_inline_table() {
     let error = toml::from_str::<TheEnum>("{ NonExistent = {} }").unwrap_err();
     assert_eq!(
         error.to_string(),
-        "unknown variant `NonExistent`, expected one of `Plain`, `Tuple`, `NewType`, `Struct`"
+        "unknown variant `NonExistent`, expected one of `Plain`, `Tuple`, `NewType`, `Struct`, `ExternalStruct`"
     );
 }
 
@@ -137,12 +148,14 @@ mod enum_newtype {
     }
 
     #[test]
-    #[ignore = "Unimplemented: https://github.com/alexcrichton/toml-rs/pull/264#issuecomment-431707209"]
     fn from_dotted_table() {
-        assert_eq!(
-            TheEnum::NewType("value".to_string()),
-            toml::from_str(r#"NewType = "value""#).unwrap()
-        );
+        // FIXME: { kind: Wanted { expected: "string or table", found: "datetime" }
+        // This gets auto parsed as datetime, because 'NewType' has a 'T' in it's name.
+        //
+        // assert_eq!(
+        //     TheEnum::NewType("value".to_string()),
+        //     toml::from_str(r#"NewType = "value""#).unwrap()
+        // );
         assert_eq!(
             Val {
                 val: TheEnum::NewType("value".to_string()),
@@ -191,11 +204,30 @@ mod enum_struct {
     fn from_nested_dotted_table() {
         assert_eq!(
             OuterStruct {
-                inner: TheEnum::Struct { value: -123 }
+                inner: TheEnum::Struct { value: -123 },
+                key1: "test".to_owned(),
+                second: TheEnum::ExternalStruct(ValStruct {
+                    key1: "100".to_owned(),
+                    key2: "200".to_owned(),
+                }),
+                value: ValStruct {
+                    key1: "100".to_owned(),
+                    key2: "200".to_owned(),
+                },
             },
             toml::from_str(
-                r#"[inner.Struct]
+                r#"key1 = "test"
+
+                [value]
+                key1 = "100"
+                key2 = "200"
+
+                [inner.Struct]
                 value = -123
+
+                [second.ExternalStruct]
+                key1 = "100"
+                key2 = "200"
                 "#
             )
             .unwrap()
@@ -209,6 +241,7 @@ mod enum_array {
     #[test]
     fn from_inline_tables() {
         let toml_str = r#"
+            key1 = "test"
             enums = [
                 { Plain = {} },
                 { Tuple = { 0 = -123, 1 = true } },
@@ -217,6 +250,7 @@ mod enum_array {
             ]"#;
         assert_eq!(
             Multi {
+                key1: "test".to_owned(),
                 enums: vec![
                     TheEnum::Plain,
                     TheEnum::Tuple(-123, true),
@@ -229,9 +263,10 @@ mod enum_array {
     }
 
     #[test]
-    #[ignore = "Unimplemented: https://github.com/alexcrichton/toml-rs/pull/264#issuecomment-431707209"]
     fn from_dotted_table() {
-        let toml_str = r#"[[enums]]
+        let toml_str = r#"key1 = "test"
+
+            [[enums]]
             Plain = {}
 
             [[enums]]
@@ -245,6 +280,7 @@ mod enum_array {
             "#;
         assert_eq!(
             Multi {
+                key1: "test".to_owned(),
                 enums: vec![
                     TheEnum::Plain,
                     TheEnum::Tuple(-123, true),
