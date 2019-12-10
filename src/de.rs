@@ -98,9 +98,9 @@ struct ErrorInner {
     key: Vec<String>,
 }
 
-/// Errors that can occur when deserializing a type.
+/// Kinds of errors that can occur when deserializing a type.
 #[derive(Debug, PartialEq, Eq, Clone)]
-enum ErrorKind {
+pub enum ErrorKind {
     /// EOF was reached when looking for a value
     UnexpectedEof,
 
@@ -2023,6 +2023,11 @@ impl Error {
     /// Get the keys associated with this error
     pub fn key(&self) -> &[String] {
         &self.inner.key
+    }
+
+    /// Get the error kind of this error
+    pub fn kind(&self) -> &ErrorKind {
+        &self.inner.kind
     }
 
     fn from_kind(at: Option<usize>, kind: ErrorKind) -> Error {
