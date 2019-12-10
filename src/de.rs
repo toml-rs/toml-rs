@@ -2015,6 +2015,16 @@ impl Error {
         self.inner.line.map(|line| (line, self.inner.col))
     }
 
+    /// Get the message associated with this error
+    pub fn message(&self) -> &str {
+        &self.inner.message
+    }
+
+    /// Get the keys associated with this error
+    pub fn key(&self) -> &[String] {
+        &self.inner.key
+    }
+
     fn from_kind(at: Option<usize>, kind: ErrorKind) -> Error {
         Error {
             inner: Box::new(ErrorInner {
