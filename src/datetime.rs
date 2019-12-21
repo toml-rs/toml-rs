@@ -422,8 +422,4 @@ impl fmt::Display for DatetimeParseError {
     }
 }
 
-impl error::Error for DatetimeParseError {
-    fn description(&self) -> &str {
-        "failed to parse datetime"
-    }
-}
+impl error::Error for DatetimeParseError {}

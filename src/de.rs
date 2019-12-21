@@ -2153,35 +2153,7 @@ impl fmt::Display for Error {
     }
 }
 
-impl error::Error for Error {
-    fn description(&self) -> &str {
-        match self.inner.kind {
-            ErrorKind::UnexpectedEof => "unexpected eof encountered",
-            ErrorKind::InvalidCharInString(_) => "invalid char in string",
-            ErrorKind::InvalidEscape(_) => "invalid escape in string",
-            ErrorKind::InvalidHexEscape(_) => "invalid hex escape in string",
-            ErrorKind::InvalidEscapeValue(_) => "invalid escape value in string",
-            ErrorKind::NewlineInString => "newline in string found",
-            ErrorKind::Unexpected(_) => "unexpected or invalid character",
-            ErrorKind::UnterminatedString => "unterminated string",
-            ErrorKind::NewlineInTableKey => "found newline in table key",
-            ErrorKind::Wanted { .. } => "expected a token but found another",
-            ErrorKind::NumberInvalid => "invalid number",
-            ErrorKind::DateInvalid => "invalid date",
-            ErrorKind::DuplicateTable(_) => "duplicate table",
-            ErrorKind::RedefineAsArray => "table redefined as array",
-            ErrorKind::EmptyTableKey => "empty table key found",
-            ErrorKind::MultilineStringKey => "invalid multiline string for key",
-            ErrorKind::Custom => "a custom error",
-            ErrorKind::ExpectedTuple(_) => "expected table length",
-            ErrorKind::ExpectedTupleIndex { .. } => "expected table key",
-            ErrorKind::ExpectedEmptyTable => "expected empty table",
-            ErrorKind::DottedKeyInvalidType => "dotted key invalid type",
-            ErrorKind::UnexpectedKeys { .. } => "unexpected keys in table",
-            ErrorKind::__Nonexhaustive => panic!(),
-        }
-    }
-}
+impl error::Error for Error {}
 
 impl de::Error for Error {
     fn custom<T: fmt::Display>(msg: T) -> Error {
