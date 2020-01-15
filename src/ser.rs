@@ -1262,11 +1262,11 @@ impl<'a, 'b> ser::Serializer for DateStrEmitter<'a, 'b> {
     where
         T: ser::Serialize,
     {
-        Err(Error::KeyNotString)
+        Err(Error::DateInvalid)
     }
 
     fn serialize_unit(self) -> Result<(), Self::Error> {
-        Err(Error::KeyNotString)
+        Err(Error::DateInvalid)
     }
 
     fn serialize_unit_struct(self, _name: &'static str) -> Result<(), Self::Error> {
