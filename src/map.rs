@@ -28,7 +28,7 @@ use std::collections::{btree_map, BTreeMap};
 #[cfg(feature = "preserve_order")]
 use indexmap::{self, IndexMap};
 
-/// Represents a JSON key/value type.
+/// Represents a TOML key/value type.
 pub struct Map<K, V> {
     map: MapImpl<K, V>,
 }
