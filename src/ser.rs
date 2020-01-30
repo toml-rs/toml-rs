@@ -569,8 +569,9 @@ impl<'a> Serializer<'a> {
                     match ch {
                         '\t' => {}
                         '\n' => ty = Type::NewlineTripple,
-                        // note that the following are invalid: \b \f \r
-                        c if c < '\u{1f}' => can_be_pretty = false, // Invalid control character
+                        // Escape codes are needed if any ascii control
+                        // characters are present, including \b \f \r.
+                        c if c <= '\u{1f}' || c == '\u{7f}' => can_be_pretty = false,
                         _ => {}
                     }
                     out.push(ch);
@@ -646,7 +647,7 @@ impl<'a> Serializer<'a> {
                         '\u{d}' => self.dst.push_str("\\r"),
                         '\u{22}' => self.dst.push_str("\\\""),
                         '\u{5c}' => self.dst.push_str("\\\\"),
-                        c if c < '\u{1f}' => {
+                        c if c <= '\u{1f}' || c == '\u{7f}' => {
                             write!(self.dst, "\\u{:04X}", ch as u32).map_err(ser::Error::custom)?;
                         }
                         ch => self.dst.push(ch),
