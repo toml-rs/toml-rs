@@ -46,5 +46,13 @@
     "notunicode4": {
         "type": "string",
         "value": "This string does not have a unicode \\\u0075 escape."
+    },
+    "delete": {
+        "type": "string",
+        "value": "This string has a \u007f delete control code."
+    },
+    "unitseparator": {
+        "type": "string",
+        "value": "This string has a \u001f unit separator control code."
     }
 }
