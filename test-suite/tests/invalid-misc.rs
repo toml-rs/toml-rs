@@ -14,7 +14,7 @@ fn bad() {
     bad!("a = 01", "invalid number at line 1 column 6");
     bad!("a = 1__1", "invalid number at line 1 column 5");
     bad!("a = 1_", "invalid number at line 1 column 5");
-    bad!("''", "empty table key found at line 1 column 1");
+    bad!("''", "expected an equals, found eof at line 1 column 3");
     bad!("a = 9e99999", "invalid number at line 1 column 5");
 
     bad!(

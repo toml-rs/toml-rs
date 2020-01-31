@@ -232,6 +232,11 @@ test!(
     include_str!("valid/key-with-pound.json")
 );
 test!(
+    key_empty,
+    include_str!("valid/key-empty.toml"),
+    include_str!("valid/key-empty.json")
+);
+test!(
     long_float,
     include_str!("valid/long-float.toml"),
     include_str!("valid/long-float.json")
