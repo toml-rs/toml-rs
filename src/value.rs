@@ -6,7 +6,6 @@ use std::hash::Hash;
 use std::mem::discriminant;
 use std::ops;
 use std::str::FromStr;
-use std::vec;
 
 use serde::de;
 use serde::de::IntoDeserializer;
@@ -625,19 +624,107 @@ impl<'de> de::Deserializer<'de> for Value {
     }
 }
 
-struct SeqDeserializer {
-    iter: vec::IntoIter<Value>,
+impl<'de> de::Deserializer<'de> for &'de Value {
+    type Error = crate::de::Error;
+
+    fn deserialize_any<V>(self, visitor: V) -> Result<V::Value, crate::de::Error>
+    where
+        V: de::Visitor<'de>,
+    {
+        match self {
+            Value::Boolean(v) => visitor.visit_bool(*v),
+            Value::Integer(n) => visitor.visit_i64(*n),
+            Value::Float(n) => visitor.visit_f64(*n),
+            Value::String(v) => visitor.visit_borrowed_str(v),
+            Value::Datetime(v) => visitor.visit_string(v.to_string()),
+            Value::Array(v) => {
+                let len = v.len();
+                let mut deserializer = SeqDeserializer::new(v);
+                let seq = visitor.visit_seq(&mut deserializer)?;
+                let remaining = deserializer.iter.len();
+                if remaining == 0 {
+                    Ok(seq)
+                } else {
+                    Err(de::Error::invalid_length(len, &"fewer elements in array"))
+                }
+            }
+            Value::Table(v) => {
+                let len = v.len();
+                let mut deserializer = MapDeserializer::new(v);
+                let map = visitor.visit_map(&mut deserializer)?;
+                let remaining = deserializer.iter.len();
+                if remaining == 0 {
+                    Ok(map)
+                } else {
+                    Err(de::Error::invalid_length(len, &"fewer elements in map"))
+                }
+            }
+        }
+    }
+
+    #[inline]
+    fn deserialize_enum<V>(
+        self,
+        _name: &str,
+        _variants: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value, crate::de::Error>
+    where
+        V: de::Visitor<'de>,
+    {
+        match self {
+            Value::String(variant) => visitor.visit_enum(variant.as_str().into_deserializer()),
+            _ => Err(de::Error::invalid_type(
+                de::Unexpected::UnitVariant,
+                &"string only",
+            )),
+        }
+    }
+
+    // `None` is interpreted as a missing field so be sure to implement `Some`
+    // as a present field.
+    fn deserialize_option<V>(self, visitor: V) -> Result<V::Value, crate::de::Error>
+    where
+        V: de::Visitor<'de>,
+    {
+        visitor.visit_some(self)
+    }
+
+    fn deserialize_newtype_struct<V>(
+        self,
+        _name: &'static str,
+        visitor: V,
+    ) -> Result<V::Value, crate::de::Error>
+    where
+        V: de::Visitor<'de>,
+    {
+        visitor.visit_newtype_struct(self)
+    }
+
+    serde::forward_to_deserialize_any! {
+        bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string unit seq
+        bytes byte_buf map unit_struct tuple_struct struct
+        tuple ignored_any identifier
+    }
 }
 
-impl SeqDeserializer {
-    fn new(vec: Vec<Value>) -> Self {
+struct SeqDeserializer<I: Iterator> {
+    iter: I,
+}
+
+impl<I: Iterator> SeqDeserializer<I> {
+    fn new<II: IntoIterator<IntoIter = I, Item = I::Item>>(iter: II) -> Self {
         SeqDeserializer {
-            iter: vec.into_iter(),
+            iter: iter.into_iter(),
         }
     }
 }
 
-impl<'de> de::SeqAccess<'de> for SeqDeserializer {
+impl<'de, I> de::SeqAccess<'de> for SeqDeserializer<I>
+where
+    I: Iterator,
+    I::Item: serde::Deserializer<'de, Error = crate::de::Error>,
+{
     type Error = crate::de::Error;
 
     fn next_element_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, crate::de::Error>
@@ -658,21 +745,29 @@ impl<'de> de::SeqAccess<'de> for SeqDeserializer {
     }
 }
 
-struct MapDeserializer {
-    iter: <Map<String, Value> as IntoIterator>::IntoIter,
-    value: Option<(String, Value)>,
+struct MapDeserializer<I: Iterator> {
+    iter: I,
+    value: Option<I::Item>,
 }
 
-impl MapDeserializer {
-    fn new(map: Map<String, Value>) -> Self {
+impl<I: Iterator> MapDeserializer<I> {
+    fn new<II>(iter: II) -> Self
+    where
+        II: IntoIterator<IntoIter = I, Item = I::Item>,
+    {
         MapDeserializer {
-            iter: map.into_iter(),
+            iter: iter.into_iter(),
             value: None,
         }
     }
 }
 
-impl<'de> de::MapAccess<'de> for MapDeserializer {
+impl<'de, I, K, V> de::MapAccess<'de> for MapDeserializer<I>
+where
+    I: Iterator<Item = (K, V)>,
+    K: AsRef<str>,
+    V: serde::Deserializer<'de, Error = crate::de::Error>,
+{
     type Error = crate::de::Error;
 
     fn next_key_seed<T>(&mut self, seed: T) -> Result<Option<T::Value>, crate::de::Error>
@@ -681,8 +776,9 @@ impl<'de> de::MapAccess<'de> for MapDeserializer {
     {
         match self.iter.next() {
             Some((key, value)) => {
-                self.value = Some((key.clone(), value));
-                seed.deserialize(Value::String(key)).map(Some)
+                let key2 = key.as_ref().to_owned();
+                self.value = Some((key, value));
+                seed.deserialize(Value::String(key2)).map(Some)
             }
             None => Ok(None),
         }
@@ -697,7 +793,7 @@ impl<'de> de::MapAccess<'de> for MapDeserializer {
             None => return Err(de::Error::custom("value is missing")),
         };
         res.map_err(|mut error| {
-            error.add_key_context(&key);
+            error.add_key_context(key.as_ref());
             error
         })
     }
@@ -711,6 +807,14 @@ impl<'de> de::MapAccess<'de> for MapDeserializer {
 }
 
 impl<'de> de::IntoDeserializer<'de, crate::de::Error> for Value {
+    type Deserializer = Self;
+
+    fn into_deserializer(self) -> Self {
+        self
+    }
+}
+
+impl<'de> de::IntoDeserializer<'de, crate::de::Error> for &'de Value {
     type Deserializer = Self;
 
     fn into_deserializer(self) -> Self {
