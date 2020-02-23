@@ -176,6 +176,6 @@ pub use crate::spanned::Spanned;
 
 // Just for rustdoc
 #[allow(unused_imports)]
-use core::str::FromStr;
-#[allow(unused_imports)]
 use crate::datetime::Datetime;
+#[allow(unused_imports)]
+use core::str::FromStr;
