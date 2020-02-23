@@ -502,7 +502,7 @@ impl<'a> Serializer<'a> {
             State::Array { type_, .. } => type_,
             _ => return Ok(()),
         };
-        if let None = prev.get() {
+        if prev.get().is_none() {
             prev.set(Some(type_));
         }
         Ok(())
