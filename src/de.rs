@@ -333,7 +333,7 @@ fn build_table_indices<'de>(tables: &[Table<'de>]) -> HashMap<Vec<Cow<'de, str>>
     let mut res = HashMap::new();
     for (i, table) in tables.iter().enumerate() {
         let header = table.header.iter().map(|v| v.1.clone()).collect::<Vec<_>>();
-        res.entry(header).or_insert(Vec::new()).push(i);
+        res.entry(header).or_insert_with(Vec::new).push(i);
     }
     res
 }
@@ -359,7 +359,7 @@ fn build_table_pindices<'de>(tables: &[Table<'de>]) -> HashMap<Vec<Cow<'de, str>
         let header = table.header.iter().map(|v| v.1.clone()).collect::<Vec<_>>();
         for len in 0..=header.len() {
             res.entry(header[..len].to_owned())
-                .or_insert(Vec::new())
+                .or_insert_with(Vec::new)
                 .push(i);
         }
     }
@@ -680,7 +680,7 @@ impl<'de, 'b> de::Deserializer<'de> for MapVisitor<'de, 'b> {
         }
         let table = &mut self.tables[0];
         let values = table.values.take().expect("table has no values?");
-        if table.header.len() == 0 {
+        if table.header.is_empty() {
             return Err(self.de.error(self.cur, ErrorKind::EmptyTableKey));
         }
         let name = table.header[table.header.len() - 1].1.to_owned();
@@ -1633,7 +1633,7 @@ impl<'a> Deserializer<'a> {
 
             if c == '0' && first {
                 first_zero = true;
-            } else if c.to_digit(radix).is_some() {
+            } else if c.is_digit(radix) {
                 if !first && first_zero && !allow_leading_zeros {
                     return Err(self.error(at, ErrorKind::NumberInvalid));
                 }
