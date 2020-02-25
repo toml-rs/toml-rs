@@ -21,7 +21,7 @@
 //!
 //! ## TOML values
 //!
-//! A value in TOML is represented with the `Value` enum in this crate:
+//! A value in TOML is represented with the [`Value`] enum in this crate:
 //!
 //! ```rust,ignore
 //! pub enum Value {
@@ -35,13 +35,13 @@
 //! }
 //! ```
 //!
-//! TOML is similar to JSON with the notable addition of a `Datetime`
+//! TOML is similar to JSON with the notable addition of a [`Datetime`]
 //! type. In general, TOML and JSON are interchangeable in terms of
 //! formats.
 //!
 //! ## Parsing TOML
 //!
-//! The easiest way to parse a TOML document is via the `Value` type:
+//! The easiest way to parse a TOML document is via the [`Value`] type:
 //!
 //! ```rust
 //! use toml::Value;
@@ -51,9 +51,9 @@
 //! assert_eq!(value["foo"].as_str(), Some("bar"));
 //! ```
 //!
-//! The `Value` type implements a number of convenience methods and
-//! traits; the example above uses `FromStr` to parse a `str` into a
-//! `Value`.
+//! The [`Value`] type implements a number of convenience methods and
+//! traits; the example above uses [`FromStr`] to parse a [`str`] into a
+//! [`Value`].
 //!
 //! ## Deserialization and Serialization
 //!
@@ -70,8 +70,8 @@
 //! * `Deserializer for Value`
 //!
 //! This means that you can use Serde to deserialize/serialize the
-//! `Value` type as well as the `Datetime` type in this crate. You can also
-//! use the `Deserializer`, `Serializer`, or `Value` type itself to act as
+//! [`Value`] type as well as the [`Datetime`] type in this crate. You can also
+//! use the [`Deserializer`], [`Serializer`], or [`Value`] type itself to act as
 //! a deserializer/serializer for arbitrary types.
 //!
 //! An example of deserializing with TOML is:
@@ -171,4 +171,11 @@ mod tokens;
 pub mod macros;
 
 mod spanned;
+#[doc(no_inline)]
 pub use crate::spanned::Spanned;
+
+// Just for rustdoc
+#[allow(unused_imports)]
+use crate::datetime::Datetime;
+#[allow(unused_imports)]
+use core::str::FromStr;

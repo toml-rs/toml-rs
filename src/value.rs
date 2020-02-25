@@ -13,6 +13,7 @@ use serde::de::IntoDeserializer;
 use serde::ser;
 
 use crate::datetime::{self, DatetimeFromString};
+#[doc(no_inline)]
 pub use crate::datetime::{Datetime, DatetimeParseError};
 
 pub use crate::map::Map;
