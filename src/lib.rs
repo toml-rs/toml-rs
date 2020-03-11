@@ -161,7 +161,9 @@ mod datetime;
 
 pub mod ser;
 #[doc(inline)]
-pub use crate::ser::{to_string, to_string_pretty, to_vec, to_vec_pretty, to_writer, to_writer_pretty, Serializer};
+pub use crate::ser::{
+    to_string, to_string_pretty, to_vec, to_vec_pretty, to_writer, to_writer_pretty, Serializer,
+};
 pub mod de;
 #[doc(inline)]
 pub use crate::de::{from_slice, from_str, Deserializer};

@@ -282,7 +282,10 @@ pub enum SerializeTable<'a, 'b, W> {
     },
 }
 
-impl<'a, W> Serializer<'a, W> where W: Write {
+impl<'a, W> Serializer<'a, W>
+where
+    W: Write,
+{
     /// Creates a new serializer which will emit TOML into the buffer provided.
     ///
     /// The serializer can then be used to serialize a type after which the data
@@ -464,7 +467,9 @@ impl<'a, W> Serializer<'a, W> where W: Write {
 
     #[inline(always)]
     fn push_str(&mut self, value: &str) -> Result<(), Error> {
-        self.dst.write_all(value.as_bytes()).map_err(|e| Error::WriteError(e))
+        self.dst
+            .write_all(value.as_bytes())
+            .map_err(|e| Error::WriteError(e))
     }
 
     fn display<T: fmt::Display>(&mut self, t: T, type_: ArrayState) -> Result<(), Error> {
@@ -694,7 +699,7 @@ impl<'a, W> Serializer<'a, W> where W: Write {
                         c if c <= '\u{1f}' || c == '\u{7f}' => {
                             write!(self.dst, "\\u{:04X}", ch as u32).map_err(Error::WriteError)?;
                         }
-                        ch => write!(self.dst, "{}", ch).map_err(Error::WriteError)?
+                        ch => write!(self.dst, "{}", ch).map_err(Error::WriteError)?,
                     }
                 }
                 match ty {
@@ -813,7 +818,10 @@ macro_rules! serialize_float {
     }};
 }
 
-impl<'a, 'b, W> ser::Serializer for &'b mut Serializer<'a, W> where W: Write {
+impl<'a, 'b, W> ser::Serializer for &'b mut Serializer<'a, W>
+where
+    W: Write,
+{
     type Ok = ();
     type Error = Error;
     type SerializeSeq = SerializeSeq<'a, 'b, W>;
@@ -1011,7 +1019,10 @@ impl<'a, 'b, W> ser::Serializer for &'b mut Serializer<'a, W> where W: Write {
     }
 }
 
-impl<'a, 'b, W> ser::SerializeSeq for SerializeSeq<'a, 'b, W> where W: Write {
+impl<'a, 'b, W> ser::SerializeSeq for SerializeSeq<'a, 'b, W>
+where
+    W: Write,
+{
     type Ok = ();
     type Error = Error;
 
@@ -1060,7 +1071,10 @@ impl<'a, 'b, W> ser::SerializeSeq for SerializeSeq<'a, 'b, W> where W: Write {
     }
 }
 
-impl<'a, 'b, W> ser::SerializeTuple for SerializeSeq<'a, 'b, W> where W: Write {
+impl<'a, 'b, W> ser::SerializeTuple for SerializeSeq<'a, 'b, W>
+where
+    W: Write,
+{
     type Ok = ();
     type Error = Error;
 
@@ -1076,7 +1090,10 @@ impl<'a, 'b, W> ser::SerializeTuple for SerializeSeq<'a, 'b, W> where W: Write {
     }
 }
 
-impl<'a, 'b, W> ser::SerializeTupleVariant for SerializeSeq<'a, 'b, W> where W: Write {
+impl<'a, 'b, W> ser::SerializeTupleVariant for SerializeSeq<'a, 'b, W>
+where
+    W: Write,
+{
     type Ok = ();
     type Error = Error;
 
@@ -1092,7 +1109,10 @@ impl<'a, 'b, W> ser::SerializeTupleVariant for SerializeSeq<'a, 'b, W> where W: 
     }
 }
 
-impl<'a, 'b, W> ser::SerializeTupleStruct for SerializeSeq<'a, 'b, W> where W: Write {
+impl<'a, 'b, W> ser::SerializeTupleStruct for SerializeSeq<'a, 'b, W>
+where
+    W: Write,
+{
     type Ok = ();
     type Error = Error;
 
@@ -1108,7 +1128,10 @@ impl<'a, 'b, W> ser::SerializeTupleStruct for SerializeSeq<'a, 'b, W> where W: W
     }
 }
 
-impl<'a, 'b, W> ser::SerializeMap for SerializeTable<'a, 'b, W> where W: Write {
+impl<'a, 'b, W> ser::SerializeMap for SerializeTable<'a, 'b, W>
+where
+    W: Write,
+{
     type Ok = ();
     type Error = Error;
 
@@ -1173,7 +1196,10 @@ impl<'a, 'b, W> ser::SerializeMap for SerializeTable<'a, 'b, W> where W: Write {
     }
 }
 
-impl<'a, 'b, W> ser::SerializeStruct for SerializeTable<'a, 'b, W> where W: Write {
+impl<'a, 'b, W> ser::SerializeStruct for SerializeTable<'a, 'b, W>
+where
+    W: Write,
+{
     type Ok = ();
     type Error = Error;
 
@@ -1231,7 +1257,10 @@ impl<'a, 'b, W> ser::SerializeStruct for SerializeTable<'a, 'b, W> where W: Writ
 
 struct DateStrEmitter<'a, 'b, W>(&'b mut Serializer<'a, W>);
 
-impl<'a, 'b, W> ser::Serializer for DateStrEmitter<'a, 'b, W> where W: Write {
+impl<'a, 'b, W> ser::Serializer for DateStrEmitter<'a, 'b, W>
+where
+    W: Write,
+{
     type Ok = ();
     type Error = Error;
     type SerializeSeq = ser::Impossible<(), Error>;
