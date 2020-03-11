@@ -573,8 +573,8 @@ where
     fn emit_str(&mut self, value: &str, is_key: bool) -> Result<(), Error> {
         #[derive(PartialEq)]
         enum Type {
-            NewlineTripple,
-            OnelineTripple,
+            NewlineTriple,
+            OnelineTriple,
             OnelineSingle,
         }
 
@@ -617,7 +617,7 @@ where
                     }
                     match ch {
                         '\t' => {}
-                        '\n' => ty = Type::NewlineTripple,
+                        '\n' => ty = Type::NewlineTriple,
                         // Escape codes are needed if any ascii control
                         // characters are present, including \b \f \r.
                         c if c <= '\u{1f}' || c == '\u{7f}' => can_be_pretty = false,
@@ -628,7 +628,7 @@ where
                     // the string cannot be represented as pretty,
                     // still check if it should be multiline
                     if ch == '\n' {
-                        ty = Type::NewlineTripple;
+                        ty = Type::NewlineTriple;
                     }
                 }
             }
@@ -637,7 +637,7 @@ where
                 can_be_pretty = false;
             }
             if !can_be_pretty {
-                debug_assert!(ty != Type::OnelineTripple);
+                debug_assert!(ty != Type::OnelineTriple);
                 return Repr::Std(ty);
             }
             if found_singles > max_found_singles {
@@ -646,7 +646,7 @@ where
             debug_assert!(max_found_singles < 3);
             if ty == Type::OnelineSingle && max_found_singles >= 1 {
                 // no newlines, but must use ''' because it has ' in it
-                ty = Type::OnelineTripple;
+                ty = Type::OnelineTriple;
             }
             Repr::Literal(out, ty)
         }
@@ -665,8 +665,8 @@ where
             Repr::Literal(literal, ty) => {
                 // A pretty string
                 match ty {
-                    Type::NewlineTripple => self.push_str("'''\n")?,
-                    Type::OnelineTripple => self.push_str("'''")?,
+                    Type::NewlineTriple => self.push_str("'''\n")?,
+                    Type::OnelineTriple => self.push_str("'''")?,
                     Type::OnelineSingle => self.push_str("\'")?,
                 }
                 self.push_str(&literal)?;
@@ -677,18 +677,18 @@ where
             }
             Repr::Std(ty) => {
                 match ty {
-                    Type::NewlineTripple => self.push_str("\"\"\"\n")?,
-                    // note: OnelineTripple can happen if do_pretty wants to do
+                    Type::NewlineTriple => self.push_str("\"\"\"\n")?,
+                    // note: OnelineTriple can happen if do_pretty wants to do
                     // '''it's one line'''
                     // but settings.string.literal == false
-                    Type::OnelineSingle | Type::OnelineTripple => self.push_str("\"")?,
+                    Type::OnelineSingle | Type::OnelineTriple => self.push_str("\"")?,
                 }
                 for ch in value.chars() {
                     match ch {
                         '\u{8}' => self.push_str("\\b")?,
                         '\u{9}' => self.push_str("\\t")?,
                         '\u{a}' => match ty {
-                            Type::NewlineTripple => self.push_str("\n")?,
+                            Type::NewlineTriple => self.push_str("\n")?,
                             Type::OnelineSingle => self.push_str("\\n")?,
                             _ => unreachable!(),
                         },
@@ -703,8 +703,8 @@ where
                     }
                 }
                 match ty {
-                    Type::NewlineTripple => self.push_str("\"\"\"")?,
-                    Type::OnelineSingle | Type::OnelineTripple => self.push_str("\"")?,
+                    Type::NewlineTriple => self.push_str("\"\"\"")?,
+                    Type::OnelineSingle | Type::OnelineTriple => self.push_str("\"")?,
                 }
             }
         }
