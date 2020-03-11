@@ -160,10 +160,10 @@ pub use crate::value::Value;
 mod datetime;
 
 pub mod ser;
-#[doc(no_inline)]
-pub use crate::ser::{to_string, to_string_pretty, to_vec, Serializer};
+#[doc(inline)]
+pub use crate::ser::{to_string, to_string_pretty, to_vec, to_vec_pretty, to_writer, to_writer_pretty, Serializer};
 pub mod de;
-#[doc(no_inline)]
+#[doc(inline)]
 pub use crate::de::{from_slice, from_str, Deserializer};
 mod tokens;
 

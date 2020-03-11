@@ -27,87 +27,123 @@
 
 use std::cell::Cell;
 use std::error;
-use std::fmt::{self, Write};
+use std::fmt;
+use std::io::Write;
 use std::marker;
 use std::rc::Rc;
 
 use crate::datetime;
 use serde::ser;
 
-/// Serialize the given data structure as a TOML byte vector.
+/// Serialize the given data structure as TOML into the IO stream.
+///
+/// # Errors
 ///
 /// Serialization can fail if `T`'s implementation of `Serialize` decides to
-/// fail, if `T` contains a map with non-string keys, or if `T` attempts to
+/// fail, or if `T` contains a map with non-string keys, or if `T` attempts to
 /// serialize an unsupported datatype such as an enum, tuple, or tuple struct.
+#[inline]
+pub fn to_writer<W, T: ?Sized>(mut writer: W, value: &T) -> Result<(), Error>
+where
+    W: Write,
+    T: ser::Serialize,
+{
+    let mut ser = Serializer::new(&mut writer);
+    value.serialize(&mut ser)?;
+    Ok(())
+}
+
+/// Serialize the given data structure as pretty-printed TOML into the IO
+/// stream.
+///
+/// # Errors
+///
+/// Serialization can fail if `T`'s implementation of `Serialize` decides to
+/// fail, or if `T` contains a map with non-string keys, or if `T` attempts to
+/// serialize an unsupported datatype such as an enum, tuple, or tuple struct.
+#[inline]
+pub fn to_writer_pretty<W, T: ?Sized>(mut writer: W, value: &T) -> Result<(), Error>
+where
+    W: Write,
+    T: ser::Serialize,
+{
+    let mut ser = Serializer::pretty(&mut writer);
+    value.serialize(&mut ser)?;
+    Ok(())
+}
+
+/// Serialize the given data structure as a TOML byte vector.
+///
+/// # Errors
+///
+/// Serialization can fail if `T`'s implementation of `Serialize` decides to
+/// fail, or if `T` contains a map with non-string keys, or if `T` attempts to
+/// serialize an unsupported datatype such as an enum, tuple, or tuple struct.
+#[inline]
 pub fn to_vec<T: ?Sized>(value: &T) -> Result<Vec<u8>, Error>
 where
     T: ser::Serialize,
 {
-    to_string(value).map(|e| e.into_bytes())
+    let mut writer = Vec::with_capacity(128);
+    to_writer(&mut writer, value)?;
+    Ok(writer)
+}
+
+/// Serialize the given data structure as a pretty-printed TOML byte vector.
+///
+/// # Errors
+///
+/// Serialization can fail if `T`'s implementation of `Serialize` decides to
+/// fail, or if `T` contains a map with non-string keys, or if `T` attempts to
+/// serialize an unsupported datatype such as an enum, tuple, or tuple struct.
+#[inline]
+pub fn to_vec_pretty<T: ?Sized>(value: &T) -> Result<Vec<u8>, Error>
+where
+    T: ser::Serialize,
+{
+    let mut writer = Vec::with_capacity(128);
+    to_writer_pretty(&mut writer, value)?;
+    Ok(writer)
 }
 
 /// Serialize the given data structure as a String of TOML.
 ///
+/// # Errors
+///
 /// Serialization can fail if `T`'s implementation of `Serialize` decides to
-/// fail, if `T` contains a map with non-string keys, or if `T` attempts to
+/// fail, or if `T` contains a map with non-string keys, or if `T` attempts to
 /// serialize an unsupported datatype such as an enum, tuple, or tuple struct.
-///
-/// # Examples
-///
-/// ```
-/// use serde_derive::Serialize;
-///
-/// #[derive(Serialize)]
-/// struct Config {
-///     database: Database,
-/// }
-///
-/// #[derive(Serialize)]
-/// struct Database {
-///     ip: String,
-///     port: Vec<u16>,
-///     connection_max: u32,
-///     enabled: bool,
-/// }
-///
-/// fn main() {
-///     let config = Config {
-///         database: Database {
-///             ip: "192.168.1.1".to_string(),
-///             port: vec![8001, 8002, 8003],
-///             connection_max: 5000,
-///             enabled: false,
-///         },
-///     };
-///
-///     let toml = toml::to_string(&config).unwrap();
-///     println!("{}", toml)
-/// }
-/// ```
+#[inline]
 pub fn to_string<T: ?Sized>(value: &T) -> Result<String, Error>
 where
     T: ser::Serialize,
 {
-    let mut dst = String::with_capacity(128);
-    value.serialize(&mut Serializer::new(&mut dst))?;
-    Ok(dst)
+    let vec = to_vec(value)?;
+    // We do not emit invalid UTF-8.
+    let string = String::from_utf8_lossy(&vec).to_string();
+    Ok(string)
 }
 
-/// Serialize the given data structure as a "pretty" String of TOML.
+/// Serialize the given data structure as a pretty-printed String of TOML.
 ///
-/// This is identical to `to_string` except the output string has a more
-/// "pretty" output. See `Serializer::pretty` for more details.
+/// # Errors
+///
+/// Serialization can fail if `T`'s implementation of `Serialize` decides to
+/// fail, or if `T` contains a map with non-string keys, or if `T` attempts to
+/// serialize an unsupported datatype such as an enum, tuple, or tuple struct.
+#[inline]
 pub fn to_string_pretty<T: ?Sized>(value: &T) -> Result<String, Error>
 where
     T: ser::Serialize,
 {
-    let mut dst = String::with_capacity(128);
-    value.serialize(&mut Serializer::pretty(&mut dst))?;
-    Ok(dst)
+    let vec = to_vec_pretty(value)?;
+    // We do not emit invalid UTF-8.
+    let string = String::from_utf8_lossy(&vec).to_string();
+    Ok(string)
 }
 
 /// Errors that can occur when serializing a type.
-#[derive(Debug, PartialEq, Eq, Clone)]
+#[derive(Debug)]
 pub enum Error {
     /// Indicates that a Rust type was requested to be serialized but it was not
     /// supported.
@@ -141,6 +177,9 @@ pub enum Error {
 
     /// None was attempted to be serialized, but it's not supported.
     UnsupportedNone,
+
+    /// An error occurred while writing
+    WriteError(std::io::Error),
 
     /// A custom error which could be generated when serializing a particular
     /// type.
@@ -195,8 +234,8 @@ struct Settings {
 ///
 /// Currently a serializer always writes its output to an in-memory `String`,
 /// which is passed in when creating the serializer itself.
-pub struct Serializer<'a> {
-    dst: &'a mut String,
+pub struct Serializer<'a, W> {
+    dst: &'a mut W,
     state: State<'a>,
     settings: Rc<Settings>,
 }
@@ -225,30 +264,30 @@ enum State<'a> {
 }
 
 #[doc(hidden)]
-pub struct SerializeSeq<'a, 'b> {
-    ser: &'b mut Serializer<'a>,
+pub struct SerializeSeq<'a, 'b, W> {
+    ser: &'b mut Serializer<'a, W>,
     first: Cell<bool>,
     type_: Cell<Option<ArrayState>>,
     len: Option<usize>,
 }
 
 #[doc(hidden)]
-pub enum SerializeTable<'a, 'b> {
-    Datetime(&'b mut Serializer<'a>),
+pub enum SerializeTable<'a, 'b, W> {
+    Datetime(&'b mut Serializer<'a, W>),
     Table {
-        ser: &'b mut Serializer<'a>,
+        ser: &'b mut Serializer<'a, W>,
         key: String,
         first: Cell<bool>,
         table_emitted: Cell<bool>,
     },
 }
 
-impl<'a> Serializer<'a> {
+impl<'a, W> Serializer<'a, W> where W: Write {
     /// Creates a new serializer which will emit TOML into the buffer provided.
     ///
     /// The serializer can then be used to serialize a type after which the data
     /// will be present in `dst`.
-    pub fn new(dst: &'a mut String) -> Serializer<'a> {
+    pub fn new(dst: &'a mut W) -> Serializer<'a, W> {
         Serializer {
             dst,
             state: State::End,
@@ -264,7 +303,7 @@ impl<'a> Serializer<'a> {
     ///   `Serializer::pretty_string`
     /// - pretty arrays: each item in arrays will be on a newline, have an indentation of 4 and
     ///   have a trailing comma. See `Serializer::pretty_array`
-    pub fn pretty(dst: &'a mut String) -> Serializer<'a> {
+    pub fn pretty(dst: &'a mut W) -> Serializer<'a, W> {
         Serializer {
             dst,
             state: State::End,
@@ -423,11 +462,16 @@ impl<'a> Serializer<'a> {
         self
     }
 
+    #[inline(always)]
+    fn push_str(&mut self, value: &str) -> Result<(), Error> {
+        self.dst.write_all(value.as_bytes()).map_err(|e| Error::WriteError(e))
+    }
+
     fn display<T: fmt::Display>(&mut self, t: T, type_: ArrayState) -> Result<(), Error> {
         self.emit_key(type_)?;
-        write!(self.dst, "{}", t).map_err(ser::Error::custom)?;
+        write!(self.dst, "{}", t).map_err(Error::WriteError)?;
         if let State::Table { .. } = self.state {
-            self.dst.push_str("\n");
+            self.push_str("\n")?;
         }
         Ok(())
     }
@@ -468,29 +512,29 @@ impl<'a> Serializer<'a> {
                     first.set(false);
                 }
                 self.escape_key(key)?;
-                self.dst.push_str(" = ");
+                self.push_str(" = ")?;
                 Ok(())
             }
         }
     }
 
     fn emit_array(&mut self, first: &Cell<bool>, len: Option<usize>) -> Result<(), Error> {
-        match (len, &self.settings.array) {
-            (Some(0..=1), _) | (_, &None) => {
+        match (len, self.settings.array.as_ref().map(|x| x.indent)) {
+            (Some(0..=1), _) | (_, None) => {
                 if first.get() {
-                    self.dst.push_str("[")
+                    self.push_str("[")?
                 } else {
-                    self.dst.push_str(", ")
+                    self.push_str(", ")?
                 }
             }
-            (_, &Some(ref a)) => {
+            (_, Some(indent)) => {
                 if first.get() {
-                    self.dst.push_str("[\n")
+                    self.push_str("[\n")?
                 } else {
-                    self.dst.push_str(",\n")
+                    self.push_str(",\n")?
                 }
-                for _ in 0..a.indent {
-                    self.dst.push_str(" ");
+                for _ in 0..indent {
+                    self.push_str(" ")?;
                 }
             }
         }
@@ -514,7 +558,7 @@ impl<'a> Serializer<'a> {
             _ => false,
         });
         if ok {
-            write!(self.dst, "{}", key).map_err(ser::Error::custom)?;
+            write!(self.dst, "{}", key).map_err(Error::WriteError)?;
         } else {
             self.emit_str(key, true)?;
         }
@@ -616,46 +660,46 @@ impl<'a> Serializer<'a> {
             Repr::Literal(literal, ty) => {
                 // A pretty string
                 match ty {
-                    Type::NewlineTripple => self.dst.push_str("'''\n"),
-                    Type::OnelineTripple => self.dst.push_str("'''"),
-                    Type::OnelineSingle => self.dst.push('\''),
+                    Type::NewlineTripple => self.push_str("'''\n")?,
+                    Type::OnelineTripple => self.push_str("'''")?,
+                    Type::OnelineSingle => self.push_str("\'")?,
                 }
-                self.dst.push_str(&literal);
+                self.push_str(&literal)?;
                 match ty {
-                    Type::OnelineSingle => self.dst.push('\''),
-                    _ => self.dst.push_str("'''"),
+                    Type::OnelineSingle => self.push_str("\'")?,
+                    _ => self.push_str("'''")?,
                 }
             }
             Repr::Std(ty) => {
                 match ty {
-                    Type::NewlineTripple => self.dst.push_str("\"\"\"\n"),
+                    Type::NewlineTripple => self.push_str("\"\"\"\n")?,
                     // note: OnelineTripple can happen if do_pretty wants to do
                     // '''it's one line'''
                     // but settings.string.literal == false
-                    Type::OnelineSingle | Type::OnelineTripple => self.dst.push('"'),
+                    Type::OnelineSingle | Type::OnelineTripple => self.push_str("\"")?,
                 }
                 for ch in value.chars() {
                     match ch {
-                        '\u{8}' => self.dst.push_str("\\b"),
-                        '\u{9}' => self.dst.push_str("\\t"),
+                        '\u{8}' => self.push_str("\\b")?,
+                        '\u{9}' => self.push_str("\\t")?,
                         '\u{a}' => match ty {
-                            Type::NewlineTripple => self.dst.push('\n'),
-                            Type::OnelineSingle => self.dst.push_str("\\n"),
+                            Type::NewlineTripple => self.push_str("\n")?,
+                            Type::OnelineSingle => self.push_str("\\n")?,
                             _ => unreachable!(),
                         },
-                        '\u{c}' => self.dst.push_str("\\f"),
-                        '\u{d}' => self.dst.push_str("\\r"),
-                        '\u{22}' => self.dst.push_str("\\\""),
-                        '\u{5c}' => self.dst.push_str("\\\\"),
+                        '\u{c}' => self.push_str("\\f")?,
+                        '\u{d}' => self.push_str("\\r")?,
+                        '\u{22}' => self.push_str("\\\"")?,
+                        '\u{5c}' => self.push_str("\\\\")?,
                         c if c <= '\u{1f}' || c == '\u{7f}' => {
-                            write!(self.dst, "\\u{:04X}", ch as u32).map_err(ser::Error::custom)?;
+                            write!(self.dst, "\\u{:04X}", ch as u32).map_err(Error::WriteError)?;
                         }
-                        ch => self.dst.push(ch),
+                        ch => write!(self.dst, "{}", ch).map_err(Error::WriteError)?
                     }
                 }
                 match ty {
-                    Type::NewlineTripple => self.dst.push_str("\"\"\""),
-                    Type::OnelineSingle | Type::OnelineTripple => self.dst.push('"'),
+                    Type::NewlineTripple => self.push_str("\"\"\"")?,
+                    Type::OnelineSingle | Type::OnelineTripple => self.push_str("\"")?,
                 }
             }
         }
@@ -697,32 +741,32 @@ impl<'a> Serializer<'a> {
                 if !first.get() {
                     // Newline if we are a table that is not the first
                     // table in the document.
-                    self.dst.push('\n');
+                    self.push_str("\n")?;
                 }
             }
             State::Array { parent, first, .. } => {
                 if !first.get() {
                     // Always newline if we are not the first item in the
                     // table-array
-                    self.dst.push('\n');
+                    self.push_str("\n")?;
                 } else if let State::Table { first, .. } = *parent {
                     if !first.get() {
                         // Newline if we are not the first item in the document
-                        self.dst.push('\n');
+                        self.push_str("\n")?;
                     }
                 }
             }
             _ => {}
         }
-        self.dst.push_str("[");
+        self.push_str("[")?;
         if array_of_tables {
-            self.dst.push_str("[");
+            self.push_str("[")?;
         }
         self.emit_key_part(state)?;
         if array_of_tables {
-            self.dst.push_str("]");
+            self.push_str("]")?;
         }
-        self.dst.push_str("]\n");
+        self.push_str("]\n")?;
         Ok(())
     }
 
@@ -739,7 +783,7 @@ impl<'a> Serializer<'a> {
                 table_emitted.set(true);
                 let first = self.emit_key_part(parent)?;
                 if !first {
-                    self.dst.push_str(".");
+                    self.push_str(".")?;
                 }
                 self.escape_key(key)?;
                 Ok(false)
@@ -752,32 +796,32 @@ macro_rules! serialize_float {
     ($this:expr, $v:expr) => {{
         $this.emit_key(ArrayState::Started)?;
         if ($v.is_nan() || $v == 0.0) && $v.is_sign_negative() {
-            write!($this.dst, "-").map_err(ser::Error::custom)?;
+            write!($this.dst, "-").map_err(Error::WriteError)?;
         }
         if $v.is_nan() {
-            write!($this.dst, "nan").map_err(ser::Error::custom)?;
+            write!($this.dst, "nan").map_err(Error::WriteError)?;
         } else {
-            write!($this.dst, "{}", $v).map_err(ser::Error::custom)?;
+            write!($this.dst, "{}", $v).map_err(Error::WriteError)?;
         }
         if $v % 1.0 == 0.0 {
-            write!($this.dst, ".0").map_err(ser::Error::custom)?;
+            write!($this.dst, ".0").map_err(Error::WriteError)?;
         }
         if let State::Table { .. } = $this.state {
-            $this.dst.push_str("\n");
+            $this.push_str("\n")?;
         }
         return Ok(());
     }};
 }
 
-impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
+impl<'a, 'b, W> ser::Serializer for &'b mut Serializer<'a, W> where W: Write {
     type Ok = ();
     type Error = Error;
-    type SerializeSeq = SerializeSeq<'a, 'b>;
-    type SerializeTuple = SerializeSeq<'a, 'b>;
-    type SerializeTupleStruct = SerializeSeq<'a, 'b>;
-    type SerializeTupleVariant = SerializeSeq<'a, 'b>;
-    type SerializeMap = SerializeTable<'a, 'b>;
-    type SerializeStruct = SerializeTable<'a, 'b>;
+    type SerializeSeq = SerializeSeq<'a, 'b, W>;
+    type SerializeTuple = SerializeSeq<'a, 'b, W>;
+    type SerializeTupleStruct = SerializeSeq<'a, 'b, W>;
+    type SerializeTupleVariant = SerializeSeq<'a, 'b, W>;
+    type SerializeMap = SerializeTable<'a, 'b, W>;
+    type SerializeStruct = SerializeTable<'a, 'b, W>;
     type SerializeStructVariant = ser::Impossible<(), Error>;
 
     fn serialize_bool(self, v: bool) -> Result<(), Self::Error> {
@@ -833,7 +877,7 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
         self.emit_key(ArrayState::Started)?;
         self.emit_str(value, false)?;
         if let State::Table { .. } = self.state {
-            self.dst.push_str("\n");
+            self.push_str("\n")?;
         }
         Ok(())
     }
@@ -967,7 +1011,7 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
     }
 }
 
-impl<'a, 'b> ser::SerializeSeq for SerializeSeq<'a, 'b> {
+impl<'a, 'b, W> ser::SerializeSeq for SerializeSeq<'a, 'b, W> where W: Write {
     type Ok = ();
     type Error = Error;
 
@@ -994,29 +1038,29 @@ impl<'a, 'b> ser::SerializeSeq for SerializeSeq<'a, 'b> {
             Some(ArrayState::StartedAsATable) => return Ok(()),
             Some(ArrayState::Started) => match (self.len, &self.ser.settings.array) {
                 (Some(0..=1), _) | (_, &None) => {
-                    self.ser.dst.push_str("]");
+                    self.ser.push_str("]")?;
                 }
                 (_, &Some(ref a)) => {
                     if a.trailing_comma {
-                        self.ser.dst.push_str(",");
+                        self.ser.push_str(",")?;
                     }
-                    self.ser.dst.push_str("\n]");
+                    self.ser.push_str("\n]")?;
                 }
             },
             None => {
                 assert!(self.first.get());
                 self.ser.emit_key(ArrayState::Started)?;
-                self.ser.dst.push_str("[]")
+                self.ser.push_str("[]")?
             }
         }
         if let State::Table { .. } = self.ser.state {
-            self.ser.dst.push_str("\n");
+            self.ser.push_str("\n")?;
         }
         Ok(())
     }
 }
 
-impl<'a, 'b> ser::SerializeTuple for SerializeSeq<'a, 'b> {
+impl<'a, 'b, W> ser::SerializeTuple for SerializeSeq<'a, 'b, W> where W: Write {
     type Ok = ();
     type Error = Error;
 
@@ -1032,7 +1076,7 @@ impl<'a, 'b> ser::SerializeTuple for SerializeSeq<'a, 'b> {
     }
 }
 
-impl<'a, 'b> ser::SerializeTupleVariant for SerializeSeq<'a, 'b> {
+impl<'a, 'b, W> ser::SerializeTupleVariant for SerializeSeq<'a, 'b, W> where W: Write {
     type Ok = ();
     type Error = Error;
 
@@ -1048,7 +1092,7 @@ impl<'a, 'b> ser::SerializeTupleVariant for SerializeSeq<'a, 'b> {
     }
 }
 
-impl<'a, 'b> ser::SerializeTupleStruct for SerializeSeq<'a, 'b> {
+impl<'a, 'b, W> ser::SerializeTupleStruct for SerializeSeq<'a, 'b, W> where W: Write {
     type Ok = ();
     type Error = Error;
 
@@ -1064,7 +1108,7 @@ impl<'a, 'b> ser::SerializeTupleStruct for SerializeSeq<'a, 'b> {
     }
 }
 
-impl<'a, 'b> ser::SerializeMap for SerializeTable<'a, 'b> {
+impl<'a, 'b, W> ser::SerializeMap for SerializeTable<'a, 'b, W> where W: Write {
     type Ok = ();
     type Error = Error;
 
@@ -1129,7 +1173,7 @@ impl<'a, 'b> ser::SerializeMap for SerializeTable<'a, 'b> {
     }
 }
 
-impl<'a, 'b> ser::SerializeStruct for SerializeTable<'a, 'b> {
+impl<'a, 'b, W> ser::SerializeStruct for SerializeTable<'a, 'b, W> where W: Write {
     type Ok = ();
     type Error = Error;
 
@@ -1185,9 +1229,9 @@ impl<'a, 'b> ser::SerializeStruct for SerializeTable<'a, 'b> {
     }
 }
 
-struct DateStrEmitter<'a, 'b>(&'b mut Serializer<'a>);
+struct DateStrEmitter<'a, 'b, W>(&'b mut Serializer<'a, W>);
 
-impl<'a, 'b> ser::Serializer for DateStrEmitter<'a, 'b> {
+impl<'a, 'b, W> ser::Serializer for DateStrEmitter<'a, 'b, W> where W: Write {
     type Ok = ();
     type Error = Error;
     type SerializeSeq = ser::Impossible<(), Error>;
@@ -1538,6 +1582,7 @@ impl fmt::Display for Error {
             Error::Custom(ref s) => s.fmt(f),
             Error::KeyNewline => unreachable!(),
             Error::ArrayMixedType => unreachable!(),
+            Error::WriteError(ref e) => e.fmt(f),
             Error::__Nonexhaustive => panic!(),
         }
     }
