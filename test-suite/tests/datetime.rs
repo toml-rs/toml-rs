@@ -68,15 +68,15 @@ fn bad_times() {
     );
     bad!(
         "foo = T",
-        "failed to parse datetime for key `foo` at line 1 column 7"
+        "failed to parse as a number or datetime, did you mean to use a quoted string? at line 1 column 7"
     );
     bad!(
         "foo = T.",
-        "expected newline, found a period at line 1 column 8"
+        "failed to parse as a number or datetime, did you mean to use a quoted string? at line 1 column 7"
     );
     bad!(
         "foo = TZ",
-        "failed to parse datetime for key `foo` at line 1 column 7"
+        "failed to parse as a number or datetime, did you mean to use a quoted string? at line 1 column 7"
     );
     bad!(
         "foo = 1997-09-09T09:09:09.09+",

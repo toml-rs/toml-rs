@@ -197,7 +197,7 @@ test!(
 test!(
     text_after_array_entries,
     include_str!("invalid/text-after-array-entries.toml"),
-    "invalid number at line 2 column 46"
+    "failed to parse as a number or datetime, did you mean to use a quoted string? at line 2 column 46"
 );
 test!(
     text_after_integer,
@@ -222,5 +222,5 @@ test!(
 test!(
     text_in_array,
     include_str!("invalid/text-in-array.toml"),
-    "invalid number at line 3 column 3"
+    "failed to parse as a number or datetime, did you mean to use a quoted string? at line 3 column 3"
 );
