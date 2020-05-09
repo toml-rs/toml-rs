@@ -12,6 +12,7 @@ jobs:
     - uses: actions/checkout@master
     - name: Install Rust (rustup)
       run: rustup update ${{ matrix.rust }} && rustup default ${{ matrix.rust }}
+    - run: cargo build --no-default-features
     - run: cargo test
     - run: cargo test --features preserve_order
     - run: cargo test --manifest-path test-suite/Cargo.toml
