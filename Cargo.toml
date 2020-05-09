@@ -30,7 +30,7 @@ serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 
 [features]
 default = ["std"]
-std = ["serde/std", "serde_json/std"]
+std = ["serde/std"]
 
 # Use indexmap rather than BTreeMap as the map type of toml::Value.
 # This allows data to be read into a Value and written back to a TOML string
