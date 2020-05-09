@@ -428,6 +428,9 @@ pub fn push_toml(root: &mut Value, path: &[&str]) {
 }
 
 fn traverse<'a>(root: &'a mut Value, path: &[&str]) -> &'a mut Value {
+    #[cfg(not(feature = "std"))]
+    use alloc::borrow::ToOwned;
+
     let mut cur = root;
     for &key in path {
         // Lexical lifetimes :D

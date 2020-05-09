@@ -1,8 +1,8 @@
-use std::borrow::Cow;
-use std::char;
-use std::str;
-use std::string;
-use std::string::String as StdString;
+use alloc::borrow::Cow;
+use core::char;
+use core::str;
+use alloc::string;
+use alloc::string::String as StdString;
 
 use self::Token::*;
 
@@ -503,6 +503,9 @@ impl MaybeString {
     }
 
     fn to_owned(&mut self, input: &str) {
+        #[cfg(not(feature = "std"))]
+        use alloc::borrow::ToOwned;
+    
         match *self {
             MaybeString::NotEscaped(start) => {
                 *self = MaybeString::Owned(input[start..].to_owned());

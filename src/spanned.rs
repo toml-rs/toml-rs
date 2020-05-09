@@ -1,8 +1,11 @@
 use serde::{de, ser};
-use std::borrow::Borrow;
-use std::cmp::Ordering;
-use std::fmt;
-use std::hash::{Hash, Hasher};
+use core::borrow::Borrow;
+use core::cmp::Ordering;
+use core::fmt;
+use core::hash::{Hash, Hasher};
+
+#[cfg(not(feature = "std"))]
+use alloc::string::String;
 
 pub(crate) const NAME: &str = "$__toml_private_Spanned";
 pub(crate) const START: &str = "$__toml_private_start";
@@ -113,7 +116,7 @@ where
     where
         D: de::Deserializer<'de>,
     {
-        struct SpannedVisitor<T>(::std::marker::PhantomData<T>);
+        struct SpannedVisitor<T>(::core::marker::PhantomData<T>);
 
         impl<'de, T> de::Visitor<'de> for SpannedVisitor<T>
         where
@@ -151,7 +154,7 @@ where
             }
         }
 
-        let visitor = SpannedVisitor(::std::marker::PhantomData);
+        let visitor = SpannedVisitor(::core::marker::PhantomData);
 
         static FIELDS: [&str; 3] = [START, END, VALUE];
         deserializer.deserialize_struct(NAME, &FIELDS, visitor)

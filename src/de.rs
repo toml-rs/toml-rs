@@ -4,15 +4,26 @@
 //! into Rust structures. Note that some top-level functions here are also
 //! provided at the top of the crate.
 
-use std::borrow::Cow;
-use std::collections::HashMap;
+use alloc::borrow::Cow;
+use hashbrown::HashMap;
+#[cfg(feature = "std")]
 use std::error;
-use std::f64;
-use std::fmt;
-use std::iter;
-use std::marker::PhantomData;
-use std::str;
-use std::vec;
+use core::f64;
+use core::fmt;
+use core::iter;
+use core::marker::PhantomData;
+use core::str;
+use alloc::vec;
+#[cfg(not(feature = "std"))]
+use alloc::vec::Vec;
+#[cfg(not(feature = "std"))]
+use alloc::string::String;
+#[cfg(not(feature = "std"))]
+use alloc::boxed::Box;
+#[cfg(not(feature = "std"))]
+use alloc::string::ToString;
+#[cfg(not(feature = "std"))]
+use alloc::borrow::ToOwned;
 
 use serde::de;
 use serde::de::value::BorrowedStrDeserializer;
@@ -2041,7 +2052,7 @@ impl Error {
         }
     }
 
-    pub(crate) fn add_key_context(&mut self, key: &str) {
+    pub(crate) fn add_key_context(&mut self, key: &str) {    
         self.inner.key.insert(0, key.to_string());
     }
 
@@ -2068,6 +2079,7 @@ impl Error {
     }
 }
 
+#[cfg(feature = "std")]
 impl std::convert::From<Error> for std::io::Error {
     fn from(e: Error) -> Self {
         std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string())
@@ -2153,10 +2165,11 @@ impl fmt::Display for Error {
     }
 }
 
+#[cfg(feature = "std")]
 impl error::Error for Error {}
 
 impl de::Error for Error {
-    fn custom<T: fmt::Display>(msg: T) -> Error {
+    fn custom<T: fmt::Display>(msg: T) -> Error {    
         Error::custom(None, msg.to_string())
     }
 }

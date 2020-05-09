@@ -1,6 +1,13 @@
+#[cfg(feature = "std")]
 use std::error;
-use std::fmt;
-use std::str::{self, FromStr};
+
+use core::fmt;
+use core::str::{self, FromStr};
+
+#[cfg(not(feature = "std"))]
+use alloc::format;
+#[cfg(not(feature = "std"))]
+use alloc::string::ToString;
 
 use serde::{de, ser};
 
@@ -422,4 +429,5 @@ impl fmt::Display for DatetimeParseError {
     }
 }
 
+#[cfg(feature = "std")]
 impl error::Error for DatetimeParseError {}
