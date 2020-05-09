@@ -25,18 +25,18 @@
 //! # fn main() {}
 //! ```
 
-use core::cell::Cell;
-#[cfg(feature = "std")]
-use std::error;
-use core::fmt::{self, Write};
-use core::marker;
 use alloc::rc::Rc;
-#[cfg(not(feature = "std"))]
-use alloc::vec::Vec;
 #[cfg(not(feature = "std"))]
 use alloc::string::String;
 #[cfg(not(feature = "std"))]
 use alloc::string::ToString;
+#[cfg(not(feature = "std"))]
+use alloc::vec::Vec;
+use core::cell::Cell;
+use core::fmt::{self, Write};
+use core::marker;
+#[cfg(feature = "std")]
+use std::error;
 
 use crate::datetime;
 use serde::ser;

@@ -1,8 +1,8 @@
 use alloc::borrow::Cow;
-use core::char;
-use core::str;
 use alloc::string;
 use alloc::string::String as StdString;
+use core::char;
+use core::str;
 
 use self::Token::*;
 
@@ -505,7 +505,7 @@ impl MaybeString {
     fn to_owned(&mut self, input: &str) {
         #[cfg(not(feature = "std"))]
         use alloc::borrow::ToOwned;
-    
+
         match *self {
             MaybeString::NotEscaped(start) => {
                 *self = MaybeString::Owned(input[start..].to_owned());

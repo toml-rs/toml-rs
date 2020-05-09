@@ -15,12 +15,12 @@
 //! [`LinkedHashMap`]: https://docs.rs/linked-hash-map/*/linked_hash_map/struct.LinkedHashMap.html
 
 use crate::value::Value;
-use serde::{de, ser};
 use core::borrow::Borrow;
 use core::fmt::{self, Debug};
 use core::hash::Hash;
 use core::iter::FromIterator;
 use core::ops;
+use serde::{de, ser};
 
 #[cfg(not(feature = "std"))]
 use alloc::string::String;
@@ -147,10 +147,10 @@ impl Map<String, Value> {
     where
         S: Into<String>,
     {
-        #[cfg(feature = "preserve_order")]
-        use indexmap::map::Entry as EntryImpl;
         #[cfg(not(feature = "preserve_order"))]
         use alloc::collections::btree_map::Entry as EntryImpl;
+        #[cfg(feature = "preserve_order")]
+        use indexmap::map::Entry as EntryImpl;
 
         match self.map.entry(key.into()) {
             EntryImpl::Vacant(vacant) => Entry::Vacant(VacantEntry { vacant }),

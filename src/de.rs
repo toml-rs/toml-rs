@@ -5,25 +5,25 @@
 //! provided at the top of the crate.
 
 use alloc::borrow::Cow;
-use hashbrown::HashMap;
-#[cfg(feature = "std")]
-use std::error;
+#[cfg(not(feature = "std"))]
+use alloc::borrow::ToOwned;
+#[cfg(not(feature = "std"))]
+use alloc::boxed::Box;
+#[cfg(not(feature = "std"))]
+use alloc::string::String;
+#[cfg(not(feature = "std"))]
+use alloc::string::ToString;
+use alloc::vec;
+#[cfg(not(feature = "std"))]
+use alloc::vec::Vec;
 use core::f64;
 use core::fmt;
 use core::iter;
 use core::marker::PhantomData;
 use core::str;
-use alloc::vec;
-#[cfg(not(feature = "std"))]
-use alloc::vec::Vec;
-#[cfg(not(feature = "std"))]
-use alloc::string::String;
-#[cfg(not(feature = "std"))]
-use alloc::boxed::Box;
-#[cfg(not(feature = "std"))]
-use alloc::string::ToString;
-#[cfg(not(feature = "std"))]
-use alloc::borrow::ToOwned;
+use hashbrown::HashMap;
+#[cfg(feature = "std")]
+use std::error;
 
 use serde::de;
 use serde::de::value::BorrowedStrDeserializer;
@@ -2052,7 +2052,7 @@ impl Error {
         }
     }
 
-    pub(crate) fn add_key_context(&mut self, key: &str) {    
+    pub(crate) fn add_key_context(&mut self, key: &str) {
         self.inner.key.insert(0, key.to_string());
     }
 
@@ -2169,7 +2169,7 @@ impl fmt::Display for Error {
 impl error::Error for Error {}
 
 impl de::Error for Error {
-    fn custom<T: fmt::Display>(msg: T) -> Error {    
+    fn custom<T: fmt::Display>(msg: T) -> Error {
         Error::custom(None, msg.to_string())
     }
 }

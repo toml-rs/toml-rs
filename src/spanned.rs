@@ -1,8 +1,8 @@
-use serde::{de, ser};
 use core::borrow::Borrow;
 use core::cmp::Ordering;
 use core::fmt;
 use core::hash::{Hash, Hasher};
+use serde::{de, ser};
 
 #[cfg(not(feature = "std"))]
 use alloc::string::String;
