@@ -389,3 +389,9 @@ test!(
     include_str!("valid/float-exponent.toml"),
     include_str!("valid/float-exponent.json")
 );
+
+test!(
+    string_delim_end,
+    include_str!("valid/string-delim-end.toml"),
+    include_str!("valid/string-delim-end.json")
+);
