@@ -334,7 +334,7 @@ impl<'a> Tokenizer<'a> {
                         return Err(Error::NewlineInString(i));
                     }
                 }
-                Some((i, ch)) if ch == delim => {
+                Some((mut i, ch)) if ch == delim => {
                     if multiline {
                         if !self.eatc(delim) {
                             val.push(delim);
@@ -344,6 +344,14 @@ impl<'a> Tokenizer<'a> {
                             val.push(delim);
                             val.push(delim);
                             continue 'outer;
+                        }
+                        if self.eatc(delim) {
+                            val.push(delim);
+                            i += 1;
+                        }
+                        if self.eatc(delim) {
+                            val.push(delim);
+                            i += 1;
                         }
                     }
                     return Ok(String {
