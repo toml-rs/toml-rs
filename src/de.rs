@@ -94,7 +94,6 @@ struct ErrorInner {
     line: Option<usize>,
     col: usize,
     at: Option<usize>,
-    message: String,
     key: Vec<String>,
 }
 
@@ -160,7 +159,7 @@ pub enum ErrorKind {
 
     /// A custom error which could be generated when deserializing a particular
     /// type.
-    Custom,
+    Custom(String),
 
     /// A tuple with a certain number of elements was expected but something
     /// else was found.
@@ -2015,11 +2014,6 @@ impl Error {
         self.inner.line.map(|line| (line, self.inner.col))
     }
 
-    /// Get the message associated with this error
-    pub fn message(&self) -> &str {
-        &self.inner.message
-    }
-
     /// Get the keys associated with this error
     pub fn key(&self) -> &[String] {
         &self.inner.key
@@ -2037,7 +2031,6 @@ impl Error {
                 line: None,
                 col: 0,
                 at,
-                message: String::new(),
                 key: Vec::new(),
             }),
         }
@@ -2046,11 +2039,10 @@ impl Error {
     fn custom(at: Option<usize>, s: String) -> Error {
         Error {
             inner: Box::new(ErrorInner {
-                kind: ErrorKind::Custom,
+                kind: ErrorKind::Custom(s),
                 line: None,
                 col: 0,
                 at,
-                message: s,
                 key: Vec::new(),
             }),
         }
@@ -2128,7 +2120,7 @@ impl fmt::Display for Error {
             ErrorKind::RedefineAsArray => "table redefined as array".fmt(f)?,
             ErrorKind::EmptyTableKey => "empty table key found".fmt(f)?,
             ErrorKind::MultilineStringKey => "multiline strings are not allowed for key".fmt(f)?,
-            ErrorKind::Custom => self.inner.message.fmt(f)?,
+            ErrorKind::Custom(ref message) => message.fmt(f)?,
             ErrorKind::ExpectedTuple(l) => write!(f, "expected table with length {}", l)?,
             ErrorKind::ExpectedTupleIndex {
                 expected,
