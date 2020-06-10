@@ -2015,8 +2015,12 @@ impl Error {
     }
 
     /// Get the keys associated with this error
-    pub fn key(&self) -> &[String] {
-        &self.inner.key
+    pub fn keys(&self) -> Option<&[String]> {
+        if self.inner.key.is_empty() {
+            None
+        } else {
+            Some(&self.inner.key)
+        }
     }
 
     /// Get the error kind of this error
