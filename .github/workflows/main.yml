@@ -13,8 +13,7 @@ jobs:
     - name: Install Rust (rustup)
       run: rustup update ${{ matrix.rust }} && rustup default ${{ matrix.rust }}
     - run: cargo test
-    - run: cargo test --features preserve_order
-    - run: cargo test --manifest-path test-suite/Cargo.toml
+    - run: cargo test --features preserve_order --manifest-path crates/toml/Cargo.toml
     - run: cargo bench
 
   rustfmt:
@@ -24,7 +23,7 @@ jobs:
     - uses: actions/checkout@master
     - name: Install Rust
       run: rustup update stable && rustup default stable && rustup component add rustfmt
-    - run: cargo fmt -- --check
+    - run: cargo fmt --all -- --check
 
   publish_docs:
     name: Publish Documentation

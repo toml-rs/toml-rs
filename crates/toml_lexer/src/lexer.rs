@@ -91,7 +91,6 @@ impl<'s> Tokenizer<'s> {
         self.cursor().string()
     }
 
-
     /// The offset in the input string of the next token to be lexed.
     pub fn current_index(&self) -> usize {
         self.cursor().current_index()
@@ -190,7 +189,7 @@ fn is_keylike(ch: char) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use crate::{TokenKind, StrLitKind, Quotes, QuotesLen, StrLitSubtoken, Tokenizer};
+    use crate::{Quotes, QuotesLen, StrLitKind, StrLitSubtoken, TokenKind, Tokenizer};
 
     #[test]
     fn empty_input() {
@@ -201,21 +200,28 @@ mod tests {
     fn multiple_string_literals() {
         let sub = |it| TokenKind::StrLitSubtoken(it);
 
-        let one_single_quote = || StrLitSubtoken::LeadingQuotes(Quotes {
-            kind: StrLitKind::Literal,
-            len: QuotesLen::X1,
-        });
-        let one_double_quote = || StrLitSubtoken::LeadingQuotes(Quotes {
-            kind: StrLitKind::Basic,
-            len: QuotesLen::X1,
-        });
+        let one_single_quote = || {
+            StrLitSubtoken::LeadingQuotes(Quotes {
+                kind: StrLitKind::Literal,
+                len: QuotesLen::X1,
+            })
+        };
+        let one_double_quote = || {
+            StrLitSubtoken::LeadingQuotes(Quotes {
+                kind: StrLitKind::Basic,
+                len: QuotesLen::X1,
+            })
+        };
 
-        assert_tokens("'\\''", vec![
-            ((0, 1), sub(one_single_quote())),
-            ((1, 2), sub(StrLitSubtoken::Char('\\'))),
-            ((2, 3), sub(StrLitSubtoken::TrailingQuotes)),
-            ((3, 4), sub(one_single_quote()))
-        ]);
+        assert_tokens(
+            "'\\''",
+            vec![
+                ((0, 1), sub(one_single_quote())),
+                ((1, 2), sub(StrLitSubtoken::Char('\\'))),
+                ((2, 3), sub(StrLitSubtoken::TrailingQuotes)),
+                ((3, 4), sub(one_single_quote())),
+            ],
+        );
         assert_tokens(
             "'foo\n'",
             vec![
@@ -310,10 +316,10 @@ mod tests {
 
     #[test]
     fn bad_comment() {
-        assert_tokens("#\u{0}", vec![
-            ((0, 1), TokenKind::Comment),
-            ((1, 2), TokenKind::Unknown)
-        ]);
+        assert_tokens(
+            "#\u{0}",
+            vec![((0, 1), TokenKind::Comment), ((1, 2), TokenKind::Unknown)],
+        );
     }
 
     fn assert_tokens(input: &str, expected: Vec<((usize, usize), TokenKind)>) {

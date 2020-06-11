@@ -142,7 +142,7 @@ test!(
 test!(
     string_bad_line_ending_escape,
     include_str!("invalid/string-bad-line-ending-escape.toml"),
-    "invalid escape character in string: ` ` at line 2 column 79"
+    "whitespace-trimming escape not at the end of the line at line 2 column 78"
 );
 test!(
     string_byte_escapes,
@@ -152,7 +152,7 @@ test!(
 test!(
     string_no_close,
     include_str!("invalid/string-no-close.toml"),
-    "newline in string found at line 1 column 42"
+    "unterminated string at line 1 column 19"
 );
 test!(
     table_array_implicit,

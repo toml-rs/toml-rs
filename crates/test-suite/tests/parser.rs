@@ -197,7 +197,7 @@ fn stray_cr() {
     );
     bad!(
         "a = \"\"\"\\  \r  \"\"\"",
-        "invalid escape character in string: ` ` at line 1 column 9"
+        "whitespace-trimming escape not at the end of the line at line 1 column 8"
     );
     bad!(
         "a = '''\r'''",
@@ -239,8 +239,8 @@ fn literal_eats_crlf() {
 
 #[test]
 fn string_no_newline() {
-    bad!("a = \"\n\"", "newline in string found at line 1 column 6");
-    bad!("a = '\n'", "newline in string found at line 1 column 6");
+    bad!("a = \"\n\"", "unterminated string at line 1 column 5");
+    bad!("a = '\n'", "unterminated string at line 1 column 5");
 }
 
 #[test]
@@ -348,7 +348,7 @@ fn bad_keys() {
         "expected a table key, found an equals at line 1 column 1"
     );
     bad!("\"\"|=3", "empty table key found at line 1 column 1");
-    bad!("\"\n\"|=3", "newline in string found at line 1 column 2");
+    bad!("\"\n\"|=3", "unterminated string at line 1 column 1");
     bad!(
         "\"\r\"|=3",
         "invalid character in string: `\\r` at line 1 column 2"
@@ -388,7 +388,7 @@ fn bad_table_names() {
     );
     bad!("[\"\"]", "empty table key found at line 1 column 2");
     bad!("[!]", "unexpected character found: `!` at line 1 column 2");
-    bad!("[\"\n\"]", "newline in string found at line 1 column 3");
+    bad!("[\"\n\"]", "unterminated string at line 1 column 2");
     bad!(
         "[a.b]\n[a.\"b\"]",
         "redefinition of table `a.b` for key `a.b` at line 2 column 1"
@@ -407,8 +407,8 @@ fn bad_table_names() {
         "[\"\"\"bar\"\"\"]",
         "multiline strings are not allowed for key at line 1 column 2"
     );
-    bad!("['\n']", "newline in string found at line 1 column 3");
-    bad!("['\r\n']", "newline in string found at line 1 column 3");
+    bad!("['\n']", "unterminated string at line 1 column 2");
+    bad!("['\r\n']", "unterminated string at line 1 column 2");
 }
 
 #[test]
@@ -507,13 +507,16 @@ fn bad_unicode_codepoint() {
 fn bad_strings() {
     bad!(
         "foo = \"\\uxx\"",
-        "invalid hex escape character in string: `x` at line 1 column 10"
+        "expected 4 digits in unicode escape, but got 0 at line 1 column 8"
     );
     bad!(
-        "foo = \"\\u\"",
-        "invalid hex escape character in string: `\\\"` at line 1 column 10"
+        "foo = \"\\ufa1\"",
+        "expected 4 digits in unicode escape, but got 3 at line 1 column 8"
     );
-    bad!("foo = \"\\", "unterminated string at line 1 column 7");
+    bad!(
+        "foo = \"\\",
+        "expected escape character after `\\` at line 1 column 9"
+    );
     bad!("foo = '", "unterminated string at line 1 column 7");
 }
 

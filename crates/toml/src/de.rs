@@ -20,7 +20,7 @@ use serde::de::IntoDeserializer;
 
 use crate::datetime;
 use crate::spanned;
-use crate::tokens::{Error as TokenError, Span, Token, Tokenizer};
+use crate::tokens::{Error as TokenError, HexLen, Span, Token, Tokenizer};
 
 /// Type Alias for a TOML Table pair
 type TablePair<'a> = ((Span, Cow<'a, str>), Value<'a>);
@@ -107,19 +107,22 @@ enum ErrorKind {
     /// An invalid character not allowed in a string was found
     InvalidCharInString(char),
 
-    /// An invalid character was found as an escape
-    InvalidEscape(char),
+    /// Not enough digits were specified in unicode escape sequence
+    NotEnoughDigitsInHex { expected: HexLen, actual: u32 },
 
-    /// An invalid character was found in a hex escape
-    InvalidHexEscape(char),
+    /// Invalid character in shorthand escape (shorthand escapes are `\, \b, \f, \n, \r, \t, \", \'`)
+    InvalidShorthandEscape(Option<char>),
+
+    /// No newline character after the backslash-whitespace sequence, e.g.
+    /// ```toml
+    /// key = "abc \   <- no newline, before the next non-whitespace character"
+    /// ```
+    NoNewlineInTrimmedWhitespace,
 
     /// An invalid escape value was specified in a hex escape in a string.
     ///
     /// Valid values are in the plane of unicode codepoints.
     InvalidEscapeValue(u32),
-
-    /// A newline in a string was encountered when one was not allowed.
-    NewlineInString,
 
     /// An unexpected character was encountered, typically when looking for a
     /// value.
@@ -1367,7 +1370,7 @@ impl<'a> Deserializer<'a> {
     }
 
     fn table_header(&mut self) -> Result<Line<'a>, Error> {
-        let start = self.tokens.current();
+        let start = self.tokens.current_index();
         self.expect(Token::LeftBracket)?;
         let array = self.eat(Token::LeftBracket)?;
         let ret = Header::new(self.tokens.clone(), array, self.require_newline_after_table);
@@ -1411,7 +1414,7 @@ impl<'a> Deserializer<'a> {
     }
 
     fn value(&mut self) -> Result<Value<'a>, Error> {
-        let at = self.tokens.current();
+        let at = self.tokens.current_index();
         let value = match self.next()? {
             Some((Span { start, end }, Token::String { val, .. })) => Value {
                 e: E::String(val),
@@ -1552,7 +1555,7 @@ impl<'a> Deserializer<'a> {
                 end,
             })
         } else if self.eat(Token::Period)? {
-            let at = self.tokens.current();
+            let at = self.tokens.current_index();
             match self.next()? {
                 Some((Span { start, end }, Token::Keylike(after))) => {
                     self.float(s, Some(after)).map(|f| Value {
@@ -1593,7 +1596,7 @@ impl<'a> Deserializer<'a> {
     }
 
     fn number_leading_plus(&mut self, Span { start, .. }: Span) -> Result<Value<'a>, Error> {
-        let start_token = self.tokens.current();
+        let start_token = self.tokens.current_index();
         match self.next()? {
             Some((Span { end, .. }, Token::Keylike(s))) => self.number(Span { start, end }, s),
             _ => Err(self.error(start_token, ErrorKind::NumberInvalid)),
@@ -1773,7 +1776,7 @@ impl<'a> Deserializer<'a> {
             }
         }
 
-        let end = self.tokens.current();
+        let end = self.tokens.current_index();
         Ok((span, &self.tokens.input()[start..end]))
     }
 
@@ -1960,27 +1963,32 @@ impl<'a> Deserializer<'a> {
     }
 
     fn token_error(&self, error: TokenError) -> Error {
-        match error {
-            TokenError::InvalidCharInString(at, ch) => {
-                self.error(at, ErrorKind::InvalidCharInString(ch))
+        let (at, error) = match error {
+            TokenError::InvalidCharInString(at, ch) => (at, ErrorKind::InvalidCharInString(ch)),
+            TokenError::InvalidShorthandEscape(at, ch) => {
+                (at, ErrorKind::InvalidShorthandEscape(ch))
             }
-            TokenError::InvalidEscape(at, ch) => self.error(at, ErrorKind::InvalidEscape(ch)),
-            TokenError::InvalidEscapeValue(at, v) => {
-                self.error(at, ErrorKind::InvalidEscapeValue(v))
+            TokenError::NotEnoughDigitsInHex {
+                at,
+                expected,
+                actual,
+            } => (at, ErrorKind::NotEnoughDigitsInHex { expected, actual }),
+            TokenError::InvalidEscapeValue(at, ch) => (at, ErrorKind::InvalidEscapeValue(ch)),
+            TokenError::UnterminatedString(at) => (at, ErrorKind::UnterminatedString),
+            TokenError::NoNewlineInTrimmedWhitespace(at) => {
+                (at, ErrorKind::NoNewlineInTrimmedWhitespace)
             }
-            TokenError::InvalidHexEscape(at, ch) => self.error(at, ErrorKind::InvalidHexEscape(ch)),
-            TokenError::NewlineInString(at) => self.error(at, ErrorKind::NewlineInString),
-            TokenError::Unexpected(at, ch) => self.error(at, ErrorKind::Unexpected(ch)),
-            TokenError::UnterminatedString(at) => self.error(at, ErrorKind::UnterminatedString),
-            TokenError::NewlineInTableKey(at) => self.error(at, ErrorKind::NewlineInTableKey),
+            TokenError::Unexpected(at, ch) => (at, ErrorKind::Unexpected(ch)),
+            TokenError::NewlineInTableKey(at) => (at, ErrorKind::NewlineInTableKey),
             TokenError::Wanted {
                 at,
                 expected,
                 found,
-            } => self.error(at, ErrorKind::Wanted { expected, found }),
-            TokenError::EmptyTableKey(at) => self.error(at, ErrorKind::EmptyTableKey),
-            TokenError::MultilineStringKey(at) => self.error(at, ErrorKind::MultilineStringKey),
-        }
+            } => (at, ErrorKind::Wanted { expected, found }),
+            TokenError::EmptyTableKey(at) => (at, ErrorKind::EmptyTableKey),
+            TokenError::MultilineStringKey(at) => (at, ErrorKind::MultilineStringKey),
+        };
+        self.error(at, error)
     }
 
     fn error(&self, at: usize, kind: ErrorKind) -> Error {
@@ -2083,18 +2091,22 @@ impl fmt::Display for Error {
                 "invalid character in string: `{}`",
                 c.escape_default().collect::<String>()
             )?,
-            ErrorKind::InvalidEscape(c) => write!(
+            ErrorKind::NotEnoughDigitsInHex { expected, actual } => write!(
                 f,
-                "invalid escape character in string: `{}`",
-                c.escape_default().collect::<String>()
+                "expected {} digits in unicode escape, but got {}",
+                u32::from(expected),
+                actual
             )?,
-            ErrorKind::InvalidHexEscape(c) => write!(
-                f,
-                "invalid hex escape character in string: `{}`",
-                c.escape_default().collect::<String>()
-            )?,
+            ErrorKind::InvalidShorthandEscape(Some(ch)) => {
+                write!(f, "invalid escape character in string: `{}`", ch)?
+            }
+            ErrorKind::InvalidShorthandEscape(None) => {
+                write!(f, "expected escape character after `\\`")?
+            }
+            ErrorKind::NoNewlineInTrimmedWhitespace => {
+                write!(f, "whitespace-trimming escape not at the end of the line",)?
+            }
             ErrorKind::InvalidEscapeValue(c) => write!(f, "invalid escape value: `{}`", c)?,
-            ErrorKind::NewlineInString => "newline in string found".fmt(f)?,
             ErrorKind::Unexpected(ch) => write!(
                 f,
                 "unexpected character found: `{}`",
