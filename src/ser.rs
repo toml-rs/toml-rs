@@ -1412,8 +1412,8 @@ impl ser::Serializer for StringExtractor {
         Err(Error::KeyNotString)
     }
 
-    fn serialize_char(self, _v: char) -> Result<String, Self::Error> {
-        Err(Error::KeyNotString)
+    fn serialize_char(self, value: char) -> Result<String, Self::Error> {
+        Ok(value.to_string())
     }
 
     fn serialize_str(self, value: &str) -> Result<String, Self::Error> {
