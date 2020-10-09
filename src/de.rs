@@ -1462,9 +1462,7 @@ impl<'a> Deserializer<'a> {
     }
 
     fn parse_keylike(&mut self, at: usize, span: Span, key: &'a str) -> Result<Value<'a>, Error> {
-        let lowercase = key.to_ascii_lowercase();
-        let lowercase = lowercase.as_str();
-        if lowercase == "inf" || lowercase == "nan" {
+        if key == "inf" || key == "nan" {
             return self.number_or_date(span, key);
         }
 
