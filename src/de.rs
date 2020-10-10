@@ -2148,7 +2148,7 @@ impl fmt::Display for Error {
             )?,
             ErrorKind::UnquotedString => write!(
                 f,
-                "failed to parse as a number or datetime, did you mean to use a quoted string?"
+                "invalid TOML value, did you mean to use a quoted string?"
             )?,
             ErrorKind::__Nonexhaustive => panic!(),
         }

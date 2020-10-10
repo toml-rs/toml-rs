@@ -68,15 +68,15 @@ fn bad_times() {
     );
     bad!(
         "foo = T",
-        "failed to parse as a number or datetime, did you mean to use a quoted string? at line 1 column 7"
+        "invalid TOML value, did you mean to use a quoted string? at line 1 column 7"
     );
     bad!(
         "foo = T.",
-        "failed to parse as a number or datetime, did you mean to use a quoted string? at line 1 column 7"
+        "invalid TOML value, did you mean to use a quoted string? at line 1 column 7"
     );
     bad!(
         "foo = TZ",
-        "failed to parse as a number or datetime, did you mean to use a quoted string? at line 1 column 7"
+        "invalid TOML value, did you mean to use a quoted string? at line 1 column 7"
     );
     bad!(
         "foo = 1997-09-09T09:09:09.09+",
