@@ -491,7 +491,10 @@ fn number_underscores() {
 fn bad_underscores() {
     bad!("foo = 0_", "invalid number at line 1 column 7");
     bad!("foo = 0__0", "invalid number at line 1 column 7");
-    bad!("foo = __0", "invalid number at line 1 column 7");
+    bad!(
+        "foo = __0",
+        "invalid TOML value, did you mean to use a quoted string? at line 1 column 7"
+    );
     bad!("foo = 1_0_", "invalid number at line 1 column 7");
 }
 
@@ -537,14 +540,20 @@ fn booleans() {
 
     bad!(
         "foo = true2",
-        "failed to parse datetime for key `foo` at line 1 column 7"
+        "invalid TOML value, did you mean to use a quoted string? at line 1 column 7"
     );
-    bad!("foo = false2", "invalid number at line 1 column 7");
+    bad!(
+        "foo = false2",
+        "invalid TOML value, did you mean to use a quoted string? at line 1 column 7"
+    );
     bad!(
         "foo = t1",
-        "failed to parse datetime for key `foo` at line 1 column 7"
+        "invalid TOML value, did you mean to use a quoted string? at line 1 column 7"
     );
-    bad!("foo = f2", "invalid number at line 1 column 7");
+    bad!(
+        "foo = f2",
+        "invalid TOML value, did you mean to use a quoted string? at line 1 column 7"
+    );
 }
 
 #[test]

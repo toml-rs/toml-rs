@@ -191,6 +191,9 @@ enum ErrorKind {
         available: &'static [&'static str],
     },
 
+    /// Unquoted string was found when quoted one was expected
+    UnquotedString,
+
     #[doc(hidden)]
     __Nonexhaustive,
 }
@@ -1428,7 +1431,7 @@ impl<'a> Deserializer<'a> {
                 start,
                 end,
             },
-            Some((span, Token::Keylike(key))) => self.number_or_date(span, key)?,
+            Some((span, Token::Keylike(key))) => self.parse_keylike(at, span, key)?,
             Some((span, Token::Plus)) => self.number_leading_plus(span)?,
             Some((Span { start, .. }, Token::LeftBrace)) => {
                 self.inline_table().map(|(Span { end, .. }, table)| Value {
@@ -1451,11 +1454,23 @@ impl<'a> Deserializer<'a> {
                         expected: "a value",
                         found: token.1.describe(),
                     },
-                ))
+                ));
             }
             None => return Err(self.eof()),
         };
         Ok(value)
+    }
+
+    fn parse_keylike(&mut self, at: usize, span: Span, key: &'a str) -> Result<Value<'a>, Error> {
+        if key == "inf" || key == "nan" {
+            return self.number_or_date(span, key);
+        }
+
+        let first_char = key.chars().next().expect("key should not be empty here");
+        match first_char {
+            '-' | '0'..='9' => self.number_or_date(span, key),
+            _ => Err(self.error(at, ErrorKind::UnquotedString)),
+        }
     }
 
     fn number_or_date(&mut self, span: Span, s: &'a str) -> Result<Value<'a>, Error> {
@@ -2076,7 +2091,7 @@ impl std::convert::From<Error> for std::io::Error {
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self.inner.kind {
+        match &self.inner.kind {
             ErrorKind::UnexpectedEof => "unexpected eof encountered".fmt(f)?,
             ErrorKind::InvalidCharInString(c) => write!(
                 f,
@@ -2130,6 +2145,10 @@ impl fmt::Display for Error {
                 f,
                 "unexpected keys in table: `{:?}`, available keys: `{:?}`",
                 keys, available
+            )?,
+            ErrorKind::UnquotedString => write!(
+                f,
+                "invalid TOML value, did you mean to use a quoted string?"
             )?,
             ErrorKind::__Nonexhaustive => panic!(),
         }
