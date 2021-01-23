@@ -33,11 +33,12 @@ fn times() {
     dogood("1997-09-09 ", "1997-09-09");
     dogood("1997-09-09 # comment", "1997-09-09");
     good("09:09:09");
-    good("1997-09-09T09:09:09.09Z");
-    good("1997-09-09T09:09:09.09+09:09");
-    good("1997-09-09T09:09:09.09-09:09");
-    good("1997-09-09T09:09:09.09");
-    good("09:09:09.09");
+    good("1997-09-09T09:09:09.099Z");
+    good("1997-09-09T09:09:09.099+09:09");
+    good("1997-09-09T09:09:09.099-09:09");
+    good("1997-09-09T09:09:09.099");
+    good("1997-09-09T09:09:09.099999");
+    good("09:09:09.099");
 }
 
 #[test]
@@ -65,6 +66,14 @@ fn bad_times() {
     bad!(
         "foo = 1997-09-09T09:09:09.",
         "invalid date at line 1 column 7"
+    );
+    bad!(
+        "foo = 1997-09-09T09:09:09.9",
+        "failed to parse datetime for key `foo` at line 1 column 7"
+    );
+    bad!(
+        "foo = 1997-09-09T09:09:09.09",
+        "failed to parse datetime for key `foo` at line 1 column 7"
     );
     bad!(
         "foo = T",

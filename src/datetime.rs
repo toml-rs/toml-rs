@@ -98,8 +98,13 @@ impl fmt::Display for Time {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:02}:{:02}:{:02}", self.hour, self.minute, self.second)?;
         if self.nanosecond != 0 {
-            let s = format!("{:09}", self.nanosecond);
-            write!(f, ".{}", s.trim_end_matches('0'))?;
+            if self.nanosecond % 1000000 == 0 {
+                let s = format!("{:03}", self.nanosecond / 1000000);
+                write!(f, ".{}", s)?;
+            } else {
+                let s = format!("{:09}", self.nanosecond);
+                write!(f, ".{}", s.trim_end_matches('0'))?;
+            }
         }
         Ok(())
     }
@@ -120,10 +125,10 @@ impl FromStr for Datetime {
     fn from_str(date: &str) -> Result<Datetime, DatetimeParseError> {
         // Accepted formats:
         //
-        // 0000-00-00T00:00:00.00Z
-        // 0000-00-00T00:00:00.00
+        // 0000-00-00T00:00:00.000Z
+        // 0000-00-00T00:00:00.000
         // 0000-00-00
-        // 00:00:00.00
+        // 00:00:00.000
         if date.len() < 3 {
             return Err(DatetimeParseError { _private: () });
         }
@@ -219,7 +224,7 @@ impl FromStr for Datetime {
                         }
                     }
                 }
-                if end == 0 {
+                if end < 3 {
                     return Err(DatetimeParseError { _private: () });
                 }
                 chars = whole[end..].chars();
