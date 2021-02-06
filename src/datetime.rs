@@ -35,7 +35,7 @@ pub struct DatetimeParseError {
 }
 
 // Currently serde itself doesn't have a datetime type, so we map our `Datetime`
-// to a special valid in the serde data model. Namely one with thiese special
+// to a special valid in the serde data model. Namely one with these special
 // fields/struct names.
 //
 // In general the TOML encoder/decoder will catch this and not literally emit
