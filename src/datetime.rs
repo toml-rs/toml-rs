@@ -345,7 +345,7 @@ impl<'de> de::Deserialize<'de> for Datetime {
             }
         }
 
-        static FIELDS: [&str; 1] = [FIELD];
+        const FIELDS: [&str; 1] = [FIELD];
         deserializer.deserialize_struct(NAME, &FIELDS, DatetimeVisitor)
     }
 }

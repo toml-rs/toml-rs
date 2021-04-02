@@ -153,7 +153,7 @@ where
 
         let visitor = SpannedVisitor(::std::marker::PhantomData);
 
-        static FIELDS: [&str; 3] = [START, END, VALUE];
+        const FIELDS: [&str; 3] = [START, END, VALUE];
         deserializer.deserialize_struct(NAME, &FIELDS, visitor)
     }
 }
