@@ -34,3 +34,9 @@ default = []
 # This allows data to be read into a Value and written back to a TOML string
 # while preserving the order of map keys in the input.
 preserve_order = ["indexmap"]
+
+# If you use toml::de::Deserializer with a serde::de::Deserialize
+# implementation of another crate, you can enable the following flag to
+# deserialize datetime values as strings, instead of the special encoding
+# this crate normally uses behind the scenes.
+deserialize_datetime_as_string = []

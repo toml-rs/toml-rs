@@ -1480,14 +1480,20 @@ impl<'a> Deserializer<'a> {
         {
             self.datetime(span, s, false)
                 .map(|(Span { start, end }, d)| Value {
+                    #[cfg(not(feature = "deserialize_datetime_as_string"))]
                     e: E::Datetime(d),
+                    #[cfg(feature = "deserialize_datetime_as_string")]
+                    e: E::String(d.into()),
                     start,
                     end,
                 })
         } else if self.eat(Token::Colon)? {
             self.datetime(span, s, true)
                 .map(|(Span { start, end }, d)| Value {
+                    #[cfg(not(feature = "deserialize_datetime_as_string"))]
                     e: E::Datetime(d),
+                    #[cfg(feature = "deserialize_datetime_as_string")]
+                    e: E::String(d.into()),
                     start,
                     end,
                 })

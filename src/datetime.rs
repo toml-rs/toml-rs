@@ -21,6 +21,8 @@ use serde::{de, ser};
 /// Also note though that while this type implements `Serialize` and
 /// `Deserialize` it's only recommended to use this type with the TOML format,
 /// otherwise encoded in other formats it may look a little odd.
+/// If you want to deserialize TOML datetimes into a format other than TOML,
+/// you should use the `deserialize_datetime_as_string` feature flag.
 #[derive(PartialEq, Clone)]
 pub struct Datetime {
     date: Option<Date>,
