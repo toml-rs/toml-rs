@@ -56,7 +56,6 @@ pub enum Error {
     UnterminatedString(usize),
     NewlineInTableKey(usize),
     MultilineStringKey(usize),
-    EmptyTableKey(usize),
     Wanted {
         at: usize,
         expected: &'static str,
@@ -193,9 +192,6 @@ impl<'a> Tokenizer<'a> {
                 let offset = self.substr_offset(src);
                 if multiline {
                     return Err(Error::MultilineStringKey(offset));
-                }
-                if val == "" {
-                    return Err(Error::EmptyTableKey(offset));
                 }
                 match src.find('\n') {
                     None => Ok((span, val)),

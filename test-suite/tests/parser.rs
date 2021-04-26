@@ -342,12 +342,14 @@ fn bad_keys() {
         "key|=3",
         "unexpected character found: `|` at line 1 column 4"
     );
-    bad!("\"\"=3", "empty table key found at line 1 column 1");
     bad!(
         "=3",
         "expected a table key, found an equals at line 1 column 1"
     );
-    bad!("\"\"|=3", "empty table key found at line 1 column 1");
+    bad!(
+        "\"\"|=3",
+        "unexpected character found: `|` at line 1 column 3"
+    );
     bad!("\"\n\"|=3", "newline in string found at line 1 column 2");
     bad!(
         "\"\r\"|=3",
@@ -381,12 +383,10 @@ fn bad_table_names() {
         "[.]",
         "expected a table key, found a period at line 1 column 2"
     );
-    bad!("[\"\".\"\"]", "empty table key found at line 1 column 2");
     bad!(
         "[a.]",
         "expected a table key, found a right bracket at line 1 column 4"
     );
-    bad!("[\"\"]", "empty table key found at line 1 column 2");
     bad!("[!]", "unexpected character found: `!` at line 1 column 2");
     bad!("[\"\n\"]", "newline in string found at line 1 column 3");
     bad!(

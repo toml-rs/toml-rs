@@ -1993,7 +1993,6 @@ impl<'a> Deserializer<'a> {
                 expected,
                 found,
             } => self.error(at, ErrorKind::Wanted { expected, found }),
-            TokenError::EmptyTableKey(at) => self.error(at, ErrorKind::EmptyTableKey),
             TokenError::MultilineStringKey(at) => self.error(at, ErrorKind::MultilineStringKey),
         }
     }
