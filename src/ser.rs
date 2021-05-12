@@ -25,11 +25,12 @@
 //! # fn main() {}
 //! ```
 
-use std::cell::Cell;
-use std::error;
-use std::fmt::{self, Write};
-use std::marker;
-use std::rc::Rc;
+use alloc::rc::Rc;
+use alloc::string::{String, ToString};
+use alloc::vec::Vec;
+use core::cell::Cell;
+use core::fmt::{self, Write};
+use core::marker;
 
 use crate::datetime;
 use serde::ser;
@@ -1547,8 +1548,8 @@ impl fmt::Display for Error {
         }
     }
 }
-
-impl error::Error for Error {}
+// See the comment on the `StdError` impl in de.rs for an explanation.
+impl serde::ser::StdError for Error {}
 
 impl ser::Error for Error {
     fn custom<T: fmt::Display>(msg: T) -> Error {

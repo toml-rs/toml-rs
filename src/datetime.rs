@@ -1,6 +1,7 @@
-use std::error;
-use std::fmt;
-use std::str::{self, FromStr};
+use alloc::format;
+use alloc::string::ToString;
+use core::fmt;
+use core::str::{self, FromStr};
 
 use serde::{de, ser};
 
@@ -421,5 +422,5 @@ impl fmt::Display for DatetimeParseError {
         "failed to parse datetime".fmt(f)
     }
 }
-
-impl error::Error for DatetimeParseError {}
+#[cfg(feature = "std")]
+impl std::error::Error for DatetimeParseError {}

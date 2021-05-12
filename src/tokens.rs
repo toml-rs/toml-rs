@@ -1,8 +1,8 @@
-use std::borrow::Cow;
-use std::char;
-use std::str;
-use std::string;
-use std::string::String as StdString;
+use alloc::borrow::{Cow, ToOwned};
+use alloc::string;
+use alloc::string::String as StdString;
+use core::char;
+use core::str;
 
 use self::Token::*;
 
@@ -561,7 +561,8 @@ impl<'a> Token<'a> {
 #[cfg(test)]
 mod tests {
     use super::{Error, Token, Tokenizer};
-    use std::borrow::Cow;
+    use alloc::borrow::Cow;
+    use alloc::vec::Vec;
 
     fn err(input: &str, err: Error) {
         let mut t = Tokenizer::new(input);

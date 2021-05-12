@@ -1,3 +1,5 @@
+use alloc::borrow::ToOwned;
+pub use core::f64::{INFINITY, NAN, NEG_INFINITY};
 pub use serde::de::{Deserialize, IntoDeserializer};
 
 use crate::value::{Array, Table, Value};
@@ -199,27 +201,27 @@ macro_rules! toml_internal {
     }};
 
     (@value (-nan)) => {
-        $crate::Value::Float(-::std::f64::NAN)
+        $crate::Value::Float(-$crate::macros::NAN)
     };
 
     (@value (nan)) => {
-        $crate::Value::Float(::std::f64::NAN)
+        $crate::Value::Float($crate::macros::NAN)
     };
 
     (@value nan) => {
-        $crate::Value::Float(::std::f64::NAN)
+        $crate::Value::Float($crate::macros::NAN)
     };
 
     (@value (-inf)) => {
-        $crate::Value::Float(::std::f64::NEG_INFINITY)
+        $crate::Value::Float($crate::macros::NEG_INFINITY)
     };
 
     (@value (inf)) => {
-        $crate::Value::Float(::std::f64::INFINITY)
+        $crate::Value::Float($crate::macros::INFINITY)
     };
 
     (@value inf) => {
-        $crate::Value::Float(::std::f64::INFINITY)
+        $crate::Value::Float($crate::macros::INFINITY)
     };
 
     // Construct a Value from any other type, probably string or boolean or number.

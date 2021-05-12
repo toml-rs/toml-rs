@@ -1,12 +1,16 @@
 //! Definition of a TOML value
 
-use std::collections::{BTreeMap, HashMap};
-use std::fmt;
-use std::hash::Hash;
-use std::mem::discriminant;
-use std::ops;
-use std::str::FromStr;
-use std::vec;
+use alloc::borrow::ToOwned;
+use alloc::collections::BTreeMap;
+use alloc::format;
+use alloc::string::{String, ToString};
+use alloc::vec::{self, Vec};
+use core::fmt;
+use core::mem::discriminant;
+use core::ops;
+use core::str::FromStr;
+#[cfg(feature = "std")]
+use std::{collections::HashMap, hash::Hash};
 
 use serde::de;
 use serde::de::IntoDeserializer;
@@ -271,6 +275,7 @@ impl<S: Into<String>, V: Into<Value>> From<BTreeMap<S, V>> for Value {
     }
 }
 
+#[cfg(feature = "std")]
 impl<S: Into<String> + Hash + Eq, V: Into<Value>> From<HashMap<S, V>> for Value {
     fn from(val: HashMap<S, V>) -> Value {
         let table = val.into_iter().map(|(s, v)| (s.into(), v.into())).collect();

@@ -14,6 +14,8 @@ jobs:
       run: rustup update ${{ matrix.rust }} && rustup default ${{ matrix.rust }}
     - run: cargo test
     - run: cargo test --features preserve_order
+    - run: cargo test --no-default-features
+    - run: cargo test --no-default-features --features preserve_order
     - run: cargo test --manifest-path test-suite/Cargo.toml
     - run: cargo bench
 

@@ -4,15 +4,16 @@
 //! into Rust structures. Note that some top-level functions here are also
 //! provided at the top of the crate.
 
-use std::borrow::Cow;
-use std::collections::HashMap;
-use std::error;
-use std::f64;
-use std::fmt;
-use std::iter;
-use std::marker::PhantomData;
-use std::str;
-use std::vec;
+use alloc::borrow::{Cow, ToOwned};
+use alloc::boxed::Box;
+use alloc::collections::BTreeMap;
+use alloc::string::{String, ToString};
+use alloc::vec::{self, Vec};
+use core::f64;
+use core::fmt;
+use core::iter;
+use core::marker::PhantomData;
+use core::str;
 
 use serde::de;
 use serde::de::value::BorrowedStrDeserializer;
@@ -323,7 +324,7 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
 }
 
 // Builds a datastructure that allows for efficient sublinear lookups.
-// The returned HashMap contains a mapping from table header (like [a.b.c])
+// The returned BTreeMap contains a mapping from table header (like [a.b.c])
 // to list of tables with that precise name. The tables are being identified
 // by their index in the passed slice. We use a list as the implementation
 // uses this data structure for arrays as well as tables,
@@ -332,8 +333,8 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
 // The lookup is performed in the `SeqAccess` implementation of `MapVisitor`.
 // The lists are ordered, which we exploit in the search code by using
 // bisection.
-fn build_table_indices<'de>(tables: &[Table<'de>]) -> HashMap<Vec<Cow<'de, str>>, Vec<usize>> {
-    let mut res = HashMap::new();
+fn build_table_indices<'de>(tables: &[Table<'de>]) -> BTreeMap<Vec<Cow<'de, str>>, Vec<usize>> {
+    let mut res = BTreeMap::new();
     for (i, table) in tables.iter().enumerate() {
         let header = table.header.iter().map(|v| v.1.clone()).collect::<Vec<_>>();
         res.entry(header).or_insert_with(Vec::new).push(i);
@@ -342,7 +343,7 @@ fn build_table_indices<'de>(tables: &[Table<'de>]) -> HashMap<Vec<Cow<'de, str>>
 }
 
 // Builds a datastructure that allows for efficient sublinear lookups.
-// The returned HashMap contains a mapping from table header (like [a.b.c])
+// The returned BTreeMap contains a mapping from table header (like [a.b.c])
 // to list of tables whose name at least starts with the specified
 // name. So searching for [a.b] would give both [a.b.c.d] as well as [a.b.e].
 // The tables are being identified by their index in the passed slice.
@@ -356,8 +357,8 @@ fn build_table_indices<'de>(tables: &[Table<'de>]) -> HashMap<Vec<Cow<'de, str>>
 // The lookup is performed in the `MapAccess` implementation of `MapVisitor`.
 // The lists are ordered, which we exploit in the search code by using
 // bisection.
-fn build_table_pindices<'de>(tables: &[Table<'de>]) -> HashMap<Vec<Cow<'de, str>>, Vec<usize>> {
-    let mut res = HashMap::new();
+fn build_table_pindices<'de>(tables: &[Table<'de>]) -> BTreeMap<Vec<Cow<'de, str>>, Vec<usize>> {
+    let mut res = BTreeMap::new();
     for (i, table) in tables.iter().enumerate() {
         let header = table.header.iter().map(|v| v.1.clone()).collect::<Vec<_>>();
         for len in 0..=header.len() {
@@ -390,8 +391,8 @@ struct MapVisitor<'de, 'b> {
     cur: usize,
     cur_parent: usize,
     max: usize,
-    table_indices: &'b HashMap<Vec<Cow<'de, str>>, Vec<usize>>,
-    table_pindices: &'b HashMap<Vec<Cow<'de, str>>, Vec<usize>>,
+    table_indices: &'b BTreeMap<Vec<Cow<'de, str>>, Vec<usize>>,
+    table_pindices: &'b BTreeMap<Vec<Cow<'de, str>>, Vec<usize>>,
     tables: &'b mut [Table<'de>],
     array: bool,
     de: &'b mut Deserializer<'de>,
@@ -2081,8 +2082,8 @@ impl Error {
         }
     }
 }
-
-impl std::convert::From<Error> for std::io::Error {
+#[cfg(feature = "std")]
+impl From<Error> for std::io::Error {
     fn from(e: Error) -> Self {
         std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string())
     }
@@ -2171,7 +2172,17 @@ impl fmt::Display for Error {
     }
 }
 
-impl error::Error for Error {}
+// Serde provides a trait which is either a re-export of std::error::Error, or a
+// partial replacement of it (for when the serde/std feature is not enabled).
+// It's a parent trait to serde::{ser,de}::Error, so we need to implement it.
+//
+// The intention is that crates implementing data formats for serde can
+// implement it unconditionally, so this doesn't need to be conditional on
+// `#[cfg(feature = "std")]`.
+//
+// See https://github.com/serde-rs/serde/blob/master/serde/src/std_error.rs for
+// further info.
+impl serde::de::StdError for Error {}
 
 impl de::Error for Error {
     fn custom<T: fmt::Display>(msg: T) -> Error {
