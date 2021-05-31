@@ -1,0 +1,26 @@
+
+[package]
+name = "toml-fuzz"
+version = "0.0.0"
+authors = ["Automatically generated"]
+publish = false
+edition = "2018"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.toml]
+path = ".."
+
+# Prevent this from interfering with workspaces
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "fuzz_from_to_string"
+path = "fuzz_targets/fuzz_from_to_string.rs"
+test = false
+doc = false
