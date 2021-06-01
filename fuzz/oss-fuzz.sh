@@ -2,6 +2,10 @@
 
 set -eux
 
+# https://google.github.io/oss-fuzz/getting-started/new-project-guide/#buildsh
+OUT=${OUT:-out}
+mkdir -p "$OUT"
+
 build_type=${1:-"release"}
 build_args="--release"
 if [[ "$build_type" =~ "dev" ]]; then
