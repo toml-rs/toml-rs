@@ -934,10 +934,15 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
 
     fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
         self.array_type(ArrayState::StartedAsATable)?;
+        let first = match self.state {
+            State::Table { first, .. } => first.get(),
+            State::Array { first, .. } => first.get(),
+            State::End => true,
+        };
         Ok(SerializeTable::Table {
             ser: self,
             key: String::new(),
-            first: Cell::new(true),
+            first: Cell::new(first),
             table_emitted: Cell::new(false),
         })
     }
