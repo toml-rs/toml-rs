@@ -15,7 +15,7 @@ use serde::ser;
 use crate::datetime::{self, DatetimeFromString};
 pub use crate::datetime::{Datetime, DatetimeParseError};
 
-pub use crate::map::{Map, Entry};
+pub use crate::map::{Entry, Map};
 
 /// Representation of a TOML value.
 #[derive(PartialEq, Clone, Debug)]
