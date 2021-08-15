@@ -21,11 +21,12 @@ use serde::{de, ser};
 /// Also note though that while this type implements `Serialize` and
 /// `Deserialize` it's only recommended to use this type with the TOML format,
 /// otherwise encoded in other formats it may look a little odd.
+#[allow(missing_docs)]
 #[derive(PartialEq, Clone)]
 pub struct Datetime {
-    date: Option<Date>,
-    time: Option<Time>,
-    offset: Option<Offset>,
+    pub date: Option<Date>,
+    pub time: Option<Time>,
+    pub offset: Option<Offset>,
 }
 
 /// Error returned from parsing a `Datetime` in the `FromStr` implementation.
@@ -43,23 +44,25 @@ pub struct DatetimeParseError {
 pub const FIELD: &str = "$__toml_private_datetime";
 pub const NAME: &str = "$__toml_private_Datetime";
 
+#[allow(missing_docs)]
 #[derive(PartialEq, Clone)]
-struct Date {
-    year: u16,
-    month: u8,
-    day: u8,
+pub struct Date {
+    pub year: u16,
+    pub month: u8,
+    pub day: u8,
+}
+
+#[allow(missing_docs)]
+#[derive(PartialEq, Clone)]
+pub struct Time {
+    pub hour: u8,
+    pub minute: u8,
+    pub second: u8,
+    pub nanosecond: u32,
 }
 
 #[derive(PartialEq, Clone)]
-struct Time {
-    hour: u8,
-    minute: u8,
-    second: u8,
-    nanosecond: u32,
-}
-
-#[derive(PartialEq, Clone)]
-enum Offset {
+pub enum Offset {
     Z,
     Custom { hours: i8, minutes: u8 },
 }
