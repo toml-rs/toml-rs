@@ -61,6 +61,7 @@ pub struct Time {
     pub nanosecond: u32,
 }
 
+#[allow(missing_docs)]
 #[derive(PartialEq, Clone)]
 pub enum Offset {
     Z,

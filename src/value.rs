@@ -13,7 +13,7 @@ use serde::de::IntoDeserializer;
 use serde::ser;
 
 use crate::datetime::{self, DatetimeFromString};
-pub use crate::datetime::{Datetime, DatetimeParseError};
+pub use crate::datetime::{Date, Datetime, DatetimeParseError, Time, Offset};
 
 pub use crate::map::{Entry, Map};
 
