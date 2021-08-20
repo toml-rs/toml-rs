@@ -207,9 +207,21 @@ impl fmt::Display for Datetime {
     }
 }
 
+impl fmt::Debug for Date {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
+    }
+}
+
 impl fmt::Display for Date {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{:04}-{:02}-{:02}", self.year, self.month, self.day)
+    }
+}
+
+impl fmt::Debug for Time {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
     }
 }
 
@@ -221,6 +233,12 @@ impl fmt::Display for Time {
             write!(f, ".{}", s.trim_end_matches('0'))?;
         }
         Ok(())
+    }
+}
+
+impl fmt::Debug for Offset {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        fmt::Display::fmt(self, f)
     }
 }
 
