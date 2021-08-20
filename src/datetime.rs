@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::error;
 use std::fmt;
 use std::str::{self, FromStr};
@@ -130,6 +131,18 @@ pub struct Date {
     pub day: u8,
 }
 
+impl PartialOrd for Date {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Date {
+    fn cmp(&self, other: &Self) -> Ordering {
+        (self.year, self.month, self.day).cmp(&(other.year, other.month, other.day))
+    }
+}
+
 /// A parsed TOML time value
 ///
 /// May be part of a [`Datetime`]. Alone, `Time` corresponds to a [Local Time].
@@ -160,6 +173,23 @@ pub struct Time {
     pub second: u8,
     /// Nanosecond: 0 to 999_999_999
     pub nanosecond: u32,
+}
+
+impl PartialOrd for Time {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Time {
+    fn cmp(&self, other: &Self) -> Ordering {
+        (self.hour, self.minute, self.second, self.nanosecond).cmp(&(
+            other.hour,
+            other.minute,
+            other.second,
+            other.nanosecond,
+        ))
+    }
 }
 
 /// A parsed TOML time offset
@@ -560,3 +590,92 @@ impl fmt::Display for DatetimeParseError {
 }
 
 impl error::Error for DatetimeParseError {}
+
+#[cfg(test)]
+mod tests {
+    use super::{Date, Time};
+
+    #[test]
+    fn date_equal() {
+        let a = Date {year: 1953, month: 6, day: 8};
+        let b = Date {year: 1953, month: 6, day: 8};
+        assert_eq!(a, b);
+    }
+
+    /// Verify consistency with (year, ..) ordering.
+    #[test]
+    fn date_comparisons_y() {
+        let a = Date {year: 1492, month: 4, day: 9};
+        let b = Date {year: 1493, month: 3, day: 2};
+        assert!(a < b);
+        assert!(!(a > b));
+        assert!(!(a == b));
+    }
+
+    /// Verify consistency with (year, month, ..) ordering.
+    #[test]
+    fn date_comparisons_ym() {
+        let a = Date {year: 1776, month: 4, day: 9};
+        let b = Date {year: 1776, month: 5, day: 2};
+        assert!(a < b);
+        assert!(!(a > b));
+        assert!(!(a == b));
+    }
+
+    /// Verify consistency with (year, month, day) ordering.
+    #[test]
+    fn date_comparisons_ymd() {
+        let a = Date {year: 1999, month: 2, day: 12};
+        let b = Date {year: 1999, month: 2, day: 13};
+        assert!(a < b);
+        assert!(!(a > b));
+        assert!(!(a == b));
+    }
+
+    #[test]
+    fn time_equal() {
+        let a = Time {hour: 23, minute: 13, second: 7, nanosecond: 500_000_000};
+        let b = Time {hour: 23, minute: 13, second: 7, nanosecond: 500_000_000};
+        assert_eq!(a, b);
+    }
+
+    #[test]
+    /// Verify consistency with (hour, ...) ordering.
+    fn time_comparisons_h() {
+        let a = Time {hour: 13, minute: 28, second: 44, nanosecond: 20_000_000};
+        let b = Time {hour: 14, minute: 25, second: 27, nanosecond: 10_000_000};
+        assert!(a < b);
+        assert!(!(a > b));
+        assert!(!(a == b));
+    }
+
+    #[test]
+    /// Verify consistency with (hour, minute, ...) ordering.
+    fn time_comparisons_hm() {
+        let a = Time {hour: 11, minute: 15, second: 38, nanosecond: 2_000_000};
+        let b = Time {hour: 11, minute: 16, second: 18, nanosecond: 1_000_000};
+        assert!(a < b);
+        assert!(!(a > b));
+        assert!(!(a == b));
+    }
+
+    #[test]
+    /// Verify consistency with (hour, minute, second, ...) ordering.
+    fn time_comparisons_hms() {
+        let a = Time {hour: 18, minute: 6, second: 52, nanosecond: 160_000_000};
+        let b = Time {hour: 18, minute: 6, second: 55, nanosecond: 150_000_000};
+        assert!(a < b);
+        assert!(!(a > b));
+        assert!(!(a == b));
+    }
+
+    #[test]
+    /// Verify consistency with (hour, minute, second, nanosecond) ordering.
+    fn time_comparisons_hmsn() {
+        let a = Time {hour: 8, minute: 36, second: 8, nanosecond: 150_000};
+        let b = Time {hour: 8, minute: 36, second: 8, nanosecond: 160_000};
+        assert!(a < b);
+        assert!(!(a > b));
+        assert!(!(a == b));
+    }
+}
