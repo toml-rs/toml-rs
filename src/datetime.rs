@@ -124,9 +124,9 @@ pub const NAME: &str = "$__toml_private_Datetime";
 pub struct Date {
     /// Year: four digits
     pub year: u16,
-    /// Month: 01-12
+    /// Month: 1 to 12
     pub month: u8,
-    /// Day: 01-28, 01-29, 01-30, 01-31 based on month/year
+    /// Day: 1 to {28, 29, 30, 31} (based on month/year)
     pub day: u8,
 }
 
@@ -162,7 +162,7 @@ pub struct Time {
     pub nanosecond: u32,
 }
 
-/// A parsed TOML time value
+/// A parsed TOML time offset
 ///
 #[derive(PartialEq, Clone)]
 pub enum Offset {
@@ -178,7 +178,7 @@ pub enum Offset {
         /// Hours: -12 to +12
         hours: i8,
 
-        /// Minutes: 00 to 59
+        /// Minutes: 0 to 59
         minutes: u8,
     },
 }
