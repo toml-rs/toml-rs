@@ -180,13 +180,6 @@ fn last_day_of_month(year: i16, month: i8) -> i8 {
     }
 }
 
-fn debug_line_ymdhm(line: usize, year: i16, month: i8, day: i8, hour: i8, minute: i8) {
-    println!(
-        "Line {:3}: {:4} {:2} {:2} {:2} {:2}",
-        line, year, month, day, hour, minute
-    );
-}
-
 /// Subtracts (hours, minutes) from the given date and time.
 ///
 /// Notes:
@@ -203,22 +196,18 @@ fn add_hours_minutes(date: &Date, time: &Time, hours: i8, minutes: i8) -> Dateti
     if minute < 0 {
         minute += 60;
         hour -= 1;
-        debug_line_ymdhm(200, year, month, day, hour, minute);
     } else if minute > 59 {
         minute -= 60;
         hour += 1;
-        debug_line_ymdhm(204, year, month, day, hour, minute);
     }
 
     hour += hours;
     if hour < 0 {
         hour += 24;
         day -= 1;
-        debug_line_ymdhm(211, year, month, day, hour, minute);
     } else if hour > 23 {
         hour -= 24;
         day += 1;
-        debug_line_ymdhm(215, year, month, day, hour, minute);
     }
 
     if day < 1 {
@@ -228,7 +217,6 @@ fn add_hours_minutes(date: &Date, time: &Time, hours: i8, minutes: i8) -> Dateti
             year -= 1;
         }
         day = last_day_of_month(year, month);
-        debug_line_ymdhm(225, year, month, day, hour, minute);
     } else if day > last_day_of_month(year, month) {
         day = 1;
         month += 1;
@@ -236,10 +224,8 @@ fn add_hours_minutes(date: &Date, time: &Time, hours: i8, minutes: i8) -> Dateti
             month = 1;
             year += 1;
         }
-        debug_line_ymdhm(233, year, month, day, hour, minute);
     }
 
-    debug_line_ymdhm(236, year, month, day, hour, minute);
     Datetime {
         date: Some(Date {
             year: year as u16,
