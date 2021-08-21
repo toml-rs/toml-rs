@@ -163,7 +163,9 @@ impl PartialOrd for Datetime {
     }
 }
 
-fn last_day(year: i16, month: i8) -> i8 {
+/// Returns the last day of a month. Requires the year as an argument because
+/// of the leap year exception that happens every 400 years.
+fn last_day_of_month(year: i16, month: i8) -> i8 {
     match month {
         1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
         4 | 6 | 9 | 11 => 30,
@@ -225,9 +227,9 @@ fn add_hours_minutes(date: &Date, time: &Time, hours: i8, minutes: i8) -> Dateti
             month = 12;
             year -= 1;
         }
-        day = last_day(year, month);
+        day = last_day_of_month(year, month);
         debug_line_ymdhm(225, year, month, day, hour, minute);
-    } else if day > last_day(year, month) {
+    } else if day > last_day_of_month(year, month) {
         day = 1;
         month += 1;
         if month == 13 {
