@@ -1,3 +1,4 @@
+use std::cmp::Ordering;
 use std::error;
 use std::fmt;
 use std::str::{self, FromStr};
@@ -31,6 +32,8 @@ use serde::{de, ser};
 /// | `Some(_)` | `Some(_)` | `None`    | [Local Date-Time]  |
 /// | `Some(_)` | `None`    | `None`    | [Local Date]       |
 /// | `None`    | `Some(_)` | `None`    | [Local Time]       |
+///
+/// All other combinations are invalid.
 ///
 /// **1. Offset Date-Time**: If all the optional values are used, `Datetime`
 /// corresponds to an [Offset Date-Time]. From the TOML v1.0.0 spec:
@@ -91,6 +94,183 @@ pub struct Datetime {
     pub offset: Option<Offset>,
 }
 
+impl Datetime {
+    /// Is this a TOML Offset Date-Time?
+    ///
+    /// | date      | time      | offset    | kind             |
+    /// | --------- | --------- | --------- | ---------------- |
+    /// | `Some(_)` | `Some(_)` | `Some()`  | Offset Date-Time |
+    pub fn is_offset_datetime(&self) -> bool {
+        self.date.is_some() && self.time.is_some() && self.offset.is_some()
+    }
+
+    /// Is this a TOML Local Date-Time?
+    ///
+    /// | date      | time      | offset    | kind             |
+    /// | --------- | --------- | --------- | ---------------- |
+    /// | `Some(_)` | `Some(_)` | `None`    | Local Date-Time  |
+    pub fn is_local_datetime(&self) -> bool {
+        self.date.is_some() && self.time.is_some() && self.offset.is_none()
+    }
+
+    /// Is this a TOML Local Date?
+    ///
+    /// | date      | time      | offset    | kind             |
+    /// | --------- | --------- | --------- | ---------------- |
+    /// | `Some(_)` | `None`    | `None`    | Local Date       |
+    pub fn is_local_date(&self) -> bool {
+        self.date.is_some() && self.time.is_none() && self.offset.is_none()
+    }
+
+    /// Is this a TOML Local Time?
+    ///
+    /// | date      | time      | offset    | kind             |
+    /// | --------- | --------- | --------- | ---------------- |
+    /// | `None`    | `Some(_)` | `None`    | Local Time       |
+    pub fn is_local_time(&self) -> bool {
+        self.date.is_none() && self.time.is_some() && self.offset.is_none()
+    }
+
+    /// Is this invalid?
+    ///
+    /// | date      | time      | offset    | kind             |
+    /// | --------- | --------- | --------- | ---------------- |
+    /// | `None`    | `None`    | `None`    | *invalid*        |
+    /// | `None`    | `None`    | `Some(_)` | *invalid*        |
+    /// | `None`    | `Some(_)` | `Some(_)` | *invalid*        |
+    /// | `Some(_)` | `None`    | `Some(_)` | *invalid*        |
+    pub fn is_invalid(&self) -> bool {
+        (self.date.is_none() && self.time.is_none())
+            || (self.date.is_none() && self.offset.is_some())
+            || (self.time.is_none() && self.offset.is_some())
+    }
+}
+
+impl PartialOrd for Datetime {
+    /// Across the 10 pairwise combinations of valid `Datetime` types,
+    /// there is only one combination that has an ordering defined.
+    /// It is a pair of two TOML Offset Date-Times.
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        if self.is_offset_datetime() && other.is_offset_datetime() {
+            let self_z = self.to_z_offset_datetime().unwrap();
+            let other_z = other.to_z_offset_datetime().unwrap();
+            let self_dt = (self_z.date.unwrap(), self_z.time.unwrap());
+            let other_dt = (other_z.date.unwrap(), other_z.time.unwrap());
+            self_dt.partial_cmp(&other_dt)
+        } else {
+            None
+        }
+    }
+}
+
+fn last_day(year: i16, month: i8) -> i8 {
+    match month {
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+        4 | 6 | 9 | 11 => 30,
+        2 => {
+            if year % 4 == 0 && year % 400 != 0 {
+                29 // leap year
+            } else {
+                28
+            }
+        }
+        _ => unreachable!(),
+    }
+}
+
+fn debug_line_ymdhm(line: usize, year: i16, month: i8, day: i8, hour: i8, minute: i8) {
+    println!(
+        "Line {:3}: {:4} {:2} {:2} {:2} {:2}",
+        line, year, month, day, hour, minute
+    );
+}
+
+/// Subtracts (hours, minutes) from the given date and time.
+///
+/// Notes:
+/// * Uses the sign from `hours` to adjust `minutes`.
+/// * Does not handle leap-seconds.
+fn add_hours_minutes(date: &Date, time: &Time, hours: i8, minutes: i8) -> Datetime {
+    let mut year = date.year as i16;
+    let mut month = date.month as i8;
+    let mut day = date.day as i8;
+    let mut hour = time.hour as i8;
+    let mut minute = time.minute as i8;
+
+    minute += minutes as i8;
+    if minute < 0 {
+        minute += 60;
+        hour -= 1;
+        debug_line_ymdhm(200, year, month, day, hour, minute);
+    } else if minute > 59 {
+        minute -= 60;
+        hour += 1;
+        debug_line_ymdhm(204, year, month, day, hour, minute);
+    }
+
+    hour += hours;
+    if hour < 0 {
+        hour += 24;
+        day -= 1;
+        debug_line_ymdhm(211, year, month, day, hour, minute);
+    } else if hour > 23 {
+        hour -= 24;
+        day += 1;
+        debug_line_ymdhm(215, year, month, day, hour, minute);
+    }
+
+    if day < 1 {
+        month -= 1;
+        if month == 0 {
+            month = 12;
+            year -= 1;
+        }
+        day = last_day(year, month);
+        debug_line_ymdhm(225, year, month, day, hour, minute);
+    } else if day > last_day(year, month) {
+        day = 1;
+        month += 1;
+        if month == 13 {
+            month = 1;
+            year += 1;
+        }
+        debug_line_ymdhm(233, year, month, day, hour, minute);
+    }
+
+    debug_line_ymdhm(236, year, month, day, hour, minute);
+    Datetime {
+        date: Some(Date {
+            year: year as u16,
+            month: month as u8,
+            day: day as u8,
+        }),
+        time: Some(Time {
+            hour: hour as u8,
+            minute: minute as u8,
+            second: time.second,
+            nanosecond: time.nanosecond,
+        }),
+        offset: Some(Offset::Z),
+    }
+}
+
+impl Datetime {
+    /// Converts an Offset Date-Time to have a Z offset, if possible.
+    pub fn to_z_offset_datetime(&self) -> Option<Self> {
+        match (self.date.as_ref(), self.time.as_ref(), self.offset.as_ref()) {
+            (Some(date), Some(time), Some(offset)) => match offset {
+                Offset::Z => Some(self.clone()),
+                Offset::Custom { hours, minutes } => Some(if hours.is_positive() {
+                    add_hours_minutes(date, time, -*hours, -(*minutes as i8))
+                } else {
+                    add_hours_minutes(date, time, -*hours, *minutes as i8)
+                }),
+            },
+            _ => None,
+        }
+    }
+}
+
 /// Error returned from parsing a `Datetime` in the `FromStr` implementation.
 #[derive(Debug, Clone)]
 pub struct DatetimeParseError {
@@ -120,7 +300,7 @@ pub const NAME: &str = "$__toml_private_Datetime";
 /// > ```
 ///
 /// [Local Date]: https://toml.io/en/v1.0.0#local-date
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Eq, Clone)]
 pub struct Date {
     /// Year: four digits
     pub year: u16,
@@ -128,6 +308,18 @@ pub struct Date {
     pub month: u8,
     /// Day: 1 to {28, 29, 30, 31} (based on month/year)
     pub day: u8,
+}
+
+impl PartialOrd for Date {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Date {
+    fn cmp(&self, other: &Self) -> Ordering {
+        (self.year, self.month, self.day).cmp(&(other.year, other.month, other.day))
+    }
 }
 
 /// A parsed TOML time value
@@ -150,7 +342,7 @@ pub struct Date {
 /// > must be truncated, not rounded.
 ///
 /// [Local Time]: https://toml.io/en/v1.0.0#local-time
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Eq, Clone)]
 pub struct Time {
     /// Hour: 0 to 23
     pub hour: u8,
@@ -160,6 +352,23 @@ pub struct Time {
     pub second: u8,
     /// Nanosecond: 0 to 999_999_999
     pub nanosecond: u32,
+}
+
+impl PartialOrd for Time {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for Time {
+    fn cmp(&self, other: &Self) -> Ordering {
+        (self.hour, self.minute, self.second, self.nanosecond).cmp(&(
+            other.hour,
+            other.minute,
+            other.second,
+            other.nanosecond,
+        ))
+    }
 }
 
 /// A parsed TOML time offset
@@ -560,3 +769,288 @@ impl fmt::Display for DatetimeParseError {
 }
 
 impl error::Error for DatetimeParseError {}
+
+#[rustfmt::skip]
+#[cfg(test)]
+mod tests {
+    use std::cmp::Ordering;
+
+    use super::{Date, Datetime, Time};
+
+    use crate::value::Offset;
+
+    /// Test Date equality
+    #[test]
+    fn date_equal() {
+        let a = Date { year: 1953, month: 6, day: 8 };
+        let b = Date { year: 1953, month: 6, day: 8 };
+        assert_eq!(a, b);
+    }
+
+    /// Verify Date `cmp` for (year, ..) ordering
+    #[test]
+    fn date_comparison_y() {
+        let a = Date { year: 1492, month: 4, day: 9 };
+        let b = Date { year: 1493, month: 3, day: 2 };
+        assert!(a < b);
+    }
+
+    /// Verify Date `cmp` for (year, month, ..) ordering
+    #[test]
+    fn date_comparison_ym() {
+        let a = Date { year: 1776, month: 4, day: 9 };
+        let b = Date { year: 1776, month: 5, day: 2 };
+        assert!(a < b);
+    }
+
+    /// Verify Date `cmp` for (year, month, day) ordering
+    #[test]
+    fn date_comparison_ymd() {
+        let a = Date { year: 1999, month: 2, day: 12 };
+        let b = Date { year: 1999, month: 2, day: 13 };
+        assert!(a < b);
+    }
+
+    /// Verify Time equality
+    #[test]
+    fn time_equal() {
+        let a = Time { hour: 23, minute: 13, second: 7, nanosecond: 500_000_000 };
+        let b = Time { hour: 23, minute: 13, second: 7, nanosecond: 500_000_000 };
+        assert_eq!(a, b);
+    }
+
+    /// Verify Time `cmp` for (hour, ...) ordering
+    #[test]
+    fn time_comparison_h() {
+        let a = Time { hour: 13, minute: 28, second: 44, nanosecond: 20_000_000 };
+        let b = Time { hour: 14, minute: 25, second: 27, nanosecond: 10_000_000 };
+        assert!(a < b);
+    }
+
+    /// Verify Time `cmp` for (hour, minute, ...) ordering
+    #[test]
+    fn time_comparison_hm() {
+        let a = Time { hour: 11, minute: 15, second: 38, nanosecond: 2_000_000 };
+        let b = Time { hour: 11, minute: 16, second: 18, nanosecond: 1_000_000 };
+        assert!(a < b);
+    }
+
+    /// Verify Time `cmp` for (hour, minute, second, ...) ordering
+    #[test]
+    fn time_comparison_hms() {
+        let a = Time { hour: 18, minute: 6, second: 52, nanosecond: 160_000_000 };
+        let b = Time { hour: 18, minute: 6, second: 55, nanosecond: 150_000_000 };
+        assert!(a < b);
+    }
+
+    /// Verify Time `cmp` with (hour, minute, second, nanosecond) ordering
+    #[test]
+    fn time_comparison_hmsn() {
+        let a = Time { hour: 8, minute: 36, second: 8, nanosecond: 150_000 };
+        let b = Time { hour: 8, minute: 36, second: 8, nanosecond: 160_000 };
+        assert!(a < b);
+    }
+
+    /// Test `add_hours_minutes`: decrement (simple case)
+    #[test]
+    fn test_add_hours_minutes_1789() {
+        let date = Date { year: 1789, month: 7, day: 14 }; // Bastille Day
+        let time = Time { hour: 11, minute: 21, second: 33, nanosecond: 4_000_000 };
+        let x = super::add_hours_minutes(&date, &time, -2, -15);
+        assert_eq!(x.date, Some(Date { year: 1789, month: 7, day: 14 }));
+        assert_eq!(x.time, Some(Time { hour: 9, minute: 6, second: 33, nanosecond: 4_000_000 }));
+        assert_eq!(x.offset, Some(Offset::Z));
+    }
+
+    /// Test `add_hours_minutes`: decrement to previous day
+    #[test]
+    fn test_add_hours_minutes_1989() {
+        let date = Date { year: 1989, month: 2, day: 15 }; // Soviet troops left Afghanistan
+        let time = Time { hour: 4, minute: 10, second: 17, nanosecond: 1_500_000 };
+        let x = super::add_hours_minutes(&date, &time, -4, -30);
+        assert_eq!(x.date, Some(Date { year: 1989, month: 2, day: 14 }));
+        assert_eq!(x.time, Some(Time { hour: 23, minute: 40, second: 17, nanosecond: 1_500_000 }));
+        assert_eq!(x.offset, Some(Offset::Z));
+    }
+
+    /// Test `add_hours_minutes`: increment out of a leap day
+    #[test]
+    fn test_add_hours_minutes_1896() {
+        let date = Date { year: 1896, month: 2, day: 29 }; // Morarji Desai's leap year birthday
+        let time = Time { hour: 18, minute: 55, second: 19, nanosecond: 45_678 };
+        let x = super::add_hours_minutes(&date, &time, 10, 11);
+        assert_eq!(x.date, Some(Date { year: 1896, month: 3, day: 1 }));
+        assert_eq!(x.time, Some(Time { hour: 5, minute: 6, second: 19, nanosecond: 45_678 }));
+        assert_eq!(x.offset, Some(Offset::Z));
+    }
+
+    /// Test `add_hours_minutes`: increment into a leap day
+    #[test]
+    fn test_add_hours_minutes_1604() {
+        let date = Date { year: 1604, month: 2, day: 28 }; // 1604 is a leap year
+        let time = Time { hour: 21, minute: 23, second: 24, nanosecond: 259 };
+        let x = super::add_hours_minutes(&date, &time, 6, 7);
+        assert_eq!(x.date, Some(Date { year: 1604, month: 2, day: 29 }));
+        assert_eq!(x.time, Some(Time { hour: 3, minute: 30, second: 24, nanosecond: 259 }));
+        assert_eq!(x.offset, Some(Offset::Z));
+    }
+
+    /// Test `add_hours_minutes`: increment out of Feb. 28 in a non-leap year
+    #[test]
+    fn test_add_hours_minutes_1600() {
+        let date = Date { year: 1600, month: 2, day: 28 }; // 1600 is not a leap year
+        let time = Time { hour: 21, minute: 23, second: 24, nanosecond: 7_000 };
+        let x = super::add_hours_minutes(&date, &time, 6, 7);
+        assert_eq!(x.date, Some(Date { year: 1600, month: 3, day: 1 }));
+        assert_eq!(x.time, Some(Time { hour: 3, minute: 30, second: 24, nanosecond: 7_000 }));
+        assert_eq!(x.offset, Some(Offset::Z));
+    }
+
+    /// Test `to_z_offset_datetime`: rollover to next day
+    #[test]
+    fn test_to_z_offset_datetime_2021() {
+        let datetime = Datetime {
+            date: Some(Date { year: 2021, month: 1, day: 6 }),
+            time: Some(Time { hour: 21, minute: 2, second: 3, nanosecond: 123_000 }),
+            offset: Some(Offset::Custom { hours: -5, minutes: 0 }),
+        }; // U.S. Capitol attacked
+        let x = datetime.to_z_offset_datetime().unwrap();
+        assert_eq!(x.date, Some(Date { year: 2021, month: 1, day: 7 }));
+        assert_eq!(x.time, Some(Time { hour: 2, minute: 2, second: 3, nanosecond: 123_000 }));
+        assert_eq!(x.offset, Some(Offset::Z));
+    }
+
+    /// Expect Datetime `partial_cmp` to be `Some(_)` for this pairing:
+    /// * Z Offset Date-Time
+    /// * Z Offset Date-Time
+    #[test]
+    fn datetime_comparison_zodt_zodt() {
+        let a = Datetime {
+            date: Some(Date { year: 2006, month: 10, day: 22 }),
+            time: Some(Time { hour: 11, minute: 5, second: 33, nanosecond: 0 }),
+            offset: Some(Offset::Z),
+        };
+        let b = Datetime {
+            date: Some(Date { year: 2006, month: 10, day: 18 }),
+            time: Some(Time { hour: 11, minute: 5, second: 33, nanosecond: 0 }),
+            offset: Some(Offset::Z),
+        };
+        assert_eq!(a.partial_cmp(&b), Some(Ordering::Greater));
+    }
+
+    /// Expect Datetime `partial_cmp` to be `Some(_)` for this pairing:
+    /// * Custom Offset Date-Time
+    /// * Z Offset Date-Time
+    #[test]
+    fn datetime_comparison_codt_zodt() {
+        let a = Datetime {
+            date: Some(Date { year: 1925, month: 10, day: 13 }),
+            time: Some(Time { hour: 13, minute: 15, second: 17, nanosecond: 190 }),
+            offset: Some(Offset::Custom { hours: 0, minutes: 0}),
+        };
+        let b = Datetime {
+            date: Some(Date { year: 1925, month: 10, day: 13 }),
+            time: Some(Time { hour: 13, minute: 15, second: 17, nanosecond: 190 }),
+            offset: Some(Offset::Z),
+        };
+        assert_eq!(a.partial_cmp(&b), Some(Ordering::Equal));
+    }
+
+    /// Expect Datetime `partial_cmp` to be `Some(_)` for this pairing:
+    /// * Custom Offset Date-Time
+    /// * Custom Offset Date-Time
+    #[test]
+    fn datetime_comparison_codt_codt() {
+        let a = Datetime {
+            date: Some(Date { year: 2033, month: 10, day: 13 }),
+            time: Some(Time { hour: 16, minute: 16, second: 17, nanosecond: 190 }),
+            offset: Some(Offset::Custom { hours: 3, minutes: 1}),
+        };
+        let b = Datetime {
+            date: Some(Date { year: 2033, month: 10, day: 13 }),
+            time: Some(Time { hour: 10, minute: 14, second: 17, nanosecond: 190 }),
+            offset: Some(Offset::Custom { hours: -3, minutes: 1}),
+        };
+        assert_eq!(a.partial_cmp(&b), Some(Ordering::Equal));
+    }
+
+    /// Expect Datetime `partial_cmp` to be `Some(_)` for this pairing:
+    /// * "Custom Offset Date-Time"
+    /// * "Custom Offset Date-Time"
+    ///
+    /// (where the nanosecond field breaks the tie)
+    #[test]
+    fn datetime_comparison_codt_codt_nanosecond() {
+        let a = Datetime {
+            date: Some(Date { year: 1208, month: 10, day: 13 }),
+            time: Some(Time { hour: 16, minute: 16, second: 17, nanosecond: 190 }),
+            offset: Some(Offset::Custom { hours: 3, minutes: 1}),
+        };
+        let b = Datetime {
+            date: Some(Date { year: 1208, month: 10, day: 13 }),
+            time: Some(Time { hour: 10, minute: 14, second: 17, nanosecond: 666 }),
+            offset: Some(Offset::Custom { hours: -3, minutes: 1}),
+        };
+        assert_eq!(a.partial_cmp(&b), Some(Ordering::Less));
+    }
+
+    /// Expect Datetime `partial_cmp` to be `None` for this pairing:
+    /// * Local Date-Time
+    /// * Local Date-Time
+    ///
+    /// TODO: Verify this is the intended semantics for TOML.
+    #[test]
+    fn datetime_comparison_ldt_ldt() {
+        let a = Datetime {
+            date: Some(Date { year: 1499, month: 2, day: 13 }),
+            time: Some(Time { hour: 16, minute: 16, second: 17, nanosecond: 190 }),
+            offset: None,
+        };
+        let b = Datetime {
+            date: Some(Date { year: 1499, month: 2, day: 13 }),
+            time: Some(Time { hour: 10, minute: 14, second: 17, nanosecond: 666 }),
+            offset: None,
+        };
+        assert_eq!(a.partial_cmp(&b), None);
+    }
+
+    /// Expect Datetime `partial_cmp` to be `None` for this pairing:
+    /// * Local Date
+    /// * Local Date
+    ///
+    /// TODO: Verify this is the intended semantics for TOML.
+    #[test]
+    fn datetime_comparison_ld_ld() {
+        let a = Datetime {
+            date: Some(Date { year: 765, month: 12, day: 31 }),
+            time: None,
+            offset: None,
+        };
+        let b = Datetime {
+            date: Some(Date { year: 765, month: 12, day: 31 }),
+            time: None,
+            offset: None,
+        };
+        assert_eq!(a.partial_cmp(&b), None);
+    }
+
+    /// Expect Datetime `partial_cmp` to be `None` for this pairing:
+    /// * Local Time
+    /// * Local Time
+    ///
+    /// TODO: Verify this is the intended semantics for TOML.
+    #[test]
+    fn datetime_comparison_lt_lt() {
+        let a = Datetime {
+            date: None,
+            time: Some(Time { hour: 6, minute: 36, second: 9, nanosecond: 6561 }),
+            offset: None,
+        };
+        let b = Datetime {
+            date: None,
+            time: Some(Time { hour: 7, minute: 49, second: 16, nanosecond: 65536 }),
+            offset: None,
+        };
+        assert_eq!(a.partial_cmp(&b), None);
+    }
+}
