@@ -33,6 +33,8 @@ use serde::{de, ser};
 /// | `Some(_)` | `None`    | `None`    | [Local Date]       |
 /// | `None`    | `Some(_)` | `None`    | [Local Time]       |
 ///
+/// All other combinations are invalid.
+///
 /// **1. Offset Date-Time**: If all the optional values are used, `Datetime`
 /// corresponds to an [Offset Date-Time]. From the TOML v1.0.0 spec:
 ///
@@ -90,6 +92,72 @@ pub struct Datetime {
     /// Optional offset.
     /// Required for: *Offset Date-Time*.
     pub offset: Option<Offset>,
+}
+
+impl Datetime {
+    /// Is this a TOML Offset Date-Time?
+    ///
+    /// | date    | time   | offset  | kind             |
+    /// | ------- | ------ | ------- | ---------------- |
+    /// | Some(_) | Some() | Some()  | Offset Date-Time |
+    pub fn is_offset_datetime(&self) {
+        self.date.is_some() && self.time.is_some() && self.offset.is_some()
+    }
+
+    /// Is this a TOML Local Date-Time?
+    ///
+    /// | date    | time   | offset  | kind             |
+    /// | ------- | ------ | ------- | ---------------- |
+    /// | Some(_) | Some() | None    | Local Date-Time  |
+    pub fn is_local_datetime(&self) {
+        self.date.is_some() && self.time.is_some() && self.offset.is_none()
+    }
+
+    /// Is this a TOML Local Date?
+    ///
+    /// | date    | time   | offset  | kind             |
+    /// | ------- | ------ | ------- | ---------------- |
+    /// | Some(_) | None   | None    | Local Date       |
+    pub fn is_local_date(&self) {
+        self.date.is_some() && self.time.is_none() && self.offset.is_none()
+    }
+
+    /// Is this a TOML Local Time?
+    ///
+    /// | date    | time   | offset  | kind             |
+    /// | ------- | ------ | ------- | ---------------- |
+    /// | None    | Some() | None    | Local Time       |
+    pub fn is_local_time(&self) {
+        self.date.is_none() && self.time.is_some() && self.offset.is_none()
+    }
+
+    /// Is this invalid?
+    ///
+    /// | date    | time   | offset  | kind             |
+    /// | ------- | ------ | ------- | ---------------- |
+    /// | None    | None   | None    | *invalid*        |
+    /// | None    | None   | Some(_) | *invalid*        |
+    /// | None    | Some() | Some(_) | *invalid*        |
+    /// | Some(_) | None   | Some(_) | *invalid*        |
+    pub fn is_invalid(&self) {
+        (self.date.is_none() && self.time.is_none()) ||
+        (self.date.is_none() && self.offset.is_some()) ||
+        (self.time.is_none() && self.offset.is_some())
+    }
+}
+
+impl PartialOrd for Datetime {
+    /// Across the 10 pairwise combinations of valid `Datetime` types,
+    /// there is only one combination that has an ordering defined.
+    /// It is a pair of two TOML Offset Date-Times.
+    A partial ordering only exists between TOML Offset Date-Times. 
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        if self.is_offset_datetime() && other.is_offset_datetime() {
+            unimplemented!();
+        } else {
+            None
+        }
+    }
 }
 
 /// Error returned from parsing a `Datetime` in the `FromStr` implementation.
