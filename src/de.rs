@@ -316,7 +316,7 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
     }
 
     serde::forward_to_deserialize_any! {
-        bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string seq
+        bool u8 u16 u32 u64 u128 i8 i16 i32 i64 i128 f32 f64 char str string seq
         bytes byte_buf map unit newtype_struct
         ignored_any unit_struct tuple_struct tuple option identifier
     }
@@ -698,7 +698,7 @@ impl<'de, 'b> de::Deserializer<'de> for MapVisitor<'de, 'b> {
     }
 
     serde::forward_to_deserialize_any! {
-        bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string seq
+        bool u8 u16 u32 u64 u128 i8 i16 i32 i64 i128 f32 f64 char str string seq
         bytes byte_buf map unit identifier
         ignored_any unit_struct tuple_struct tuple
     }
@@ -765,7 +765,7 @@ impl<'de> de::Deserializer<'de> for StrDeserializer<'de> {
     }
 
     serde::forward_to_deserialize_any! {
-        bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string seq
+        bool u8 u16 u32 u64 u128 i8 i16 i32 i64 i128 f32 f64 char str string seq
         bytes byte_buf map option unit newtype_struct
         ignored_any unit_struct tuple_struct tuple enum identifier
     }
@@ -955,7 +955,7 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
     }
 
     serde::forward_to_deserialize_any! {
-        bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string seq
+        bool u8 u16 u32 u64 u128 i8 i16 i32 i64 i128 f32 f64 char str string seq
         bytes byte_buf map unit identifier
         ignored_any unit_struct tuple_struct tuple
     }
@@ -1072,7 +1072,7 @@ impl<'de> de::Deserializer<'de> for DatetimeFieldDeserializer {
     }
 
     serde::forward_to_deserialize_any! {
-        bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string seq
+        bool u8 u16 u32 u64 u128 i8 i16 i32 i64 i128 f32 f64 char str string seq
         bytes byte_buf map struct option unit newtype_struct
         ignored_any unit_struct tuple_struct tuple enum identifier
     }
