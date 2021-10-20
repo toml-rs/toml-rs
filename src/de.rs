@@ -678,10 +678,13 @@ impl<'de, 'b> de::Deserializer<'de> for MapVisitor<'de, 'b> {
     {
         let table = &mut self.tables[self.cur_parent];
         let name = table.header[table.header.len() - 1].1.to_owned();
+
+        // If we are parsing an array of tables, then we will have values to process populated in
+        // self by next_element_seed(). Otherwise, get the values from the current table.
         let mut values: Vec<TablePair<'_>> = if self.values.peek().is_some() {
             self.values.collect()
         } else {
-            table.values.take().unwrap_or_else(Vec::new)
+            table.values.take().unwrap_or_default()
         };
 
         if variants.contains(&name.deref()) {
@@ -694,6 +697,9 @@ impl<'de, 'b> de::Deserializer<'de> for MapVisitor<'de, 'b> {
                 },
             })
         } else if values.len() == 1 {
+            // Handle the cases where:
+            // - There is a newtype variant where NewTypeVariant = "value".
+            // - There is an array of tables, where the variant name is in the values.
             let value = values.remove(0);
             let name = (value.0).1.clone();
 
