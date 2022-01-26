@@ -120,7 +120,7 @@ pub const NAME: &str = "$__toml_private_Datetime";
 /// > ```
 ///
 /// [Local Date]: https://toml.io/en/v1.0.0#local-date
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, PartialOrd, Clone)]
 pub struct Date {
     /// Year: four digits
     pub year: u16,
@@ -150,7 +150,7 @@ pub struct Date {
 /// > must be truncated, not rounded.
 ///
 /// [Local Time]: https://toml.io/en/v1.0.0#local-time
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, PartialOrd, Clone)]
 pub struct Time {
     /// Hour: 0 to 23
     pub hour: u8,
