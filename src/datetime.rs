@@ -76,7 +76,7 @@ use serde::{de, ser};
 /// [Local Date-Time]: https://toml.io/en/v1.0.0#local-date-time
 /// [Local Date]: https://toml.io/en/v1.0.0#local-date
 /// [Local Time]: https://toml.io/en/v1.0.0#local-time
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Debug)]
 pub struct Datetime {
     /// Optional date.
     /// Required for: *Offset Date-Time*, *Local Date-Time*, *Local Date*.
@@ -120,7 +120,7 @@ pub const NAME: &str = "$__toml_private_Datetime";
 /// > ```
 ///
 /// [Local Date]: https://toml.io/en/v1.0.0#local-date
-#[derive(PartialEq, PartialOrd, Clone)]
+#[derive(PartialEq, PartialOrd, Clone, Debug)]
 pub struct Date {
     /// Year: four digits
     pub year: u16,
@@ -150,7 +150,7 @@ pub struct Date {
 /// > must be truncated, not rounded.
 ///
 /// [Local Time]: https://toml.io/en/v1.0.0#local-time
-#[derive(PartialEq, PartialOrd, Clone)]
+#[derive(PartialEq, PartialOrd, Clone, Debug)]
 pub struct Time {
     /// Hour: 0 to 23
     pub hour: u8,
@@ -164,7 +164,7 @@ pub struct Time {
 
 /// A parsed TOML time offset
 ///
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Debug)]
 pub enum Offset {
     /// > A suffix which, when applied to a time, denotes a UTC offset of 00:00;
     /// > often spoken "Zulu" from the ICAO phonetic alphabet representation of
@@ -181,12 +181,6 @@ pub enum Offset {
         /// Minutes: 0 to 59
         minutes: u8,
     },
-}
-
-impl fmt::Debug for Datetime {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        fmt::Display::fmt(self, f)
-    }
 }
 
 impl fmt::Display for Datetime {
