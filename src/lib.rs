@@ -74,10 +74,19 @@
 //! use the [`Deserializer`], [`Serializer`], or [`Value`] type itself to act as
 //! a deserializer/serializer for arbitrary types.
 //!
-//! An example of deserializing with TOML is:
+//! For this feature to work, you need to include Serde as a dependency in
+//! your `Cargo.toml`:
+//!
+//! ```toml
+//! [dependencies]
+//! toml = "0.5"
+//! serde = { version = "1", features = ["derive"] }
+//! ```
+//!
+//! With the dependencies in place, an example of deserializing with TOML is:
 //!
 //! ```rust
-//! use serde_derive::Deserialize;
+//! use serde::Deserialize;
 //!
 //! #[derive(Deserialize)]
 //! struct Config {
@@ -111,7 +120,7 @@
 //! You can serialize types in a similar fashion:
 //!
 //! ```rust
-//! use serde_derive::Serialize;
+//! use serde::Serialize;
 //!
 //! #[derive(Serialize)]
 //! struct Config {
