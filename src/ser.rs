@@ -694,11 +694,16 @@ impl<'a> Serializer<'a> {
         }
 
         match *state {
-            State::Table { first, .. } => {
+            State::Table { first, parent, .. } => {
                 if !first.get() {
                     // Newline if we are a table that is not the first
                     // table in the document.
                     self.dst.push('\n');
+                } else if let State::Table { first, .. } = *parent {
+                    if !first.get() {
+                        // Newline if we are not the first item in the document
+                        self.dst.push('\n');
+                    }
                 }
             }
             State::Array { parent, first, .. } => {
@@ -715,13 +720,13 @@ impl<'a> Serializer<'a> {
             }
             _ => {}
         }
-        self.dst.push_str("[");
+        self.dst.push('[');
         if array_of_tables {
-            self.dst.push_str("[");
+            self.dst.push('[');
         }
         self.emit_key_part(state)?;
         if array_of_tables {
-            self.dst.push_str("]");
+            self.dst.push(']');
         }
         self.dst.push_str("]\n");
         Ok(())
@@ -934,15 +939,11 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
 
     fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
         self.array_type(ArrayState::StartedAsATable)?;
-        let first = match self.state {
-            State::Table { first, .. } => first.get(),
-            State::Array { first, .. } => first.get(),
-            State::End => true,
-        };
+
         Ok(SerializeTable::Table {
             ser: self,
             key: String::new(),
-            first: Cell::new(first),
+            first: Cell::new(true),
             table_emitted: Cell::new(false),
         })
     }
