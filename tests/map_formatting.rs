@@ -1,11 +1,10 @@
 // Test copied from https://github.com/alexcrichton/toml-rs/issues/219
 
-extern crate serde;
-#[macro_use] extern crate serde_derive;
+#[macro_use]
+extern crate serde_derive;
 extern crate toml;
 
 use std::collections::HashMap;
-
 
 #[derive(Serialize, Deserialize)]
 struct Foo {
@@ -21,7 +20,7 @@ struct FooSwapped {
 
 #[derive(Serialize, Deserialize)]
 struct Bar {
-    foo: u32
+    foo: u32,
 }
 
 #[test]
@@ -37,9 +36,7 @@ foo = 0
     baz.insert("a".into(), Bar { foo: 0 });
 
     let foo = Foo {
-        bar: Bar {
-            foo: 42,
-        },
+        bar: Bar { foo: 42 },
         baz: baz,
     };
 
@@ -59,9 +56,7 @@ foo = 42
     baz.insert("a".into(), Bar { foo: 0 });
 
     let foo = FooSwapped {
-        bar: Bar {
-            foo: 42,
-        },
+        bar: Bar { foo: 42 },
         baz: baz,
     };
 
