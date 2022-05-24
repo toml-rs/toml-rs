@@ -233,6 +233,15 @@ impl fmt::Display for Offset {
     }
 }
 
+macro_rules! digit {
+    ($bytes:ident) => {
+        match $bytes.next() {
+            Some(c) if b'0' <= c && c <= b'9' => c as u8 - b'0',
+            _ => return Err(DatetimeParseError { _private: () }),
+        }
+    };
+}
+
 impl FromStr for Datetime {
     type Err = DatetimeParseError;
 
@@ -247,33 +256,33 @@ impl FromStr for Datetime {
             return Err(DatetimeParseError { _private: () });
         }
         let mut offset_allowed = true;
-        let mut chars = date.chars();
+        let mut chars = date.bytes();
 
         // First up, parse the full date if we can
-        let full_date = if chars.clone().nth(2) == Some(':') {
+        let full_date = if chars.clone().nth(2) == Some(b':') {
             offset_allowed = false;
             None
         } else {
-            let y1 = u16::from(digit(&mut chars)?);
-            let y2 = u16::from(digit(&mut chars)?);
-            let y3 = u16::from(digit(&mut chars)?);
-            let y4 = u16::from(digit(&mut chars)?);
+            let y1 = digit!(chars) as u16;
+            let y2 = digit!(chars) as u16;
+            let y3 = digit!(chars) as u16;
+            let y4 = digit!(chars) as u16;
 
             match chars.next() {
-                Some('-') => {}
+                Some(b'-') => {}
                 _ => return Err(DatetimeParseError { _private: () }),
             }
 
-            let m1 = digit(&mut chars)?;
-            let m2 = digit(&mut chars)?;
+            let m1 = digit!(chars);
+            let m2 = digit!(chars);
 
             match chars.next() {
-                Some('-') => {}
+                Some(b'-') => {}
                 _ => return Err(DatetimeParseError { _private: () }),
             }
 
-            let d1 = digit(&mut chars)?;
-            let d2 = digit(&mut chars)?;
+            let d1 = digit!(chars);
+            let d2 = digit!(chars);
 
             let date = Date {
                 year: y1 * 1000 + y2 * 100 + y3 * 10 + y4,
@@ -281,10 +290,21 @@ impl FromStr for Datetime {
                 day: d1 * 10 + d2,
             };
 
-            if date.month < 1 || date.month > 12 {
-                return Err(DatetimeParseError { _private: () });
-            }
-            if date.day < 1 || date.day > 31 {
+            // calculate the maximum number of days in the month, accounting for leap years in the
+            // gregorian calendar
+            let max_days = match date.month {
+                1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
+                4 | 6 | 9 | 11 => 30,
+                2 => {
+                    if date.year % 4 == 0 && (date.year % 100 != 0 || date.year % 400 == 0) {
+                        29
+                    } else {
+                        28
+                    }
+                }
+                _ => return Err(DatetimeParseError { _private: () }),
+            };
+            if date.day < 1 || date.day > max_days {
                 return Err(DatetimeParseError { _private: () });
             }
 
@@ -294,7 +314,7 @@ impl FromStr for Datetime {
         // Next parse the "partial-time" if available
         let next = chars.clone().next();
         let partial_time = if full_date.is_some()
-            && (next == Some('T') || next == Some('t') || next == Some(' '))
+            && (next == Some(b'T') || next == Some(b't') || next == Some(b' '))
         {
             chars.next();
             true
@@ -303,45 +323,46 @@ impl FromStr for Datetime {
         };
 
         let time = if partial_time {
-            let h1 = digit(&mut chars)?;
-            let h2 = digit(&mut chars)?;
+            let h1 = digit!(chars);
+            let h2 = digit!(chars);
             match chars.next() {
-                Some(':') => {}
+                Some(b':') => {}
                 _ => return Err(DatetimeParseError { _private: () }),
             }
-            let m1 = digit(&mut chars)?;
-            let m2 = digit(&mut chars)?;
+            let m1 = digit!(chars);
+            let m2 = digit!(chars);
             match chars.next() {
-                Some(':') => {}
+                Some(b':') => {}
                 _ => return Err(DatetimeParseError { _private: () }),
             }
-            let s1 = digit(&mut chars)?;
-            let s2 = digit(&mut chars)?;
+            let s1 = digit!(chars);
+            let s2 = digit!(chars);
 
             let mut nanosecond = 0;
-            if chars.clone().next() == Some('.') {
-                chars.next();
-                let whole = chars.as_str();
-
-                let mut end = whole.len();
-                for (i, byte) in whole.bytes().enumerate() {
-                    match byte {
+            let mut nano_chars = chars.clone();
+            if nano_chars.next() == Some(b'.') {
+                let mut i: u32 = 0;
+                for digit in nano_chars {
+                    match digit {
                         b'0'..=b'9' => {
                             if i < 9 {
-                                let p = 10_u32.pow(8 - i as u32);
-                                nanosecond += p * u32::from(byte - b'0');
+                                nanosecond *= 10;
+                                nanosecond += (digit - b'0') as u32;
                             }
+                            i += 1;
                         }
                         _ => {
-                            end = i;
+                            if i == 0 {
+                                return Err(DatetimeParseError { _private: () });
+                            }
                             break;
                         }
                     }
                 }
-                if end == 0 {
-                    return Err(DatetimeParseError { _private: () });
+                if i < 9 {
+                    nanosecond *= 10_u32.pow(9 - i);
                 }
-                chars = whole[end..].chars();
+                chars.nth(i as usize);
             }
 
             let time = Time {
@@ -373,26 +394,26 @@ impl FromStr for Datetime {
         // And finally, parse the offset
         let offset = if offset_allowed {
             let next = chars.clone().next();
-            if next == Some('Z') || next == Some('z') {
+            if next == Some(b'Z') || next == Some(b'z') {
                 chars.next();
                 Some(Offset::Z)
             } else if next.is_none() {
                 None
             } else {
                 let sign = match next {
-                    Some('+') => 1,
-                    Some('-') => -1,
+                    Some(b'+') => 1,
+                    Some(b'-') => -1,
                     _ => return Err(DatetimeParseError { _private: () }),
                 };
                 chars.next();
-                let h1 = digit(&mut chars)? as i8;
-                let h2 = digit(&mut chars)? as i8;
+                let h1 = digit!(chars) as i8;
+                let h2 = digit!(chars) as i8;
                 match chars.next() {
-                    Some(':') => {}
+                    Some(b':') => {}
                     _ => return Err(DatetimeParseError { _private: () }),
                 }
-                let m1 = digit(&mut chars)?;
-                let m2 = digit(&mut chars)?;
+                let m1 = digit!(chars);
+                let m2 = digit!(chars);
 
                 Some(Offset::Custom {
                     hours: sign * (h1 * 10 + h2),
@@ -414,13 +435,6 @@ impl FromStr for Datetime {
             time,
             offset,
         })
-    }
-}
-
-fn digit(chars: &mut str::Chars<'_>) -> Result<u8, DatetimeParseError> {
-    match chars.next() {
-        Some(c) if '0' <= c && c <= '9' => Ok(c as u8 - b'0'),
-        _ => Err(DatetimeParseError { _private: () }),
     }
 }
 

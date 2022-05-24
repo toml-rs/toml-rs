@@ -9,6 +9,10 @@ edition = "2018"
 name = "linear"
 harness = false
 
+[[bench]]
+name = "datetime"
+harness = false
+
 [dev-dependencies]
 bencher = "0.1"
 toml = { path = ".." }
