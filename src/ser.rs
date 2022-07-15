@@ -46,6 +46,17 @@ where
     to_string(value).map(|e| e.into_bytes())
 }
 
+/// Serialize the given data structure as a TOML "pretty" byte vector.
+///
+/// This is identical to `to_vec` except the output byte vector  has a more
+/// "pretty" output. See `Serializer::pretty` for more details.
+pub fn to_vec_pretty<T: ?Sized>(value: &T) -> Result<Vec<u8>, Error>
+where
+    T: ser::Serialize,
+{
+    to_string_pretty(value).map(|e| e.into_bytes())
+}
+
 /// Serialize the given data structure as a String of TOML.
 ///
 /// Serialization can fail if `T`'s implementation of `Serialize` decides to
