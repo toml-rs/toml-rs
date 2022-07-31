@@ -124,7 +124,7 @@ pub enum Error {
     #[doc(hidden)]
     KeyNewline,
 
-    /// An array had to be homogenous, but now it is allowed to be heterogenous.
+    /// An array had to be homogeneous, but now it is allowed to be heterogeneous.
     #[doc(hidden)]
     ArrayMixedType,
 
@@ -151,7 +151,7 @@ pub enum Error {
 }
 
 #[derive(Debug, Default, Clone)]
-/// Internal place for holding array setings
+/// Internal place for holding array settings
 struct ArraySettings {
     indent: usize,
     trailing_comma: bool,

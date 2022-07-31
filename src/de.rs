@@ -328,7 +328,7 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
 // by their index in the passed slice. We use a list as the implementation
 // uses this data structure for arrays as well as tables,
 // so if any top level [[name]] array contains multiple entries,
-// there are multiple entires in the list.
+// there are multiple entries in the list.
 // The lookup is performed in the `SeqAccess` implementation of `MapVisitor`.
 // The lists are ordered, which we exploit in the search code by using
 // bisection.
@@ -1865,7 +1865,7 @@ impl<'a> Deserializer<'a> {
         Ok(result)
     }
 
-    /// Stores a value in the appropriate hierachical structure positioned based on the dotted key.
+    /// Stores a value in the appropriate hierarchical structure positioned based on the dotted key.
     ///
     /// Given the following definition: `multi.part.key = "value"`, `multi` and `part` are
     /// intermediate parts which are mapped to the relevant fields in the deserialized type's data
