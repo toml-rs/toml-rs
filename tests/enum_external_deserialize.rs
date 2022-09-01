@@ -140,7 +140,7 @@ mod enum_newtype {
     fn from_dotted_table() {
         assert_eq!(
             TheEnum::NewType("value".to_string()),
-            toml::from_str(r#"{ NewType = "value"}"#).unwrap()
+            toml::from_str(r#"NewType = "value""#).unwrap()
         );
 
         assert_eq!(

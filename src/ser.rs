@@ -33,6 +33,7 @@ use std::rc::Rc;
 
 use crate::datetime;
 use serde::ser;
+use serde::Serialize;
 
 /// Serialize the given data structure as a TOML byte vector.
 ///
@@ -891,13 +892,17 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
         self,
         _name: &'static str,
         _variant_index: u32,
-        _variant: &'static str,
-        _value: &T,
+        variant: &'static str,
+        value: &T,
     ) -> Result<(), Self::Error>
     where
         T: ser::Serialize,
     {
-        Err(Error::UnsupportedType)
+        println!("serialize_newtype_variant {:?}", variant);
+        let mut s = self.serialize_map(Some(1))?;
+        ser::SerializeStruct::serialize_field(&mut s, variant, value)?;
+        ser::SerializeStruct::end(s)?;
+        Ok(())
     }
 
     fn serialize_seq(self, len: Option<usize>) -> Result<Self::SerializeSeq, Self::Error> {
@@ -1627,7 +1632,7 @@ impl<E: ser::Error> ser::Serializer for Categorize<E> {
     type SerializeTupleVariant = Self;
     type SerializeMap = Self;
     type SerializeStruct = Self;
-    type SerializeStructVariant = ser::Impossible<Category, E>;
+    type SerializeStructVariant = Self;
 
     fn serialize_bool(self, _: bool) -> Result<Self::Ok, Self::Error> {
         Ok(Category::Primitive)
@@ -1769,7 +1774,7 @@ impl<E: ser::Error> ser::Serializer for Categorize<E> {
         _: &'static str,
         _: usize,
     ) -> Result<Self::SerializeStructVariant, Self::Error> {
-        Err(ser::Error::custom("unsupported"))
+        Ok(self)
     }
 }
 
@@ -1849,6 +1854,26 @@ impl<E: ser::Error> ser::SerializeStruct for Categorize<E> {
     fn serialize_field<T: ?Sized>(&mut self, _: &'static str, _: &T) -> Result<(), Self::Error>
     where
         T: ser::Serialize,
+    {
+        Ok(())
+    }
+
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+        Ok(Category::Table)
+    }
+}
+
+impl<E: ser::Error> ser::SerializeStructVariant for Categorize<E> {
+    type Ok = Category;
+    type Error = E;
+
+    fn serialize_field<T: ?Sized>(
+        &mut self,
+        key: &'static str,
+        value: &T,
+    ) -> Result<(), Self::Error>
+    where
+        T: Serialize,
     {
         Ok(())
     }

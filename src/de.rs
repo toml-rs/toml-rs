@@ -1559,6 +1559,43 @@ impl<'a> Deserializer<'a> {
     /// structures (tuple, newtype, struct) must be represented as a table.
     fn string_or_table(&mut self) -> Result<(Value<'a>, Option<Cow<'a, str>>), Error> {
         match self.peek()? {
+            Some((span, Token::Keylike(_))) => {
+                let tables = self.tables()?;
+                if tables.len() != 1 {
+                    return Err(Error::from_kind(
+                        Some(span.start),
+                        ErrorKind::Wanted {
+                            expected: "exactly 1 table",
+                            found: if tables.is_empty() {
+                                "zero tables"
+                            } else {
+                                "more than 1 table"
+                            },
+                        },
+                    ));
+                }
+
+                let table = tables
+                    .into_iter()
+                    .next()
+                    .expect("Expected exactly one table");
+                let start = table.at;
+                let end = table
+                    .values
+                    .as_ref()
+                    .and_then(|values| values.last())
+                    .map(|&(_, ref val)| val.end)
+                    .unwrap_or_else(|| 0);
+                Ok((
+                    Value {
+                        e: E::InlineTable(table.values.unwrap_or_else(Vec::new)),
+                        start,
+                        end,
+                    },
+                    None,
+                ))
+            }
+
             Some((span, Token::LeftBracket)) => {
                 let tables = self.tables()?;
                 if tables.len() != 1 {
