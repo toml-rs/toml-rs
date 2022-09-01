@@ -144,12 +144,16 @@ mod enum_newtype {
         );
 
         assert_eq!(
-            Val { val: TheEnum::NewType("value".to_string()) },
+            Val {
+                val: TheEnum::NewType("value".to_string())
+            },
             toml::from_str(r#"val = { NewType = "value" }"#).unwrap()
         );
 
         assert_eq!(
-            Val { val: TheEnum::NewType("value".to_string()) },
+            Val {
+                val: TheEnum::NewType("value".to_string())
+            },
             toml::from_str(
                 r#"[val]
                 NewType = "value"

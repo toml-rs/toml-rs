@@ -320,8 +320,8 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
         _name: &'static str,
         visitor: V,
     ) -> Result<V::Value, crate::de::Error>
-        where
-            V: de::Visitor<'de>,
+    where
+        V: de::Visitor<'de>,
     {
         visitor.visit_newtype_struct(self)
     }
@@ -687,13 +687,13 @@ impl<'de, 'b> de::Deserializer<'de> for MapVisitor<'de, 'b> {
     where
         V: de::Visitor<'de>,
     {
+
+
         let table = &mut self.tables[0];
-
-
 
         let mut values = match table.values.take() {
             None => self.values.collect(),
-            Some(v) => v
+            Some(v) => v,
         };
         if table.header.is_empty() {
             return Err(self.de.error(self.cur, ErrorKind::EmptyTableKey));
@@ -709,18 +709,24 @@ impl<'de, 'b> de::Deserializer<'de> for MapVisitor<'de, 'b> {
         let value = values.remove(0);
 
         match value {
-            ((_, name), Value {start, end, e: E::InlineTable(mut pairs)}) if pairs.len() == 1 => {
-                visitor.visit_enum(DottedTableDeserializer {
-                    name: name,
-                    value: Value {start, end, e: E::InlineTable(pairs) }
-                })
-            },
+            (
+                (_, name),
+                Value {
+                    start,
+                    end,
+                    e: E::InlineTable(mut pairs),
+                },
+            ) if pairs.len() == 1 => visitor.visit_enum(DottedTableDeserializer {
+                name: name,
+                value: Value {
+                    start,
+                    end,
+                    e: E::InlineTable(pairs),
+                },
+            }),
             ((_, name), value) if table.header.len() == 1 => {
-                visitor.visit_enum(DottedTableDeserializer {
-                    name,
-                    value,
-                })
-            },
+                visitor.visit_enum(DottedTableDeserializer { name, value })
+            }
 
             value => {
                 let header = table.header.last().unwrap().clone();
@@ -734,8 +740,8 @@ impl<'de, 'b> de::Deserializer<'de> for MapVisitor<'de, 'b> {
                     value: Value {
                         e: E::DottedTable(values),
                         start: header.0.start,
-                        end: header.0.end
-                    }
+                        end: header.0.end,
+                    },
                 })
             }
         }
@@ -1281,16 +1287,14 @@ impl<'de> de::VariantAccess<'de> for TableEnumDeserializer<'de> {
                     ))
                 }
             }
-            E::Array(values) => {
-                de::Deserializer::deserialize_seq(
-                    ValueDeserializer::new( Value {
-                        e: E::Array(values),
-                        start: self.value.start,
-                        end: self.value.end,
-                    }),
-                    visitor,
-                )
-            },
+            E::Array(values) => de::Deserializer::deserialize_seq(
+                ValueDeserializer::new(Value {
+                    e: E::Array(values),
+                    start: self.value.start,
+                    end: self.value.end,
+                }),
+                visitor,
+            ),
             e => Err(Error::from_kind(
                 Some(self.value.start),
                 ErrorKind::Wanted {
@@ -1522,6 +1526,7 @@ impl<'a> Deserializer<'a> {
         }
 
         let first_char = key.chars().next().expect("key should not be empty here");
+
         match first_char {
             '-' | '0'..='9' => self.number_or_date(span, key),
             _ => Err(self.error(at, ErrorKind::UnquotedString)),

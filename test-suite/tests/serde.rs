@@ -589,9 +589,9 @@ fn enum_with_different_constructors() {
         A2(u64),
         A3 { a3: u64 },
         A4(u64, String),
-        A5 { a51: u64, a52: String},
+        A5 { a51: u64, a52: String },
         A6(B),
-        A7 { a7: B},
+        A7 { a7: B },
     }
 
     #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
@@ -625,7 +625,7 @@ fn enum_with_different_constructors() {
     equivalent! {
         A::A4(42, String::from("foo")),
         Table(map! {
-            a4: Array(vec![Integer(42), Value::String("foo".to_string()))
+            a4: Array(vec![Integer(42), Value::String("foo".to_string())])
         })
     }
 
@@ -660,9 +660,6 @@ fn enum_with_different_constructors() {
             })
         })
     }
-
-
-
 }
 
 #[derive(Debug, Default, PartialEq, Serialize, Deserialize)]

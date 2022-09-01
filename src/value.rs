@@ -9,8 +9,8 @@ use std::str::FromStr;
 use std::vec;
 
 use serde::de;
-use serde::de::IntoDeserializer;
 use serde::de::value::MapAccessDeserializer;
+use serde::de::IntoDeserializer;
 use serde::ser;
 
 use crate::datetime::{self, DatetimeFromString};
@@ -593,7 +593,9 @@ impl<'de> de::Deserializer<'de> for Value {
     {
         match self {
             Value::String(variant) => visitor.visit_enum(variant.into_deserializer()),
-            Value::Table(map) if (map.len() == 1) => visitor.visit_enum(MapAccessDeserializer::new(MapDeserializer::new(map))),
+            Value::Table(map) if (map.len() == 1) => {
+                visitor.visit_enum(MapAccessDeserializer::new(MapDeserializer::new(map)))
+            }
             _ => Err(de::Error::invalid_type(
                 de::Unexpected::UnitVariant,
                 &"string only",
@@ -836,7 +838,7 @@ impl ser::Serializer for Serializer {
     where
         T: ser::Serialize,
     {
-        value.serialize(self).map( |v| {
+        value.serialize(self).map(|v| {
             let mut m = Map::new();
             m.insert(variant.into(), v);
             Value::Table(m)
@@ -879,7 +881,11 @@ impl ser::Serializer for Serializer {
         variant: &'static str,
         len: usize,
     ) -> Result<Self::SerializeTupleVariant, crate::ser::Error> {
-        self.serialize_seq(Some(len)).map(|vec| SerializeVariantVec{ variantName: String::from(variant), vec })
+        self.serialize_seq(Some(len))
+            .map(|vec| SerializeVariantVec {
+                variantName: String::from(variant),
+                vec,
+            })
     }
 
     fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap, crate::ser::Error> {
@@ -904,7 +910,11 @@ impl ser::Serializer for Serializer {
         variant: &'static str,
         len: usize,
     ) -> Result<Self::SerializeStructVariant, crate::ser::Error> {
-        self.serialize_map(Some(len)).map(|map| SerializeVariantMap { variantName: String::from(variant), map})
+        self.serialize_map(Some(len))
+            .map(|map| SerializeVariantMap {
+                variantName: String::from(variant),
+                map,
+            })
     }
 }
 
@@ -919,12 +929,12 @@ struct SerializeMap {
 
 struct SerializeVariantMap {
     variantName: String,
-    map: SerializeMap
+    map: SerializeMap,
 }
 
 struct SerializeVariantVec {
     variantName: String,
-    vec: SerializeVec
+    vec: SerializeVec,
 }
 
 impl ser::SerializeStructVariant for SerializeVariantMap {
@@ -934,9 +944,11 @@ impl ser::SerializeStructVariant for SerializeVariantMap {
     fn serialize_field<T: ?Sized>(
         &mut self,
         key: &'static str,
-        value: &T
+        value: &T,
     ) -> Result<(), Self::Error>
-        where T: ser::Serialize {
+    where
+        T: ser::Serialize,
+    {
         ser::SerializeStruct::serialize_field(&mut self.map, key, value)
     }
     fn end(self) -> Result<Self::Ok, Self::Error> {
@@ -956,8 +968,8 @@ impl ser::SerializeTupleVariant for SerializeVariantVec {
     type Error = crate::ser::Error;
 
     fn serialize_field<T: ?Sized>(&mut self, value: &T) -> Result<(), crate::ser::Error>
-        where
-            T: ser::Serialize,
+    where
+        T: ser::Serialize,
     {
         ser::SerializeSeq::serialize_element(&mut self.vec, value)
     }
@@ -965,7 +977,7 @@ impl ser::SerializeTupleVariant for SerializeVariantVec {
     fn end(self) -> Result<Value, crate::ser::Error> {
         let variantName = self.variantName;
 
-        ser::SerializeSeq::end(self.vec).map( move |v| {
+        ser::SerializeSeq::end(self.vec).map(move |v| {
             let mut m = Map::new();
             m.insert(variantName, v);
             Value::Table(m)
