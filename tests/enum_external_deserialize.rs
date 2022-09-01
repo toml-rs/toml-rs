@@ -137,16 +137,19 @@ mod enum_newtype {
     }
 
     #[test]
-    #[ignore = "Unimplemented: https://github.com/alexcrichton/toml-rs/pull/264#issuecomment-431707209"]
     fn from_dotted_table() {
         assert_eq!(
             TheEnum::NewType("value".to_string()),
-            toml::from_str(r#"NewType = "value""#).unwrap()
+            toml::from_str(r#"{ NewType = "value"}"#).unwrap()
         );
+
         assert_eq!(
-            Val {
-                val: TheEnum::NewType("value".to_string()),
-            },
+            Val { val: TheEnum::NewType("value".to_string()) },
+            toml::from_str(r#"val = { NewType = "value" }"#).unwrap()
+        );
+
+        assert_eq!(
+            Val { val: TheEnum::NewType("value".to_string()) },
             toml::from_str(
                 r#"[val]
                 NewType = "value"
@@ -211,6 +214,8 @@ mod enum_array {
         let toml_str = r#"
             enums = [
                 { Plain = {} },
+                { Plain = {} },
+                { Plain = {} },
                 { Tuple = { 0 = -123, 1 = true } },
                 { NewType = "value" },
                 { Struct = { value = -123 } }
@@ -218,6 +223,8 @@ mod enum_array {
         assert_eq!(
             Multi {
                 enums: vec![
+                    TheEnum::Plain,
+                    TheEnum::Plain,
                     TheEnum::Plain,
                     TheEnum::Tuple(-123, true),
                     TheEnum::NewType("value".to_string()),
@@ -229,7 +236,6 @@ mod enum_array {
     }
 
     #[test]
-    #[ignore = "Unimplemented: https://github.com/alexcrichton/toml-rs/pull/264#issuecomment-431707209"]
     fn from_dotted_table() {
         let toml_str = r#"[[enums]]
             Plain = {}

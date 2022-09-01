@@ -315,9 +315,20 @@ impl<'de, 'b> de::Deserializer<'de> for &'b mut Deserializer<'de> {
         self.deserialize_any(visitor)
     }
 
+    fn deserialize_newtype_struct<V>(
+        self,
+        _name: &'static str,
+        visitor: V,
+    ) -> Result<V::Value, crate::de::Error>
+        where
+            V: de::Visitor<'de>,
+    {
+        visitor.visit_newtype_struct(self)
+    }
+
     serde::forward_to_deserialize_any! {
         bool u8 u16 u32 u64 i8 i16 i32 i64 f32 f64 char str string seq
-        bytes byte_buf map unit newtype_struct
+        bytes byte_buf map unit
         ignored_any unit_struct tuple_struct tuple option identifier
     }
 }
@@ -376,6 +387,7 @@ fn headers_equal<'a, 'b>(hdr_a: &[(Span, Cow<'a, str>)], hdr_b: &[(Span, Cow<'b,
     hdr_a.iter().zip(hdr_b.iter()).all(|(h1, h2)| h1.1 == h2.1)
 }
 
+#[derive(Debug)]
 struct Table<'a> {
     at: usize,
     header: Vec<(Span, Cow<'a, str>)>,
@@ -675,26 +687,59 @@ impl<'de, 'b> de::Deserializer<'de> for MapVisitor<'de, 'b> {
     where
         V: de::Visitor<'de>,
     {
-        if self.tables.len() != 1 {
-            return Err(Error::custom(
-                Some(self.cur),
-                "enum table must contain exactly one table".into(),
-            ));
-        }
         let table = &mut self.tables[0];
-        let values = table.values.take().expect("table has no values?");
+
+
+
+        let mut values = match table.values.take() {
+            None => self.values.collect(),
+            Some(v) => v
+        };
         if table.header.is_empty() {
             return Err(self.de.error(self.cur, ErrorKind::EmptyTableKey));
         }
-        let name = table.header[table.header.len() - 1].1.to_owned();
-        visitor.visit_enum(DottedTableDeserializer {
-            name,
-            value: Value {
-                e: E::DottedTable(values),
-                start: 0,
-                end: 0,
+
+        if values.len() != 1 {
+            return Err(Error::custom(
+                Some(self.cur),
+                "enum table must contain exactly one value".into(),
+            ));
+        }
+
+        let value = values.remove(0);
+
+        match value {
+            ((_, name), Value {start, end, e: E::InlineTable(mut pairs)}) if pairs.len() == 1 => {
+                visitor.visit_enum(DottedTableDeserializer {
+                    name: name,
+                    value: Value {start, end, e: E::InlineTable(pairs) }
+                })
             },
-        })
+            ((_, name), value) if table.header.len() == 1 => {
+                visitor.visit_enum(DottedTableDeserializer {
+                    name,
+                    value,
+                })
+            },
+
+            value => {
+                let header = table.header.last().unwrap().clone();
+
+                println!("2: {:?}, {:?}", header.1, values);
+
+                values.insert(0, value);
+
+                visitor.visit_enum(DottedTableDeserializer {
+                    name: header.1,
+                    value: Value {
+                        e: E::DottedTable(values),
+                        start: header.0.start,
+                        end: header.0.end
+                    }
+                })
+            }
+        }
+
     }
 
     serde::forward_to_deserialize_any! {
@@ -1236,6 +1281,16 @@ impl<'de> de::VariantAccess<'de> for TableEnumDeserializer<'de> {
                     ))
                 }
             }
+            E::Array(values) => {
+                de::Deserializer::deserialize_seq(
+                    ValueDeserializer::new( Value {
+                        e: E::Array(values),
+                        start: self.value.start,
+                        end: self.value.end,
+                    }),
+                    visitor,
+                )
+            },
             e => Err(Error::from_kind(
                 Some(self.value.start),
                 ErrorKind::Wanted {
