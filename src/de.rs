@@ -687,8 +687,6 @@ impl<'de, 'b> de::Deserializer<'de> for MapVisitor<'de, 'b> {
     where
         V: de::Visitor<'de>,
     {
-
-
         let table = &mut self.tables[0];
 
         let mut values = match table.values.take() {
@@ -745,7 +743,6 @@ impl<'de, 'b> de::Deserializer<'de> for MapVisitor<'de, 'b> {
                 })
             }
         }
-
     }
 
     serde::forward_to_deserialize_any! {

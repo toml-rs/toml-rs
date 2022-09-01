@@ -962,7 +962,6 @@ impl ser::SerializeStructVariant for SerializeVariantMap {
     }
 }
 
-
 impl ser::SerializeTupleVariant for SerializeVariantVec {
     type Ok = Value;
     type Error = crate::ser::Error;
