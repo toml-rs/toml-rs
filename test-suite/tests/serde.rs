@@ -584,6 +584,11 @@ fn newtypes2() {
 #[test]
 fn enum_with_different_constructors() {
     #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
+    struct Wrapper {
+        a: A,
+    };
+
+    #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
     enum A {
         A1,
         A2(u64),
@@ -605,60 +610,67 @@ fn enum_with_different_constructors() {
     }
 
     equivalent! {
-        A::A1, String("A1")
+        Wrapper { a: A::A1 },
+        Table(map! {
+            a: Value::String("A1".to_string())
+        }),
     }
 
     equivalent! {
         A::A2(42),
         Table(map! {
-            a2: Array(vec![Integer(42)])
-        })
+            A2: Array(vec![Integer(42)])
+        }),
     }
 
     equivalent! {
         A::A3 { a3: 42 },
         Table(map! {
-            a3: [42]
-        })
+            A3: Table(map! {
+                a3: 42
+            })
+        }),
     }
 
     equivalent! {
         A::A4(42, String::from("foo")),
         Table(map! {
-            a4: Array(vec![Integer(42), Value::String("foo".to_string())])
-        })
+            A4: Array(vec![Integer(42), Value::String("foo".to_string())])
+        }),
     }
 
     equivalent! {
         A::A5 { a51: 42, a52: String::from("foo") },
         Table(map! {
-            a5: Table(map! {
+            A5: Table(map! {
                 a51: Integer(42),
                 a52: Value::String("foo".to_string())
             })
-        })
+        }),
     }
 
     equivalent! {
-        A::A6(Some({x: 1, y:2, z: 3})),
+        A::A6(B(Some(C {x: 1, y:2, z: 3}))),
         Table(map! {
-            a6: Table(map! {
+            A6: Table(map! {
                 x: Integer(1),
                 y: Integer(2),
                 z: Integer(3)
             })
-        })
+        }),
     }
 
     equivalent! {
-        A::A7{ a7: Some({x: 1, y:2, z: 3})},
+        A::A7{ a7: B(Some(C {x: 1, y:2, z: 3}))},
         Table(map! {
-            a7: Table(map! {
-                x: Integer(1),
-                y: Integer(2),
-                z: Integer(3)
+            A7: Table(map! {
+                a7: Table(map! {
+                    x: Integer(1),
+                    y: Integer(2),
+                    z: Integer(3)
+                })
             })
-        })
+        }),
     }
 }
 
