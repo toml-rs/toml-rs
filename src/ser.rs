@@ -33,7 +33,6 @@ use std::rc::Rc;
 
 use crate::datetime;
 use serde::ser;
-use serde::Serialize;
 
 /// Serialize the given data structure as a TOML byte vector.
 ///
@@ -1229,7 +1228,7 @@ impl<'a, 'b> ser::SerializeStructVariant for SerializeTable<'a, 'b> {
     type Ok = ();
     type Error = Error;
 
-    fn serialize_field<T: ?Sized>(&mut self, key: &'static str, value: &T) -> Result<(), Self::Error> where T: Serialize {
+    fn serialize_field<T: ?Sized>(&mut self, key: &'static str, value: &T) -> Result<(), Self::Error> where T: ser::Serialize {
         ser::SerializeStruct::serialize_field(self, key, value)
     }
 
@@ -1984,7 +1983,7 @@ impl<E: ser::Error> ser::SerializeStructVariant for Categorize<E> {
         value: &T,
     ) -> Result<(), Self::Error>
     where
-        T: Serialize,
+        T: ser::Serialize,
     {
         Ok(())
     }
