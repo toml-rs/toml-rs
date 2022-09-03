@@ -214,7 +214,7 @@ enum State<'a> {
         key: &'a str,
         parent: &'a State<'a>,
         first: &'a Cell<bool>,
-        table_emitted: &'a Cell<u8>,
+        table_emitted: &'a Cell<bool>,
     },
     Array {
         parent: &'a State<'a>,
@@ -239,7 +239,7 @@ pub struct SerializeVariantSeq<'a, 'b> {
     variant: &'b str,
     first: Cell<bool>,
     type_: Cell<Option<ArrayState>>,
-    table_emitted: Cell<u8>,
+    table_emitted: Cell<bool>,
     len: Option<usize>
 }
 
@@ -252,7 +252,7 @@ pub enum SerializeTable<'a, 'b> {
         prefix: Option<String>,
         key: String,
         first: Cell<bool>,
-        table_emitted: Cell<u8>,
+        table_emitted: Cell<bool>,
     },
 }
 
@@ -473,7 +473,7 @@ impl<'a> Serializer<'a> {
                 table_emitted,
                 key,
             } => {
-                if table_emitted.get() == 0 {
+                if table_emitted.get() {
                     return Err(Error::ValueAfterTable);
                 }
                 if first.get() {
@@ -750,9 +750,7 @@ impl<'a> Serializer<'a> {
                 table_emitted,
                 ..
             } => {
-                if table_emitted.get() > 0 {
-                    table_emitted.set(table_emitted.get() - 1);
-                }
+                table_emitted.set(true);
 
                 let first = self.emit_key_part(parent)?;
                 if !first {
@@ -956,7 +954,7 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
                 variant,
                 first: Cell::new(true),
                 type_: Cell::new(None),
-                table_emitted: Cell::new(1),
+                table_emitted: Cell::new(false),
                 len: Some(len)
         })
     }
@@ -968,7 +966,7 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
             prefix: None,
             key: String::new(),
             first: Cell::new(true),
-            table_emitted: Cell::new(1),
+            table_emitted: Cell::new(false),
         })
     }
 
@@ -987,7 +985,7 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
                 prefix: None,
                 key: String::new(),
                 first: Cell::new(true),
-                table_emitted: Cell::new(1),
+                table_emitted: Cell::new(false),
             })
         }
     }
@@ -1005,7 +1003,7 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
             prefix: Some(variant.to_string()),
             key: String::new(),
             first: Cell::new(true),
-            table_emitted: Cell::new(1),
+            table_emitted: Cell::new(false),
         })
     }
 }
@@ -1190,7 +1188,7 @@ impl<'a, 'b> ser::SerializeMap for SerializeTable<'a, 'b> {
                     key: p,
                     parent: &state,
                     first,
-                    table_emitted: { table_emitted.set(table_emitted.get() + 1); table_emitted}
+                    table_emitted: &inner_table_emitted
                 }).unwrap_or(state.clone());
 
                 let res = value.serialize(&mut Serializer {
@@ -1265,11 +1263,12 @@ impl<'a, 'b> ser::SerializeStruct for SerializeTable<'a, 'b> {
                 ..
             } => {
                 let Serializer {dst, state, settings} = ser;
+                let parent_emitted = Cell::new(false);
                 let parent = prefix.as_ref().map(|p| State::Table {
                     key: p,
                     parent: &state,
                     first,
-                    table_emitted: { table_emitted.set(table_emitted.get() + 1); table_emitted}
+                    table_emitted: &parent_emitted
                 }).unwrap_or(state.clone());
 
                 let res = value.serialize(&mut Serializer {
