@@ -214,7 +214,7 @@ enum State<'a> {
         key: &'a str,
         parent: &'a State<'a>,
         first: &'a Cell<bool>,
-        table_emitted: &'a Cell<bool>,
+        table_emitted: &'a Cell<u8>,
     },
     Array {
         parent: &'a State<'a>,
@@ -234,13 +234,25 @@ pub struct SerializeSeq<'a, 'b> {
 }
 
 #[doc(hidden)]
+pub struct SerializeVariantSeq<'a, 'b> {
+    ser: &'b mut Serializer<'a>,
+    variant: &'b str,
+    first: Cell<bool>,
+    type_: Cell<Option<ArrayState>>,
+    table_emitted: Cell<u8>,
+    len: Option<usize>
+}
+
+
+#[doc(hidden)]
 pub enum SerializeTable<'a, 'b> {
     Datetime(&'b mut Serializer<'a>),
     Table {
         ser: &'b mut Serializer<'a>,
+        prefix: Option<String>,
         key: String,
         first: Cell<bool>,
-        table_emitted: Cell<bool>,
+        table_emitted: Cell<u8>,
     },
 }
 
@@ -461,7 +473,7 @@ impl<'a> Serializer<'a> {
                 table_emitted,
                 key,
             } => {
-                if table_emitted.get() {
+                if table_emitted.get() == 0 {
                     return Err(Error::ValueAfterTable);
                 }
                 if first.get() {
@@ -738,7 +750,10 @@ impl<'a> Serializer<'a> {
                 table_emitted,
                 ..
             } => {
-                table_emitted.set(true);
+                if table_emitted.get() > 0 {
+                    table_emitted.set(table_emitted.get() - 1);
+                }
+
                 let first = self.emit_key_part(parent)?;
                 if !first {
                     self.dst.push_str(".");
@@ -781,10 +796,10 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
     type SerializeSeq = SerializeSeq<'a, 'b>;
     type SerializeTuple = SerializeSeq<'a, 'b>;
     type SerializeTupleStruct = SerializeSeq<'a, 'b>;
-    type SerializeTupleVariant = SerializeSeq<'a, 'b>;
+    type SerializeTupleVariant = SerializeVariantSeq<'a, 'b>;
     type SerializeMap = SerializeTable<'a, 'b>;
     type SerializeStruct = SerializeTable<'a, 'b>;
-    type SerializeStructVariant = ser::Impossible<(), Error>;
+    type SerializeStructVariant = SerializeTable<'a, 'b>;
 
     fn serialize_bool(self, v: bool) -> Result<(), Self::Error> {
         self.display(v, ArrayState::Started)
@@ -931,19 +946,29 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
         self,
         _name: &'static str,
         _variant_index: u32,
-        _variant: &'static str,
+        variant: &'static str,
         len: usize,
     ) -> Result<Self::SerializeTupleVariant, Self::Error> {
-        self.serialize_seq(Some(len))
+        self.array_type(ArrayState::Started)?;
+
+        Ok(SerializeVariantSeq {
+                ser: self,
+                variant,
+                first: Cell::new(true),
+                type_: Cell::new(None),
+                table_emitted: Cell::new(1),
+                len: Some(len)
+        })
     }
 
     fn serialize_map(self, _len: Option<usize>) -> Result<Self::SerializeMap, Self::Error> {
         self.array_type(ArrayState::StartedAsATable)?;
         Ok(SerializeTable::Table {
             ser: self,
+            prefix: None,
             key: String::new(),
             first: Cell::new(true),
-            table_emitted: Cell::new(false),
+            table_emitted: Cell::new(1),
         })
     }
 
@@ -959,9 +984,10 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
             self.array_type(ArrayState::StartedAsATable)?;
             Ok(SerializeTable::Table {
                 ser: self,
+                prefix: None,
                 key: String::new(),
                 first: Cell::new(true),
-                table_emitted: Cell::new(false),
+                table_emitted: Cell::new(1),
             })
         }
     }
@@ -970,10 +996,17 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
         self,
         _name: &'static str,
         _variant_index: u32,
-        _variant: &'static str,
+        variant: &'static str,
         _len: usize,
     ) -> Result<Self::SerializeStructVariant, Self::Error> {
-        Err(Error::UnsupportedType)
+        self.array_type(ArrayState::StartedAsATable)?;
+        Ok(SerializeTable::Table {
+            ser: self,
+            prefix: Some(variant.to_string()),
+            key: String::new(),
+            first: Cell::new(true),
+            table_emitted: Cell::new(1),
+        })
     }
 }
 
@@ -1042,7 +1075,7 @@ impl<'a, 'b> ser::SerializeTuple for SerializeSeq<'a, 'b> {
     }
 }
 
-impl<'a, 'b> ser::SerializeTupleVariant for SerializeSeq<'a, 'b> {
+impl<'a, 'b> ser::SerializeTupleVariant for SerializeVariantSeq<'a, 'b> {
     type Ok = ();
     type Error = Error;
 
@@ -1050,11 +1083,56 @@ impl<'a, 'b> ser::SerializeTupleVariant for SerializeSeq<'a, 'b> {
     where
         T: ser::Serialize,
     {
-        ser::SerializeSeq::serialize_element(self, value)
+        let first_table = Cell::new(true);
+
+        let parent = State::Table {
+            key: &self.variant,
+            parent: &self.ser.state,
+            first: &first_table,
+            table_emitted: &self.table_emitted,
+        };
+
+
+        value.serialize(&mut Serializer {
+            dst: self.ser.dst,
+            state: State::Array {
+                parent: &parent,
+                first: &self.first,
+                type_: &self.type_,
+                len: self.len,
+            },
+            settings: self.ser.settings.clone(),
+        })?;
+        self.first.set(false);
+        Ok(())
     }
 
     fn end(self) -> Result<(), Error> {
-        ser::SerializeSeq::end(self)
+        match self.type_.get() {
+            Some(ArrayState::StartedAsATable) => return Ok(()),
+            Some(ArrayState::Started) => match (self.len, &self.ser.settings.array) {
+                (Some(0..=1), _) | (_, &None) => {
+                    self.ser.dst.push_str("]");
+                }
+                (_, &Some(ref a)) => {
+                    if a.trailing_comma {
+                        self.ser.dst.push_str(",");
+                    }
+                    self.ser.dst.push_str("\n]");
+                }
+            },
+            None => {
+                panic!("serstate {:?}", self.type_.get());
+
+                assert!(self.first.get());
+                self.ser.emit_key(ArrayState::Started)?;
+                self.ser.dst.push_str("[]")
+            }
+        }
+
+        self.ser.dst.push_str("\n");
+
+        Ok(())
     }
 }
 
@@ -1100,16 +1178,26 @@ impl<'a, 'b> ser::SerializeMap for SerializeTable<'a, 'b> {
             SerializeTable::Datetime(_) => panic!(), // shouldn't be possible
             SerializeTable::Table {
                 ref mut ser,
+                ref prefix,
                 ref key,
                 ref first,
                 ref table_emitted,
                 ..
             } => {
+                println!("serialize_value of SerializeMap prefix = {:?}, key={:?}", prefix, key);
+                let Serializer {dst, state, settings} = ser;
+                let parent = prefix.as_ref().map(|p| State::Table {
+                    key: p,
+                    parent: &state,
+                    first,
+                    table_emitted: { table_emitted.set(table_emitted.get() + 1); table_emitted}
+                }).unwrap_or(state.clone());
+
                 let res = value.serialize(&mut Serializer {
-                    dst: &mut *ser.dst,
+                    dst,
                     state: State::Table {
-                        key,
-                        parent: &ser.state,
+                        key: &key,
+                        parent: &parent,
                         first,
                         table_emitted,
                     },
@@ -1139,6 +1227,20 @@ impl<'a, 'b> ser::SerializeMap for SerializeTable<'a, 'b> {
     }
 }
 
+impl<'a, 'b> ser::SerializeStructVariant for SerializeTable<'a, 'b> {
+    type Ok = ();
+    type Error = Error;
+
+    fn serialize_field<T: ?Sized>(&mut self, key: &'static str, value: &T) -> Result<(), Self::Error> where T: Serialize {
+        ser::SerializeStruct::serialize_field(self, key, value)
+    }
+
+    fn end(self) -> Result<Self::Ok, Self::Error> {
+        ser::SerializeStruct::end(self)
+    }
+}
+
+
 impl<'a, 'b> ser::SerializeStruct for SerializeTable<'a, 'b> {
     type Ok = ();
     type Error = Error;
@@ -1158,19 +1260,29 @@ impl<'a, 'b> ser::SerializeStruct for SerializeTable<'a, 'b> {
             SerializeTable::Table {
                 ref mut ser,
                 ref first,
+                ref prefix,
                 ref table_emitted,
                 ..
             } => {
+                let Serializer {dst, state, settings} = ser;
+                let parent = prefix.as_ref().map(|p| State::Table {
+                    key: p,
+                    parent: &state,
+                    first,
+                    table_emitted: { table_emitted.set(table_emitted.get() + 1); table_emitted}
+                }).unwrap_or(state.clone());
+
                 let res = value.serialize(&mut Serializer {
-                    dst: &mut *ser.dst,
+                    dst,
                     state: State::Table {
-                        key,
-                        parent: &ser.state,
+                        key: &key,
+                        parent: &parent,
                         first,
                         table_emitted,
                     },
                     settings: ser.settings.clone(),
                 });
+
                 match res {
                     Ok(()) => first.set(false),
                     Err(Error::UnsupportedNone) => {}

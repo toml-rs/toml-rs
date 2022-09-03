@@ -1616,25 +1616,28 @@ impl<'a> Deserializer<'a> {
                     .into_iter()
                     .next()
                     .expect("Expected exactly one table");
-                let header = table
-                    .header
-                    .last()
-                    .expect("Expected at least one header value for table.");
 
+                let mut headers = table.header.clone();
+
+                let first_header = headers.remove(0);
                 let start = table.at;
                 let end = table
                     .values
                     .as_ref()
                     .and_then(|values| values.last())
                     .map(|&(_, ref val)| val.end)
-                    .unwrap_or_else(|| header.1.len());
+                    .unwrap_or_else(|| first_header.1.len());
+
+                let table_value = headers.into_iter().rfold(table.values.unwrap_or_else(Vec::new), |acc, header, | {
+                    vec![(header, Value { e: E::InlineTable(acc), start, end })]
+                });
                 Ok((
                     Value {
-                        e: E::DottedTable(table.values.unwrap_or_else(Vec::new)),
+                        e: E::DottedTable(table_value),
                         start,
                         end,
                     },
-                    Some(header.1.clone()),
+                    Some(first_header.1),
                 ))
             }
             Some(_) => self.value().map(|val| (val, None)),
