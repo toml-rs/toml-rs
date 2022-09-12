@@ -588,6 +588,10 @@ impl<'de, 'b> de::SeqAccess<'de> for MapVisitor<'de, 'b> {
             })
             .unwrap_or(self.max);
 
+        let cur = if self.tables[self.cur_parent].values.clone().unwrap_or(Vec::new()).is_empty() && self.cur_parent + 1 < self.max {
+            self.cur_parent + 1
+        } else { self.cur_parent };
+
         let ret = seed.deserialize(MapVisitor {
             values: self.tables[self.cur_parent]
                 .values
@@ -599,7 +603,7 @@ impl<'de, 'b> de::SeqAccess<'de> for MapVisitor<'de, 'b> {
             depth: self.depth + 1,
             cur_parent: self.cur_parent,
             max: next,
-            cur: 0,
+            cur,
             array: false,
             table_indices: &*self.table_indices,
             table_pindices: &*self.table_pindices,
@@ -687,7 +691,7 @@ impl<'de, 'b> de::Deserializer<'de> for MapVisitor<'de, 'b> {
     where
         V: de::Visitor<'de>,
     {
-        let table = &mut self.tables[0];
+        let table = &mut self.tables[self.cur];
 
         let mut values = match table.values.take() {
             None => self.values.collect(),
@@ -697,52 +701,46 @@ impl<'de, 'b> de::Deserializer<'de> for MapVisitor<'de, 'b> {
             return Err(self.de.error(self.cur, ErrorKind::EmptyTableKey));
         }
 
-        if values.len() != 1 {
-            return Err(Error::custom(
-                Some(self.cur),
-                "enum table must contain exactly one value".into(),
-            ));
-        }
 
-        let value = values.remove(0);
+        let v = if table.header.len() >= self.depth {
 
-        match value {
-            (
-                (_, name),
-                Value {
-                    start,
-                    end,
-                    e: E::InlineTable(mut pairs),
-                },
-            ) if pairs.len() == 1 => visitor.visit_enum(DottedTableDeserializer {
-                name: name,
-                value: Value {
-                    start,
-                    end,
-                    e: E::InlineTable(pairs),
-                },
-            }),
-            ((_, name), value) if table.header.len() == 1 => {
-                visitor.visit_enum(DottedTableDeserializer { name, value })
-            }
+            let header = &table.header[self.depth..];
 
-            value => {
-                let header = table.header.last().unwrap().clone();
+            header.iter().rfold(values.clone(), |acc, e| {
+                let pair: TablePair = (e.clone(), Value {
+                    start: e.0.start,
+                    end: e.0.end,
+                    e: E::DottedTable(acc),
+                });
 
-                println!("2: {:?}, {:?}", header.1, values);
+                vec![pair]
+            })
+        } else {
 
-                values.insert(0, value);
+            let times = self.depth - table.header.len() - 1;
+            let cur = self.cur;
 
-                visitor.visit_enum(DottedTableDeserializer {
-                    name: header.1,
-                    value: Value {
-                        e: E::DottedTable(values),
-                        start: header.0.start,
-                        end: header.0.end,
-                    },
-                })
-            }
-        }
+            [0..times].iter().fold(Ok(values.clone()), |acc, _| {
+                if values.len() != 1 {
+                    return Err(Error::custom(
+                        Some(cur),
+                        "enum table must contain exactly one value".into(),
+                    ));
+                };
+
+                let value = values.remove(0);
+
+                match value.1 {
+                    Value { e: E::InlineTable(pairs), .. } => Ok(pairs),
+                    Value { e: E::DottedTable(pairs), .. } => Ok(pairs),
+                    _ => Err(Error::custom(Some(cur), "enum value must be a table".into()))
+                }
+            })?
+        };
+        visitor.visit_enum(InlineTableDeserializer {
+            values: v.into_iter(),
+            next_value: None
+        })
     }
 
     serde::forward_to_deserialize_any! {
@@ -1407,17 +1405,6 @@ impl<'a> Deserializer<'a> {
     }
 
     fn line(&mut self) -> Result<Option<Line<'a>>, Error> {
-        loop {
-            self.eat_whitespace()?;
-            if self.eat_comment()? {
-                continue;
-            }
-            if self.eat(Token::Newline)? {
-                continue;
-            }
-            break;
-        }
-
         match self.peek()? {
             Some((_, Token::LeftBracket)) => self.table_header().map(Some),
             Some(_) => self.key_value().map(Some),
@@ -2064,6 +2051,17 @@ impl<'a> Deserializer<'a> {
     }
 
     fn peek(&mut self) -> Result<Option<(Span, Token<'a>)>, Error> {
+        loop {
+            self.eat_whitespace()?;
+            if self.eat_comment()? {
+                continue;
+            }
+            if self.eat(Token::Newline)? {
+                continue;
+            }
+            break;
+        }
+
         self.tokens.peek().map_err(|e| self.token_error(e))
     }
 

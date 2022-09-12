@@ -703,6 +703,16 @@ impl<'a> Serializer<'a> {
                 self.emit_table_header(parent)?;
                 break;
             }
+
+            if let State::Array {
+                parent: &State::Table { .. },
+                ..
+            } = *parent
+            {
+                self.emit_table_header(parent)?;
+                break;
+            }
+
         }
 
         match *state {
@@ -1183,10 +1193,13 @@ impl<'a, 'b> ser::SerializeMap for SerializeTable<'a, 'b> {
             } => {
                 println!("serialize_value of SerializeMap prefix = {:?}, key={:?}", prefix, key);
                 let Serializer {dst, state, settings} = ser;
+                let inner_table_emitted = Cell::new(false);
+                let inner_first = Cell::new(false);
+
                 let parent = prefix.as_ref().map(|p| State::Table {
                     key: p,
                     parent: &state,
-                    first,
+                    first: &inner_first,
                     table_emitted: &inner_table_emitted
                 }).unwrap_or(state.clone());
 

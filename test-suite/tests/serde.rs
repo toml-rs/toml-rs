@@ -589,6 +589,9 @@ fn enum_with_different_constructors() {
     };
 
     #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
+    struct VecWrapper { aa: Vec<A> };
+
+    #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
     enum A {
         A1,
         A2(u64),
@@ -673,31 +676,31 @@ fn enum_with_different_constructors() {
         }),
     }
 
-    // equivalent! {
-    //     VecWrapper{ aa: vec![A::A7 { a7: B(Some(C {x: 1, y:2, z: 3}))}, A::A7 { a7: B(Some(C {x: 1, y:2, z: 3}))}] },
-    //     Table(map! {
-    //         aa: Array(vec![
-    //             Table(map! {
-    //                 A7: Table(map! {
-    //                     a7: Table(map! {
-    //                         x: Integer(1),
-    //                         y: Integer(2),
-    //                         z: Integer(3)
-    //                     })
-    //                 })
-    //             }),
-    //             Table(map! {
-    //                 A7: Table(map! {
-    //                     a7: Table(map! {
-    //                         x: Integer(1),
-    //                         y: Integer(2),
-    //                         z: Integer(3)
-    //                     })
-    //                 })
-    //             })
-    //         ])
-    //     }),
-    // }
+    equivalent! {
+        VecWrapper{ aa: vec![A::A7 { a7: B(Some(C {x: 1, y:2, z: 3}))}, A::A7 { a7: B(Some(C {x: 1, y:2, z: 3}))}] },
+        Table(map! {
+            aa: Array(vec![
+                Table(map! {
+                    A7: Table(map! {
+                        a7: Table(map! {
+                            x: Integer(1),
+                            y: Integer(2),
+                            z: Integer(3)
+                        })
+                    })
+                }),
+                Table(map! {
+                    A7: Table(map! {
+                        a7: Table(map! {
+                            x: Integer(1),
+                            y: Integer(2),
+                            z: Integer(3)
+                        })
+                    })
+                })
+            ])
+        }),
+    }
 
 }
 
