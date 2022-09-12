@@ -239,9 +239,8 @@ pub struct SerializeVariantSeq<'a, 'b> {
     first: Cell<bool>,
     type_: Cell<Option<ArrayState>>,
     table_emitted: Cell<bool>,
-    len: Option<usize>
+    len: Option<usize>,
 }
-
 
 #[doc(hidden)]
 pub enum SerializeTable<'a, 'b> {
@@ -712,7 +711,6 @@ impl<'a> Serializer<'a> {
                 self.emit_table_header(parent)?;
                 break;
             }
-
         }
 
         match *state {
@@ -958,12 +956,12 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
         self.array_type(ArrayState::Started)?;
 
         Ok(SerializeVariantSeq {
-                ser: self,
-                variant,
-                first: Cell::new(true),
-                type_: Cell::new(None),
-                table_emitted: Cell::new(false),
-                len: Some(len)
+            ser: self,
+            variant,
+            first: Cell::new(true),
+            type_: Cell::new(None),
+            table_emitted: Cell::new(false),
+            len: Some(len),
         })
     }
 
@@ -1098,7 +1096,6 @@ impl<'a, 'b> ser::SerializeTupleVariant for SerializeVariantSeq<'a, 'b> {
             table_emitted: &self.table_emitted,
         };
 
-
         value.serialize(&mut Serializer {
             dst: self.ser.dst,
             state: State::Array {
@@ -1190,16 +1187,23 @@ impl<'a, 'b> ser::SerializeMap for SerializeTable<'a, 'b> {
                 ref table_emitted,
                 ..
             } => {
-                let Serializer {dst, state, settings} = ser;
+                let Serializer {
+                    dst,
+                    state,
+                    settings,
+                } = ser;
                 let inner_table_emitted = Cell::new(false);
                 let inner_first = Cell::new(false);
 
-                let parent = prefix.as_ref().map(|p| State::Table {
-                    key: p,
-                    parent: &state,
-                    first: &inner_first,
-                    table_emitted: &inner_table_emitted
-                }).unwrap_or(state.clone());
+                let parent = prefix
+                    .as_ref()
+                    .map(|p| State::Table {
+                        key: p,
+                        parent: &state,
+                        first: &inner_first,
+                        table_emitted: &inner_table_emitted,
+                    })
+                    .unwrap_or(state.clone());
 
                 let res = value.serialize(&mut Serializer {
                     dst,
@@ -1239,7 +1243,14 @@ impl<'a, 'b> ser::SerializeStructVariant for SerializeTable<'a, 'b> {
     type Ok = ();
     type Error = Error;
 
-    fn serialize_field<T: ?Sized>(&mut self, key: &'static str, value: &T) -> Result<(), Self::Error> where T: ser::Serialize {
+    fn serialize_field<T: ?Sized>(
+        &mut self,
+        key: &'static str,
+        value: &T,
+    ) -> Result<(), Self::Error>
+    where
+        T: ser::Serialize,
+    {
         ser::SerializeStruct::serialize_field(self, key, value)
     }
 
@@ -1247,7 +1258,6 @@ impl<'a, 'b> ser::SerializeStructVariant for SerializeTable<'a, 'b> {
         ser::SerializeStruct::end(self)
     }
 }
-
 
 impl<'a, 'b> ser::SerializeStruct for SerializeTable<'a, 'b> {
     type Ok = ();
@@ -1272,14 +1282,21 @@ impl<'a, 'b> ser::SerializeStruct for SerializeTable<'a, 'b> {
                 ref table_emitted,
                 ..
             } => {
-                let Serializer {dst, state, settings} = ser;
+                let Serializer {
+                    dst,
+                    state,
+                    settings,
+                } = ser;
                 let parent_emitted = Cell::new(false);
-                let parent = prefix.as_ref().map(|p| State::Table {
-                    key: p,
-                    parent: &state,
-                    first,
-                    table_emitted: &parent_emitted
-                }).unwrap_or(state.clone());
+                let parent = prefix
+                    .as_ref()
+                    .map(|p| State::Table {
+                        key: p,
+                        parent: &state,
+                        first,
+                        table_emitted: &parent_emitted,
+                    })
+                    .unwrap_or(state.clone());
 
                 let res = value.serialize(&mut Serializer {
                     dst,

@@ -589,7 +589,9 @@ fn enum_with_different_constructors() {
     };
 
     #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
-    struct VecWrapper { aa: Vec<A> };
+    struct VecWrapper {
+        aa: Vec<A>,
+    };
 
     #[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
     enum A {
@@ -701,7 +703,6 @@ fn enum_with_different_constructors() {
             ])
         }),
     }
-
 }
 
 #[derive(Debug, Default, PartialEq, Serialize, Deserialize)]

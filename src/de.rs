@@ -588,9 +588,17 @@ impl<'de, 'b> de::SeqAccess<'de> for MapVisitor<'de, 'b> {
             })
             .unwrap_or(self.max);
 
-        let cur = if self.tables[self.cur_parent].values.as_ref().unwrap_or(&Vec::new()).is_empty() && self.cur_parent + 1 < self.max {
+        let cur = if self.tables[self.cur_parent]
+            .values
+            .as_ref()
+            .unwrap_or(&Vec::new())
+            .is_empty()
+            && self.cur_parent + 1 < self.max
+        {
             self.cur_parent + 1
-        } else { self.cur_parent };
+        } else {
+            self.cur_parent
+        };
 
         let ret = seed.deserialize(MapVisitor {
             values: self.tables[self.cur_parent]
@@ -701,22 +709,22 @@ impl<'de, 'b> de::Deserializer<'de> for MapVisitor<'de, 'b> {
             return Err(self.de.error(self.cur, ErrorKind::EmptyTableKey));
         }
 
-
         let v = if table.header.len() >= self.depth {
-
             let header = &table.header[self.depth..];
 
             header.into_iter().rfold(values, |acc, e| {
-                let pair: TablePair = (e.clone(), Value {
-                    start: e.0.start,
-                    end: e.0.end,
-                    e: E::DottedTable(acc),
-                });
+                let pair: TablePair = (
+                    e.clone(),
+                    Value {
+                        start: e.0.start,
+                        end: e.0.end,
+                        e: E::DottedTable(acc),
+                    },
+                );
 
                 vec![pair]
             })
         } else {
-
             let times = self.depth - table.header.len() - 1;
             let cur = self.cur;
             let len = values.len();
@@ -734,15 +742,24 @@ impl<'de, 'b> de::Deserializer<'de> for MapVisitor<'de, 'b> {
                 let value = v.remove(0);
 
                 match value.1 {
-                    Value { e: E::InlineTable(pairs), .. } => Ok(pairs),
-                    Value { e: E::DottedTable(pairs), .. } => Ok(pairs),
-                    _ => Err(Error::custom(Some(cur), "enum value must be a table".into()))
+                    Value {
+                        e: E::InlineTable(pairs),
+                        ..
+                    } => Ok(pairs),
+                    Value {
+                        e: E::DottedTable(pairs),
+                        ..
+                    } => Ok(pairs),
+                    _ => Err(Error::custom(
+                        Some(cur),
+                        "enum value must be a table".into(),
+                    )),
                 }
             })?
         };
         visitor.visit_enum(InlineTableDeserializer {
             values: v.into_iter(),
-            next_value: None
+            next_value: None,
         })
     }
 
@@ -1619,9 +1636,19 @@ impl<'a> Deserializer<'a> {
                     .map(|&(_, ref val)| val.end)
                     .unwrap_or_else(|| first_header.1.len());
 
-                let table_value = headers.into_iter().rfold(table.values.unwrap_or_else(Vec::new), |acc, header, | {
-                    vec![(header, Value { e: E::InlineTable(acc), start, end })]
-                });
+                let table_value = headers.into_iter().rfold(
+                    table.values.unwrap_or_else(Vec::new),
+                    |acc, header| {
+                        vec![(
+                            header,
+                            Value {
+                                e: E::InlineTable(acc),
+                                start,
+                                end,
+                            },
+                        )]
+                    },
+                );
                 Ok((
                     Value {
                         e: E::DottedTable(table_value),
