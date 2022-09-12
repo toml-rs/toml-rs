@@ -2322,14 +2322,14 @@ impl<'a> Header<'a> {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Value<'a> {
     e: E<'a>,
     start: usize,
     end: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 enum E<'a> {
     Integer(i64),
     Float(f64),
