@@ -588,7 +588,7 @@ impl<'de, 'b> de::SeqAccess<'de> for MapVisitor<'de, 'b> {
             })
             .unwrap_or(self.max);
 
-        let cur = if self.tables[self.cur_parent].values.clone().unwrap_or(Vec::new()).is_empty() && self.cur_parent + 1 < self.max {
+        let cur = if self.tables[self.cur_parent].values.as_ref().unwrap_or(&Vec::new()).is_empty() && self.cur_parent + 1 < self.max {
             self.cur_parent + 1
         } else { self.cur_parent };
 
@@ -706,7 +706,7 @@ impl<'de, 'b> de::Deserializer<'de> for MapVisitor<'de, 'b> {
 
             let header = &table.header[self.depth..];
 
-            header.iter().rfold(values.clone(), |acc, e| {
+            header.into_iter().rfold(values, |acc, e| {
                 let pair: TablePair = (e.clone(), Value {
                     start: e.0.start,
                     end: e.0.end,
@@ -719,16 +719,19 @@ impl<'de, 'b> de::Deserializer<'de> for MapVisitor<'de, 'b> {
 
             let times = self.depth - table.header.len() - 1;
             let cur = self.cur;
+            let len = values.len();
 
-            [0..times].iter().fold(Ok(values.clone()), |acc, _| {
-                if values.len() != 1 {
+            [0..times].iter().fold(Ok(values), |acc, _| {
+                let mut v = acc?;
+
+                if v.len() != 1 {
                     return Err(Error::custom(
                         Some(cur),
                         "enum table must contain exactly one value".into(),
                     ));
                 };
 
-                let value = values.remove(0);
+                let value = v.remove(0);
 
                 match value.1 {
                     Value { e: E::InlineTable(pairs), .. } => Ok(pairs),
@@ -1168,6 +1171,7 @@ impl<'de> de::MapAccess<'de> for InlineTableDeserializer<'de> {
         V: de::DeserializeSeed<'de>,
     {
         let value = self.next_value.take().expect("Unable to read table values");
+
         seed.deserialize(ValueDeserializer::new(value))
     }
 }
@@ -1604,7 +1608,7 @@ impl<'a> Deserializer<'a> {
                     .next()
                     .expect("Expected exactly one table");
 
-                let mut headers = table.header.clone();
+                let mut headers = table.header;
 
                 let first_header = headers.remove(0);
                 let start = table.at;
@@ -2322,14 +2326,14 @@ impl<'a> Header<'a> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 struct Value<'a> {
     e: E<'a>,
     start: usize,
     end: usize,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 enum E<'a> {
     Integer(i64),
     Float(f64),
