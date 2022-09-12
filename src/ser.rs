@@ -920,7 +920,6 @@ impl<'a, 'b> ser::Serializer for &'b mut Serializer<'a> {
     where
         T: ser::Serialize,
     {
-        println!("serialize_newtype_variant {:?}", variant);
         let mut s = self.serialize_map(Some(1))?;
         ser::SerializeStruct::serialize_field(&mut s, variant, value)?;
         ser::SerializeStruct::end(s)?;
@@ -1191,7 +1190,6 @@ impl<'a, 'b> ser::SerializeMap for SerializeTable<'a, 'b> {
                 ref table_emitted,
                 ..
             } => {
-                println!("serialize_value of SerializeMap prefix = {:?}, key={:?}", prefix, key);
                 let Serializer {dst, state, settings} = ser;
                 let inner_table_emitted = Cell::new(false);
                 let inner_first = Cell::new(false);
