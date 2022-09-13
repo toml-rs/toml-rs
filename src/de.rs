@@ -699,7 +699,8 @@ impl<'de, 'b> de::Deserializer<'de> for MapVisitor<'de, 'b> {
     where
         V: de::Visitor<'de>,
     {
-        let table = &mut self.tables[self.cur];
+        //WAT?!
+        let table = if (self.cur > self.cur_parent) { &mut self.tables[self.cur] } else { &mut self.tables[self.cur_parent]};
 
         let mut values = match table.values.take() {
             None => self.values.collect(),
@@ -979,6 +980,28 @@ impl<'de> de::Deserializer<'de> for ValueDeserializer<'de> {
     {
         match self.value.e {
             E::String(val) => visitor.visit_enum(val.into_deserializer()),
+            E::DottedTable(values) => {
+                println!("ValueDeserializer deserialize_enum Dotted table");
+                if values.len() != 1 {
+                    Err(Error::from_kind(
+                        Some(self.value.start),
+                        ErrorKind::Wanted {
+                            expected: "exactly 1 element",
+                            found: if values.is_empty() {
+                                "zero elements"
+                            } else {
+                                "more than 1 element"
+                            },
+                        },
+                    ))
+                } else {
+                    visitor.visit_enum(InlineTableDeserializer {
+                        values: values.into_iter(),
+                        next_value: None,
+                    })
+                }
+
+            }
             E::InlineTable(values) => {
                 if values.len() != 1 {
                     Err(Error::from_kind(
